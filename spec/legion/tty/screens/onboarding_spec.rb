@@ -13,7 +13,9 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
                     ask_api_key: 'sk-test',
                     display_provider_results: nil,
                     select_default_provider: 'claude',
-                    confirm: true)
+                    confirm: true,
+                    ask_with_default: 'jdoe',
+                    ask_secret: 'password123')
   end
 
   subject(:screen) { described_class.new(app, wizard: mock_wizard, output: output, skip_rain: true) }
@@ -126,6 +128,106 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       result = screen.collect_background_results
       expect(result).to be_an(Array)
       expect(result.size).to eq(2)
+    end
+  end
+
+  describe '#vault_clusters_configured?' do
+    let(:settings_stub) do
+      mod = Module.new
+      mod.define_singleton_method(:dig) { |*_args| nil }
+      mod
+    end
+
+    it 'returns false when Legion::Settings is not defined' do
+      hide_const('Legion::Settings') if defined?(Legion::Settings)
+      expect(screen.send(:vault_clusters_configured?)).to be(false)
+    end
+
+    it 'returns false when clusters is nil' do
+      stub_const('Legion::Settings', settings_stub)
+      allow(Legion::Settings).to receive(:dig).with(:crypt, :vault, :clusters).and_return(nil)
+      expect(screen.send(:vault_clusters_configured?)).to be(false)
+    end
+
+    it 'returns false when clusters is an empty hash' do
+      stub_const('Legion::Settings', settings_stub)
+      allow(Legion::Settings).to receive(:dig).with(:crypt, :vault, :clusters).and_return({})
+      expect(screen.send(:vault_clusters_configured?)).to be(false)
+    end
+
+    it 'returns true when clusters has entries' do
+      stub_const('Legion::Settings', settings_stub)
+      allow(Legion::Settings).to receive(:dig).with(:crypt, :vault, :clusters)
+                                              .and_return({ primary: { address: 'https://vault.example.com' } })
+      expect(screen.send(:vault_clusters_configured?)).to be(true)
+    end
+
+    it 'returns false when an error is raised' do
+      stub_const('Legion::Settings', settings_stub)
+      allow(Legion::Settings).to receive(:dig).and_raise(StandardError, 'settings error')
+      expect(screen.send(:vault_clusters_configured?)).to be(false)
+    end
+  end
+
+  describe '#default_vault_username' do
+    it 'returns the kerberos samaccountname when available' do
+      screen.instance_variable_set(:@kerberos_identity, { samaccountname: 'jdoe', first_name: 'Jane' })
+      expect(screen.send(:default_vault_username)).to eq('jdoe')
+    end
+
+    it 'falls back to ENV USER when no kerberos identity' do
+      screen.instance_variable_set(:@kerberos_identity, nil)
+      allow(ENV).to receive(:fetch).with('USER', 'unknown').and_return('testuser')
+      expect(screen.send(:default_vault_username)).to eq('testuser')
+    end
+
+    it 'falls back to ENV USER when kerberos identity has no samaccountname' do
+      screen.instance_variable_set(:@kerberos_identity, { first_name: 'Jane' })
+      allow(ENV).to receive(:fetch).with('USER', 'unknown').and_return('testuser')
+      expect(screen.send(:default_vault_username)).to eq('testuser')
+    end
+  end
+
+  describe '#run_vault_auth' do
+    it 'skips entirely when no vault clusters are configured' do
+      allow(screen).to receive(:vault_clusters_configured?).and_return(false)
+      expect(mock_wizard).not_to receive(:confirm)
+      screen.send(:run_vault_auth)
+    end
+
+    it 'prompts the user when clusters are configured and user confirms' do
+      allow(screen).to receive(:vault_clusters_configured?).and_return(true)
+      allow(screen).to receive(:vault_cluster_count).and_return(1)
+      allow(screen).to receive(:default_vault_username).and_return('jdoe')
+      allow(screen).to receive(:typed_output)
+      allow(mock_wizard).to receive(:confirm).with('Connect now?').and_return(true)
+      allow(mock_wizard).to receive(:ask_with_default).with('Username:', 'jdoe').and_return('jdoe')
+      allow(mock_wizard).to receive(:ask_secret).with('Password:').and_return('s3cr3t')
+      allow(screen).to receive(:perform_vault_auth).and_return({})
+      allow(screen).to receive(:display_vault_results)
+      screen.send(:run_vault_auth)
+      expect(mock_wizard).to have_received(:confirm).with('Connect now?')
+    end
+
+    it 'skips auth when user declines to connect' do
+      allow(screen).to receive(:vault_clusters_configured?).and_return(true)
+      allow(screen).to receive(:vault_cluster_count).and_return(2)
+      allow(screen).to receive(:typed_output)
+      allow(mock_wizard).to receive(:confirm).with('Connect now?').and_return(false)
+      expect(mock_wizard).not_to receive(:ask_secret)
+      screen.send(:run_vault_auth)
+    end
+
+    it 'skips auth when password is empty' do
+      allow(screen).to receive(:vault_clusters_configured?).and_return(true)
+      allow(screen).to receive(:vault_cluster_count).and_return(1)
+      allow(screen).to receive(:default_vault_username).and_return('jdoe')
+      allow(screen).to receive(:typed_output)
+      allow(mock_wizard).to receive(:confirm).with('Connect now?').and_return(true)
+      allow(mock_wizard).to receive(:ask_with_default).and_return('jdoe')
+      allow(mock_wizard).to receive(:ask_secret).and_return('')
+      expect(screen).not_to receive(:perform_vault_auth)
+      screen.send(:run_vault_auth)
     end
   end
 end

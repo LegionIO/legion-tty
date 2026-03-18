@@ -28,6 +28,7 @@ module Legion
           @llm_queue = Queue.new
           @kerberos_identity = nil
           @github_quick = nil
+          @vault_results = nil
           @log = BootLogger.new
         end
 
@@ -38,6 +39,7 @@ module Legion
           run_intro
           config = run_wizard
           @log.log('wizard', "name=#{config[:name]} provider=#{config[:provider]}")
+          run_vault_auth
           scan_data, github_data = collect_background_results
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
           @log.log('onboarding', 'activate complete')
@@ -180,6 +182,76 @@ module Legion
         end
 
         private
+
+        def run_vault_auth
+          return unless vault_clusters_configured?
+
+          count = vault_cluster_count
+          @output.puts
+          typed_output("I found #{count} Vault cluster#{'s' if count != 1}.")
+          @output.puts
+          return unless @wizard.confirm('Connect now?')
+
+          run_vault_auth_credentials
+        end
+
+        def run_vault_auth_credentials
+          username = @wizard.ask_with_default('Username:', default_vault_username)
+          password = @wizard.ask_secret('Password:')
+          return if password.nil? || password.empty?
+
+          @output.puts
+          typed_output('Authenticating...')
+          @output.puts
+
+          @vault_results = perform_vault_auth(username, password)
+          display_vault_results(@vault_results)
+        end
+
+        def vault_clusters_configured?
+          return false unless defined?(Legion::Settings)
+
+          clusters = Legion::Settings.dig(:crypt, :vault, :clusters)
+          clusters.is_a?(Hash) && clusters.any?
+        rescue StandardError
+          false
+        end
+
+        def vault_cluster_count
+          Legion::Settings.dig(:crypt, :vault, :clusters)&.size || 0
+        rescue StandardError
+          0
+        end
+
+        def default_vault_username
+          if @kerberos_identity&.dig(:samaccountname)
+            @kerberos_identity[:samaccountname]
+          else
+            ENV.fetch('USER', 'unknown')
+          end
+        end
+
+        def perform_vault_auth(username, password)
+          return {} unless defined?(Legion::Crypt) && Legion::Crypt.respond_to?(:ldap_login_all)
+
+          Legion::Crypt.ldap_login_all(username: username, password: password)
+        rescue StandardError => e
+          @log.log('vault', "LDAP auth failed: #{e.message}")
+          {}
+        end
+
+        def display_vault_results(results)
+          results.each do |name, result|
+            if result[:error]
+              @output.puts "  #{Theme.c(:error, 'X')} #{name}: #{result[:error]}"
+            else
+              policies = result[:policies]&.size || 0
+              @output.puts "  #{Theme.c(:success, 'ok')} #{name}: connected (#{policies} policies)"
+            end
+          end
+          @output.puts
+          sleep 1
+        end
 
         def build_onboarding_result(config, scan_data, github_data)
           {
