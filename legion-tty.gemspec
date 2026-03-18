@@ -40,6 +40,8 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'tty-spinner', '~> 0.9'
   spec.add_dependency 'tty-table', '~> 0.12'
 
+  spec.add_dependency 'bootsnap', '>= 1.18'
+
   # spec.add_dependency 'legion-rbac', '~> 0.2'
   # spec.add_dependency 'lex-kerberos', '~> 0.1'
 end
