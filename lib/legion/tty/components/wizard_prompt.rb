@@ -43,6 +43,26 @@ module Legion
         def select_from(question, choices)
           @prompt.select(question, choices)
         end
+
+        def display_provider_results(providers)
+          providers.each do |p|
+            icon = p[:status] == :ok ? "\u2705" : "\u274C"
+            latency = "#{p[:latency_ms]}ms"
+            label = "#{icon} #{p[:name]} (#{p[:model]}) \u2014 #{latency}"
+            label += " [#{p[:error]}]" if p[:error]
+            @prompt.say(label)
+          end
+        end
+
+        def select_default_provider(working_providers)
+          return nil if working_providers.empty?
+          return working_providers.first[:name] if working_providers.size == 1
+
+          choices = working_providers.map do |p|
+            { name: "#{p[:name]} (#{p[:model]}, #{p[:latency_ms]}ms)", value: p[:name] }
+          end
+          @prompt.select('Multiple providers available. Choose your default:', choices)
+        end
       end
     end
   end

@@ -25,6 +25,7 @@ module Legion
           @github_queue = Queue.new
           @github_quick_queue = Queue.new
           @kerberos_queue = Queue.new
+          @llm_queue = Queue.new
           @kerberos_identity = nil
           @github_quick = nil
           @log = BootLogger.new
@@ -92,13 +93,28 @@ module Legion
           typed_output("  Nice to meet you, #{name}.")
           @output.puts
           sleep 1
-          typed_output("Let's get you connected.")
+          typed_output('Detecting AI providers...')
           @output.puts
           @output.puts
-          provider = @wizard.select_provider
-          sleep 0.5
-          api_key = @wizard.ask_api_key(provider: provider)
-          { name: name, provider: provider, api_key: api_key }
+
+          llm_data = drain_with_timeout(@llm_queue, timeout: 15)
+          providers = llm_data&.dig(:data, :providers) || []
+
+          @wizard.display_provider_results(providers)
+          @output.puts
+
+          working = providers.select { |p| p[:status] == :ok }
+          if working.any?
+            default = @wizard.select_default_provider(working)
+            sleep 0.5
+            typed_output("Connected. Let's chat.")
+          else
+            default = nil
+            typed_output('No AI providers detected. Configure one in ~/.legionio/settings/llm.json')
+          end
+
+          @output.puts
+          { name: name, provider: default, providers: providers }
         end
 
         def start_background_threads
@@ -109,6 +125,9 @@ module Legion
           @scanner.run_async(@scan_queue)
           @kerberos_probe.run_async(@kerberos_queue)
           @github_probe.run_quick_async(@github_quick_queue)
+          require_relative '../background/llm_probe'
+          @llm_probe = Background::LlmProbe.new(logger: @log)
+          @llm_probe.run_async(@llm_queue)
         end
 
         def collect_background_results
