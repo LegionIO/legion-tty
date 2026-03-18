@@ -34,6 +34,14 @@ module Legion
           @prompt.mask("Enter API key for #{provider}:")
         end
 
+        def ask_secret(question)
+          @prompt.mask(question)
+        end
+
+        def ask_with_default(question, default)
+          @prompt.ask(question, default: default)
+        end
+
         # rubocop:disable Naming/PredicateMethod
         def confirm(question)
           @prompt.yes?(question)

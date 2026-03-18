@@ -82,4 +82,28 @@ RSpec.describe Legion::TTY::Components::WizardPrompt do
       expect(wizard.select_from('Pick one', choices)).to eq('beta')
     end
   end
+
+  describe '#ask_secret' do
+    it 'calls mask on the prompt and returns the result' do
+      allow(mock_prompt).to receive(:mask).with('Password:').and_return('s3cr3t')
+      expect(wizard.ask_secret('Password:')).to eq('s3cr3t')
+    end
+
+    it 'delegates to prompt mask with the given question' do
+      expect(mock_prompt).to receive(:mask).with('Enter token:').and_return('abc')
+      wizard.ask_secret('Enter token:')
+    end
+  end
+
+  describe '#ask_with_default' do
+    it 'calls ask with the question and default option' do
+      allow(mock_prompt).to receive(:ask).with('Username:', default: 'jdoe').and_return('jdoe')
+      expect(wizard.ask_with_default('Username:', 'jdoe')).to eq('jdoe')
+    end
+
+    it 'returns the user-entered value when overridden' do
+      allow(mock_prompt).to receive(:ask).with('Username:', default: 'jdoe').and_return('jsmith')
+      expect(wizard.ask_with_default('Username:', 'jdoe')).to eq('jsmith')
+    end
+  end
 end
