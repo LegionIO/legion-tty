@@ -43,7 +43,9 @@ RSpec.describe Legion::TTY::Components::WizardPrompt do
         'OpenAI' => 'openai',
         'Gemini (Google)' => 'gemini',
         'Azure OpenAI' => 'azure',
-        'Local (Ollama/LM Studio)' => 'local'
+        'AWS Bedrock' => 'bedrock',
+        'Local (Ollama/LM Studio)' => 'local',
+        'Skip for now' => nil
       )
       allow(mock_prompt).to receive(:select).with(anything, expected_choices).and_return('openai')
       wizard.select_provider

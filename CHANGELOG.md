@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.7] - 2026-03-18
+
+### Added
+- AWS Bedrock provider option in wizard prompt
+- Skip for now option in provider selection (both static and dynamic paths)
+
 ## [0.2.6] - 2026-03-18
 
 ### Fixed

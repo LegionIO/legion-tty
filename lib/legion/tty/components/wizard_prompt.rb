@@ -11,7 +11,9 @@ module Legion
           'OpenAI' => 'openai',
           'Gemini (Google)' => 'gemini',
           'Azure OpenAI' => 'azure',
-          'Local (Ollama/LM Studio)' => 'local'
+          'AWS Bedrock' => 'bedrock',
+          'Local (Ollama/LM Studio)' => 'local',
+          'Skip for now' => nil
         }.freeze
 
         def initialize(prompt: nil)
@@ -69,6 +71,7 @@ module Legion
           choices = working_providers.map do |p|
             { name: "#{p[:name]} (#{p[:model]}, #{p[:latency_ms]}ms)", value: p[:name] }
           end
+          choices << { name: 'Skip for now', value: nil }
           @prompt.select('Multiple providers available. Choose your default:', choices)
         end
       end
