@@ -39,7 +39,7 @@ module Legion
           require 'tty-font'
           width = terminal_width
           height = terminal_height
-          rain = Components::DigitalRain.new(width: width, height: height, density: 0.3)
+          rain = Components::DigitalRain.new(width: width, height: height)
           rain.run(duration_seconds: 7, fps: 18, output: @output)
           @output.print ::TTY::Cursor.clear_screen
           font = ::TTY::Font.new(:standard)

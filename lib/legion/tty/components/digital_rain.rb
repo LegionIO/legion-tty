@@ -25,7 +25,7 @@ module Legion
 
         attr_reader :columns, :width, :height
 
-        def initialize(width:, height:, extensions: nil, density: 0.4)
+        def initialize(width:, height:, extensions: nil, density: 0.6)
           @width = width
           @height = height
           @density = density
@@ -115,12 +115,12 @@ module Legion
         end
 
         def new_column(pos)
-          { x: pos, y: rand(-@height..0).to_f, speed: rand(0.5..1.5), length: rand(4..14), chars: build_chars }
+          { x: pos, y: rand(-@height..0).to_f, speed: rand(0.3..1.0), length: rand(4..14), chars: build_chars }
         end
 
         def reset_column(col)
           col[:y] = rand(-@height..-1).to_f
-          col[:speed] = rand(0.5..1.5)
+          col[:speed] = rand(0.3..1.0)
           col[:length] = rand(4..14)
           col[:chars] = build_chars
         end
