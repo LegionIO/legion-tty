@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1] - 2026-03-18
+
+### Changed
+- Onboarding replaces credential prompts with LLM provider auto-detection and ping-testing
+- Shows green checkmark or red X with latency for each configured provider
+- Auto-selects default provider or lets user choose if multiple are available
+
+### Added
+- `Background::LlmProbe` for async provider ping-testing during onboarding
+- `WizardPrompt#display_provider_results` and `#select_default_provider` methods
+- Bootsnap and YJIT startup optimizations in `exe/legion-tty`
+
 ## [0.2.0] - 2026-03-18
 
 ### Added

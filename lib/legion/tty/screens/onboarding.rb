@@ -93,28 +93,34 @@ module Legion
           typed_output("  Nice to meet you, #{name}.")
           @output.puts
           sleep 1
+          providers = detect_providers
+          default = select_provider_default(providers)
+          @output.puts
+          { name: name, provider: default, providers: providers }
+        end
+
+        def detect_providers
           typed_output('Detecting AI providers...')
           @output.puts
           @output.puts
-
           llm_data = drain_with_timeout(@llm_queue, timeout: 15)
           providers = llm_data&.dig(:data, :providers) || []
-
           @wizard.display_provider_results(providers)
           @output.puts
+          providers
+        end
 
+        def select_provider_default(providers)
           working = providers.select { |p| p[:status] == :ok }
           if working.any?
             default = @wizard.select_default_provider(working)
             sleep 0.5
             typed_output("Connected. Let's chat.")
+            default
           else
-            default = nil
             typed_output('No AI providers detected. Configure one in ~/.legionio/settings/llm.json')
+            nil
           end
-
-          @output.puts
-          { name: name, provider: default, providers: providers }
         end
 
         def start_background_threads

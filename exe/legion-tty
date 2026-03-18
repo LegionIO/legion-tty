@@ -5,9 +5,9 @@ RubyVM::YJIT.enable if defined?(RubyVM::YJIT)
 
 require 'bootsnap'
 Bootsnap.setup(
-  cache_dir:          File.expand_path('~/.legionio/cache/bootsnap'),
-  development_mode:   false,
-  load_path_cache:    true,
+  cache_dir: File.expand_path('~/.legionio/cache/bootsnap'),
+  development_mode: false,
+  load_path_cache: true,
   compile_cache_iseq: true,
   compile_cache_yaml: true
 )

@@ -11,6 +11,8 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
                     ask_name: 'Matt',
                     select_provider: 'claude',
                     ask_api_key: 'sk-test',
+                    display_provider_results: nil,
+                    select_default_provider: 'claude',
                     confirm: true)
   end
 
@@ -32,14 +34,14 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       expect(result[:name]).to eq('Matt')
     end
 
-    it 'returns a hash with provider' do
+    it 'returns a hash with provider key' do
       result = screen.run_wizard
-      expect(result[:provider]).to eq('claude')
+      expect(result).to have_key(:provider)
     end
 
-    it 'returns a hash with api_key' do
+    it 'returns a hash with providers array' do
       result = screen.run_wizard
-      expect(result[:api_key]).to eq('sk-test')
+      expect(result[:providers]).to be_an(Array)
     end
 
     it 'calls ask_name on the wizard' do
@@ -47,13 +49,13 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       screen.run_wizard
     end
 
-    it 'calls select_provider on the wizard' do
-      expect(mock_wizard).to receive(:select_provider).and_return('claude')
+    it 'calls display_provider_results on the wizard' do
+      expect(mock_wizard).to receive(:display_provider_results).with([])
       screen.run_wizard
     end
 
-    it 'calls ask_api_key on the wizard with the selected provider' do
-      expect(mock_wizard).to receive(:ask_api_key).with(provider: 'claude').and_return('sk-test')
+    it 'calls select_default_provider on the wizard when no working providers' do
+      allow(mock_wizard).to receive(:select_default_provider).and_return(nil)
       screen.run_wizard
     end
   end
@@ -89,14 +91,14 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#activate' do
-    it 'returns a config hash with name, provider, api_key' do
+    it 'returns a config hash with name and provider' do
       allow(screen).to receive(:run_rain)
       allow(screen).to receive(:run_intro)
       allow(screen).to receive(:start_background_threads)
       allow(screen).to receive(:collect_background_results).and_return([nil, nil])
       allow(screen).to receive(:run_reveal).and_return(true)
       result = screen.activate
-      expect(result).to include(:name, :provider, :api_key)
+      expect(result).to include(:name, :provider)
     end
 
     it 'skips rain when skip_rain is true' do

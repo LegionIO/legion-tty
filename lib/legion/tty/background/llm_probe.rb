@@ -23,25 +23,26 @@ module Legion
         def probe_providers
           require 'legion/llm'
           require 'legion/settings'
+          start_llm
+          results = collect_provider_results
+          { providers: results }
+        end
 
-          begin
-            Legion::LLM.start unless Legion::LLM.started?
-          rescue StandardError => e
-            @log&.log('llm_probe', "LLM start failed: #{e.message}")
-          end
+        def start_llm
+          Legion::LLM.start unless Legion::LLM.started?
+        rescue StandardError => e
+          @log&.log('llm_probe', "LLM start failed: #{e.message}")
+        end
 
-          results = []
+        def collect_provider_results
           providers = Legion::LLM.settings[:providers] || {}
-
-          providers.each do |name, config|
+          providers.filter_map do |name, config|
             next unless config[:enabled]
 
             result = ping_provider(name, config)
-            results << result
             @log&.log('llm_probe', "#{name}: #{result[:status]} (#{result[:latency_ms]}ms)")
+            result
           end
-
-          { providers: results }
         end
 
         def ping_provider(name, config)
