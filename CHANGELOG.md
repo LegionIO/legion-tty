@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.3] - 2026-03-18
+
+### Added
+- Vault LDAP auth step in onboarding: prompts to connect to configured vault clusters
+- Default username from Kerberos samaccountname or `$USER`, hidden password input
+- `WizardPrompt#ask_secret` (masked) and `#ask_with_default` methods
+- Vault cluster connection status in reveal summary box
+- 26 new specs for vault auth and wizard prompt methods
+
 ## [0.2.2] - 2026-03-18
 
 ### Added
