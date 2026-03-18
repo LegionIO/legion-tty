@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+require 'tty-markdown'
+
+module Legion
+  module TTY
+    module Components
+      module MarkdownView
+        def self.render(text, width: 80)
+          ::TTY::Markdown.parse(text, width: width)
+        rescue StandardError => e
+          "#{text}\n(markdown render error: #{e.message})"
+        end
+      end
+    end
+  end
+end
