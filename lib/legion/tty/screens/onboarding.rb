@@ -174,6 +174,7 @@ module Legion
           lines = ["Hello, #{name}!", '', "Here's what I found:"]
           lines.concat(identity_summary_lines)
           lines.concat(scan_summary_lines(scan_data))
+          lines.concat(dotfiles_summary_lines(scan_data))
           lines.concat(github_summary_lines(github_data))
           lines.join("\n")
         end
@@ -305,6 +306,41 @@ module Legion
           return [] if running.empty?
 
           ['', "Running services: #{running.join(', ')}"]
+        end
+
+        def dotfiles_summary_lines(scan_data)
+          return [] unless scan_data.is_a?(Hash)
+
+          dotfiles = scan_data[:dotfiles]
+          return [] unless dotfiles.is_a?(Hash)
+
+          lines = []
+          lines.concat(git_summary_lines(dotfiles[:git]))
+          lines.concat(jfrog_summary_lines(dotfiles[:jfrog]))
+          lines.concat(terraform_summary_lines(dotfiles[:terraform]))
+          lines
+        end
+
+        def git_summary_lines(git)
+          return [] unless git.is_a?(Hash)
+
+          lines = ['', "Git: #{git[:name]} <#{git[:email]}>"]
+          lines << "  Signing key: #{git[:signing_key]}" if git[:signing_key]
+          lines
+        end
+
+        def jfrog_summary_lines(jfrog)
+          return [] unless jfrog.is_a?(Array) && !jfrog.empty?
+
+          lines = ['', 'JFrog Artifactory:']
+          jfrog.each { |s| lines << "  #{s[:server_id]}: #{s[:url]} (#{s[:user]})" }
+          lines
+        end
+
+        def terraform_summary_lines(dotfiles_tf)
+          return [] unless dotfiles_tf.is_a?(Hash) && dotfiles_tf[:hosts]&.any?
+
+          ['', "Terraform: #{dotfiles_tf[:hosts].join(', ')}"]
         end
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength

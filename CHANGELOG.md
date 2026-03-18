@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2] - 2026-03-18
+
+### Added
+- Dotfile scanning: gitconfig (name, email, signing key), JFrog CLI servers, Terraform credential hosts
+- `Scanner#scan_dotfiles`, `#scan_gitconfig`, `#scan_jfrog`, `#scan_terraform` methods
+- Onboarding reveal box now displays discovered dotfile configuration
+- Specs for all dotfile scanning and summary display methods
+
 ## [0.2.1] - 2026-03-18
 
 ### Changed

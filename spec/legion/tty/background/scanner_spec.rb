@@ -103,7 +103,7 @@ RSpec.describe Legion::TTY::Background::Scanner do
     it 'returns a hash with combined results' do
       result = scanner.scan_all
       expect(result).to be_a(Hash)
-      expect(result).to include(:services, :repos, :tools, :configs)
+      expect(result).to include(:services, :repos, :tools, :configs, :dotfiles)
     end
 
     it 'services key contains service scan results' do
@@ -114,6 +114,77 @@ RSpec.describe Legion::TTY::Background::Scanner do
     it 'repos key contains array' do
       result = scanner.scan_all
       expect(result[:repos]).to be_an(Array)
+    end
+  end
+
+  describe '#scan_dotfiles' do
+    it 'returns a hash with git, jfrog, and terraform keys' do
+      result = scanner.scan_dotfiles
+      expect(result).to be_a(Hash)
+      expect(result.keys).to contain_exactly(:git, :jfrog, :terraform)
+    end
+  end
+
+  describe '#scan_gitconfig (via scan_dotfiles)' do
+    it 'returns nil when git config is empty' do
+      allow(scanner).to receive(:`).and_return('')
+      result = scanner.send(:scan_gitconfig)
+      expect(result).to be_nil
+    end
+
+    it 'returns name and email when git config exists' do
+      allow(scanner).to receive(:`).with(/user\.name/).and_return("Jane Doe\n")
+      allow(scanner).to receive(:`).with(/user\.email/).and_return("jane@example.com\n")
+      allow(scanner).to receive(:`).with(/signingkey/).and_return("\n")
+      result = scanner.send(:scan_gitconfig)
+      expect(result).to eq({ name: 'Jane Doe', email: 'jane@example.com' })
+    end
+
+    it 'includes signing_key when present' do
+      allow(scanner).to receive(:`).with(/user\.name/).and_return("Jane Doe\n")
+      allow(scanner).to receive(:`).with(/user\.email/).and_return("jane@example.com\n")
+      allow(scanner).to receive(:`).with(/signingkey/).and_return("ABC123\n")
+      result = scanner.send(:scan_gitconfig)
+      expect(result[:signing_key]).to eq('ABC123')
+    end
+  end
+
+  describe '#scan_jfrog (via scan_dotfiles)' do
+    it 'returns nil when config file does not exist' do
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(File.expand_path('~/.jfrog/jfrog-cli.conf.v6')).and_return(false)
+      result = scanner.send(:scan_jfrog)
+      expect(result).to be_nil
+    end
+
+    it 'parses jfrog config and returns server info' do
+      config = { servers: [{ serverId: 'myserver', url: 'https://example.jfrog.io', user: 'jane' }] }
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(File.expand_path('~/.jfrog/jfrog-cli.conf.v6')).and_return(true)
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with(File.expand_path('~/.jfrog/jfrog-cli.conf.v6')).and_return(config.to_json)
+      result = scanner.send(:scan_jfrog)
+      expect(result).to eq([{ server_id: 'myserver', url: 'https://example.jfrog.io', user: 'jane' }])
+    end
+  end
+
+  describe '#scan_terraform (via scan_dotfiles)' do
+    it 'returns nil when credentials file does not exist' do
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(File.expand_path('~/.terraform.d/credentials.tfrc.json')).and_return(false)
+      result = scanner.send(:scan_terraform)
+      expect(result).to be_nil
+    end
+
+    it 'parses terraform credentials and returns host list' do
+      creds = { credentials: { 'app.terraform.io' => { token: 'abc' }, 'tfe.example.com' => { token: 'xyz' } } }
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(File.expand_path('~/.terraform.d/credentials.tfrc.json')).and_return(true)
+      allow(File).to receive(:read).and_call_original
+      tf_creds_path = File.expand_path('~/.terraform.d/credentials.tfrc.json')
+      allow(File).to receive(:read).with(tf_creds_path).and_return(creds.to_json)
+      result = scanner.send(:scan_terraform)
+      expect(result[:hosts]).to contain_exactly('app.terraform.io', 'tfe.example.com')
     end
   end
 

@@ -60,7 +60,15 @@ module Legion
 
         def scan_all
           { services: scan_services, repos: scan_git_repos, tools: scan_shell_history,
-            configs: scan_config_files }
+            configs: scan_config_files, dotfiles: scan_dotfiles }
+        end
+
+        def scan_dotfiles
+          {
+            git: scan_gitconfig,
+            jfrog: scan_jfrog,
+            terraform: scan_terraform
+          }
         end
 
         def run_async(queue)
@@ -152,6 +160,49 @@ module Legion
 
         def extract_command(line)
           line.sub(/^: \d+:\d+;/, '').split.first
+        end
+
+        def scan_gitconfig
+          name = `git config --global user.name 2>/dev/null`.strip
+          email = `git config --global user.email 2>/dev/null`.strip
+          signing_key = `git config --global user.signingkey 2>/dev/null`.strip
+          return nil if name.empty? && email.empty?
+
+          result = { name: name.empty? ? nil : name, email: email.empty? ? nil : email }
+          result[:signing_key] = signing_key unless signing_key.empty?
+          result
+        rescue StandardError
+          nil
+        end
+
+        def scan_jfrog
+          config_path = File.expand_path('~/.jfrog/jfrog-cli.conf.v6')
+          return nil unless File.exist?(config_path)
+
+          require 'json'
+          data = ::JSON.parse(File.read(config_path), symbolize_names: true)
+          servers = data[:servers]
+          return nil unless servers.is_a?(Array) && !servers.empty?
+
+          servers.map do |s|
+            { server_id: s[:serverId], url: s[:url], user: s[:user] }
+          end
+        rescue StandardError
+          nil
+        end
+
+        def scan_terraform
+          creds_path = File.expand_path('~/.terraform.d/credentials.tfrc.json')
+          return nil unless File.exist?(creds_path)
+
+          require 'json'
+          data = ::JSON.parse(File.read(creds_path), symbolize_names: true)
+          hosts = data[:credentials]&.keys || []
+          return nil if hosts.empty?
+
+          { hosts: hosts.map(&:to_s) }
+        rescue StandardError
+          nil
         end
       end
       # rubocop:enable Metrics/ClassLength
