@@ -230,4 +230,60 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       screen.send(:run_vault_auth)
     end
   end
+
+  describe '#vault_summary_lines' do
+    it 'returns empty array when vault_results is nil' do
+      screen.instance_variable_set(:@vault_results, nil)
+      expect(screen.send(:vault_summary_lines)).to eq([])
+    end
+
+    it 'returns empty array when vault_results is an empty hash' do
+      screen.instance_variable_set(:@vault_results, {})
+      expect(screen.send(:vault_summary_lines)).to eq([])
+    end
+
+    it 'returns formatted lines when a cluster connected successfully' do
+      screen.instance_variable_set(:@vault_results, {
+                                     primary: { token: 'abc123', policies: %w[default admin] }
+                                   })
+      lines = screen.send(:vault_summary_lines)
+      expect(lines).to include('Vault:')
+      expect(lines.any? { |l| l.include?('primary') && l.include?('connected') }).to be(true)
+    end
+
+    it 'returns formatted lines when a cluster failed' do
+      screen.instance_variable_set(:@vault_results, {
+                                     primary: { error: 'connection refused' }
+                                   })
+      lines = screen.send(:vault_summary_lines)
+      expect(lines).to include('Vault:')
+      expect(lines.any? { |l| l.include?('primary') && l.include?('failed') }).to be(true)
+    end
+
+    it 'includes both connected and failed clusters' do
+      screen.instance_variable_set(:@vault_results, {
+                                     primary: { token: 'tok1', policies: [] },
+                                     secondary: { error: 'timeout' }
+                                   })
+      lines = screen.send(:vault_summary_lines)
+      expect(lines.any? { |l| l.include?('primary') }).to be(true)
+      expect(lines.any? { |l| l.include?('secondary') }).to be(true)
+    end
+  end
+
+  describe '#build_summary with vault results' do
+    it 'includes vault section when vault_results are present' do
+      screen.instance_variable_set(:@vault_results, {
+                                     primary: { token: 'tok1', policies: ['default'] }
+                                   })
+      summary = screen.build_summary(name: 'Jane', scan_data: nil, github_data: nil)
+      expect(summary).to include('Vault:')
+    end
+
+    it 'omits vault section when vault_results is nil' do
+      screen.instance_variable_set(:@vault_results, nil)
+      summary = screen.build_summary(name: 'Jane', scan_data: nil, github_data: nil)
+      expect(summary).not_to include('Vault:')
+    end
+  end
 end

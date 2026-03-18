@@ -178,6 +178,7 @@ module Legion
           lines.concat(scan_summary_lines(scan_data))
           lines.concat(dotfiles_summary_lines(scan_data))
           lines.concat(github_summary_lines(github_data))
+          lines.concat(vault_summary_lines)
           lines.join("\n")
         end
 
@@ -406,6 +407,20 @@ module Legion
 
           lines = ['', 'JFrog Artifactory:']
           jfrog.each { |s| lines << "  #{s[:server_id]}: #{s[:url]} (#{s[:user]})" }
+          lines
+        end
+
+        def vault_summary_lines
+          return [] unless @vault_results.is_a?(Hash) && @vault_results.any?
+
+          lines = ['', 'Vault:']
+          @vault_results.each do |name, result|
+            lines << if result[:error]
+                       "  #{name}: failed (#{result[:error]})"
+                     else
+                       "  #{name}: connected"
+                     end
+          end
           lines
         end
 
