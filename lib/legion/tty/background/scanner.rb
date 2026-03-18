@@ -32,8 +32,9 @@ module Legion
           '.sh' => 'Shell'
         }.freeze
 
-        def initialize(base_dirs: nil)
+        def initialize(base_dirs: nil, logger: nil)
           @base_dirs = base_dirs || [File.expand_path('~')]
+          @log = logger
         end
 
         def scan_services
@@ -63,7 +64,17 @@ module Legion
         end
 
         def run_async(queue)
-          Thread.new { queue.push({ type: :scan_complete, data: scan_all }) }
+          Thread.new do
+            @log&.log('scanner', "starting scan of #{@base_dirs.join(', ')}")
+            t0 = Time.now
+            data = scan_all
+            elapsed = ((Time.now - t0) * 1000).round
+            @log&.log('scanner', "scan complete in #{elapsed}ms")
+            queue.push({ type: :scan_complete, data: data })
+          rescue StandardError => e
+            @log&.log('scanner', "ERROR: #{e.class}: #{e.message}")
+            queue.push({ type: :scan_error, error: e.message })
+          end
         end
 
         private

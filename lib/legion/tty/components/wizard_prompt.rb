@@ -22,6 +22,10 @@ module Legion
           @prompt.ask('What should I call you?', required: true) { |q| q.modify(:strip) }
         end
 
+        def ask_name_with_default(default)
+          @prompt.ask('What should I call you?', default: default) { |q| q.modify(:strip) }
+        end
+
         def select_provider
           @prompt.select('Choose an AI provider:', PROVIDERS)
         end

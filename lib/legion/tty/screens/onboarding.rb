@@ -5,6 +5,8 @@ require_relative '../components/digital_rain'
 require_relative '../components/wizard_prompt'
 require_relative '../background/scanner'
 require_relative '../background/github_probe'
+require_relative '../background/kerberos_probe'
+require_relative '../boot_logger'
 require_relative '../theme'
 
 module Legion
@@ -21,16 +23,24 @@ module Legion
           @skip_rain = skip_rain
           @scan_queue = Queue.new
           @github_queue = Queue.new
+          @github_quick_queue = Queue.new
+          @kerberos_queue = Queue.new
+          @kerberos_identity = nil
+          @github_quick = nil
+          @log = BootLogger.new
         end
 
         def activate
+          @log.log('onboarding', 'activate started')
           start_background_threads
           run_rain unless @skip_rain
           run_intro
           config = run_wizard
+          @log.log('wizard', "name=#{config[:name]} provider=#{config[:provider]}")
           scan_data, github_data = collect_background_results
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
-          config
+          @log.log('onboarding', 'activate complete')
+          build_onboarding_result(config, scan_data, github_data)
         end
 
         # rubocop:disable Metrics/AbcSize
@@ -40,7 +50,7 @@ module Legion
           width = terminal_width
           height = terminal_height
           rain = Components::DigitalRain.new(width: width, height: height)
-          rain.run(duration_seconds: 15, fps: 18, output: @output)
+          rain.run(duration_seconds: 20, fps: 18, output: @output)
           @output.print ::TTY::Cursor.clear_screen
           font = ::TTY::Font.new(:standard)
           title = font.write('LEGION')
@@ -48,12 +58,16 @@ module Legion
             @output.puts line.center(width)
           end
           @output.puts Theme.c(:muted, 'async cognition engine').center(width + 20)
-          sleep 4
+          sleep 5
           @output.print ::TTY::Cursor.clear_screen
         end
         # rubocop:enable Metrics/AbcSize
 
         def run_intro
+          # Collect background results that ran during the rain
+          collect_kerberos_identity
+          collect_github_quick
+
           sleep 2
           typed_output('...')
           sleep 1.2
@@ -62,13 +76,18 @@ module Legion
           typed_output("Hello. I'm Legion.")
           @output.puts
           sleep 1.5
-          typed_output("Let's get you set up.")
-          @output.puts
-          @output.puts
+          if @kerberos_identity
+            run_intro_with_identity
+          else
+            typed_output("Let's get you set up.")
+            @output.puts
+            @output.puts
+          end
+          run_intro_with_github if @github_quick
         end
 
         def run_wizard
-          name = @wizard.ask_name
+          name = ask_for_name
           sleep 0.8
           typed_output("  Nice to meet you, #{name}.")
           @output.puts
@@ -83,20 +102,28 @@ module Legion
         end
 
         def start_background_threads
-          @scanner = Background::Scanner.new
-          @github_probe = Background::GitHubProbe.new
+          @log.log('threads', 'launching scanner, kerberos probe, github quick probe')
+          @scanner = Background::Scanner.new(logger: @log)
+          @github_probe = Background::GitHubProbe.new(logger: @log)
+          @kerberos_probe = Background::KerberosProbe.new(logger: @log)
           @scanner.run_async(@scan_queue)
+          @kerberos_probe.run_async(@kerberos_queue)
+          @github_probe.run_quick_async(@github_quick_queue)
         end
 
         def collect_background_results
+          @log.log('collect', 'waiting for scanner results (10s timeout)')
           scan_result = drain_with_timeout(@scan_queue, timeout: 10)
           scan_data = scan_result&.dig(:data) || { services: {}, repos: [], tools: {} }
+          log_scan_data(scan_data)
 
           # Now launch GitHub probe with discovered remotes
           remotes = scan_data[:repos]&.filter_map { |r| r[:remote] } || []
-          @github_probe.run_async(@github_queue, remotes: remotes)
+          @log.log('collect', "launching github probe with #{remotes.size} remotes")
+          @github_probe.run_async(@github_queue, remotes: remotes, quick_profile: @github_quick)
           github_result = drain_with_timeout(@github_queue, timeout: 8)
           github_data = github_result&.dig(:data)
+          log_github_data(github_data)
           [scan_data, github_data]
         end
 
@@ -120,12 +147,128 @@ module Legion
 
         def build_summary(name:, scan_data:, github_data:)
           lines = ["Hello, #{name}!", '', "Here's what I found:"]
+          lines.concat(identity_summary_lines)
           lines.concat(scan_summary_lines(scan_data))
           lines.concat(github_summary_lines(github_data))
           lines.join("\n")
         end
 
         private
+
+        def build_onboarding_result(config, scan_data, github_data)
+          {
+            **config,
+            identity: @kerberos_identity,
+            github: github_data,
+            scan: scan_data
+          }
+        end
+
+        def collect_github_quick
+          @log.log('github', 'collecting quick profile (3s timeout)')
+          result = drain_with_timeout(@github_quick_queue, timeout: 3)
+          @github_quick = result&.dig(:data)
+          if @github_quick
+            @log.log('github', "quick profile: #{@github_quick[:username]} " \
+                               "commits_week=#{@github_quick[:commits_this_week]} " \
+                               "commits_month=#{@github_quick[:commits_this_month]}")
+          else
+            @log.log('github', 'no quick profile available')
+          end
+        end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        def run_intro_with_github
+          gh = @github_quick
+          name = gh[:name] || gh[:username]
+
+          if gh[:commits_this_week]&.positive?
+            typed_output("#{gh[:commits_this_week]} commits this week, #{name}. You've been busy.")
+            @output.puts
+            sleep 1
+          elsif gh[:commits_this_month]&.positive?
+            typed_output("#{gh[:commits_this_month]} commits this month across GitHub.")
+            @output.puts
+            sleep 1
+          end
+
+          total = (gh[:public_repos] || 0) + (gh[:private_repos] || 0)
+          if total.positive?
+            typed_output("#{total} repositories. I can work with that.")
+            @output.puts
+            sleep 0.8
+          end
+
+          @output.puts
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+        def collect_kerberos_identity
+          @log.log('kerberos', 'collecting identity (2s timeout)')
+          result = drain_with_timeout(@kerberos_queue, timeout: 2)
+          @kerberos_identity = result&.dig(:data)
+          if @kerberos_identity
+            @log.log_hash('kerberos', 'identity found', @kerberos_identity)
+          else
+            @log.log('kerberos', 'no identity found (klist failed or no ticket)')
+          end
+        end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        def run_intro_with_identity
+          id = @kerberos_identity
+          typed_output("I see you, #{id[:first_name]}.")
+          @output.puts
+          sleep 1.2
+
+          if id[:title]
+            typed_output("#{id[:title]}, #{id[:company] || id[:department]}")
+            @output.puts
+            sleep 0.8
+          end
+
+          if id[:city] && id[:state]
+            typed_output("#{id[:city]}, #{id[:state]}")
+            @output.puts
+            sleep 0.8
+          end
+
+          if id[:tenure_years]
+            typed_output("#{format_tenure(id[:tenure_years])} and counting.")
+            @output.puts
+            sleep 1
+          end
+
+          @output.puts
+          typed_output("I've been looking forward to meeting you.")
+          @output.puts
+          @output.puts
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+        def ask_for_name
+          if @kerberos_identity
+            @wizard.ask_name_with_default(@kerberos_identity[:first_name])
+          else
+            @wizard.ask_name
+          end
+        end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        def identity_summary_lines
+          return [] unless @kerberos_identity
+
+          id = @kerberos_identity
+          lines = ['']
+          lines << "Identity: #{id[:display_name]} (#{id[:principal]})"
+          lines << "  Title: #{id[:title]}" if id[:title]
+          lines << "  Org: #{[id[:department], id[:company]].compact.join(' / ')}" if id[:department] || id[:company]
+          lines << "  Location: #{[id[:city], id[:state], id[:country]].compact.join(', ')}" if id[:city]
+          lines << "  Tenure: #{format_tenure(id[:tenure_years])}" if id[:tenure_years]
+          lines << "  Email: #{id[:email]}" if id[:email]
+          lines
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
         def scan_summary_lines(scan_data)
           return [] unless scan_data.is_a?(Hash)
@@ -139,6 +282,7 @@ module Legion
           ['', "Running services: #{running.join(', ')}"]
         end
 
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength
         def github_summary_lines(github_data)
           return [] unless github_data.is_a?(Hash)
 
@@ -147,9 +291,46 @@ module Legion
 
           lines = ['', "GitHub: #{username}"]
           profile = github_data[:profile]
-          lines << "  #{profile[:repos]} public repositories" if profile.is_a?(Hash) && profile[:repos]
+          if profile.is_a?(Hash)
+            lines << "  Name: #{profile[:name]}" if profile[:name]
+            lines << "  Company: #{profile[:company]}" if profile[:company]
+            lines << "  Public repos: #{profile[:public_repos]}" if profile[:public_repos]
+            lines << "  Private repos: #{profile[:private_repos]}" if profile[:private_repos]
+            lines << "  Followers: #{profile[:followers]}" if profile[:followers]
+          end
+
+          orgs = github_data[:orgs]
+          lines << "  Orgs: #{orgs.map { |o| o[:login] }.join(', ')}" if orgs.is_a?(Array) && !orgs.empty?
+
+          prs = github_data[:recent_prs]
+          if prs.is_a?(Array) && !prs.empty?
+            lines << '  Recent PRs:'
+            prs.first(3).each do |pr|
+              lines << "    #{pr[:state] == 'open' ? '○' : '●'} #{pr[:repo]}: #{pr[:title]}"
+            end
+          end
+
+          notifs = github_data[:notifications]
+          lines << "  Notifications: #{notifs.size} unread" if notifs.is_a?(Array) && !notifs.empty?
+
           lines
         end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength
+
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        def format_tenure(tenure)
+          return tenure.to_s unless tenure.is_a?(Hash)
+
+          parts = []
+          y = tenure[:years]
+          m = tenure[:months]
+          d = tenure[:days]
+          parts << "#{y} year#{'s' if y != 1}" if y&.positive?
+          parts << "#{m} month#{'s' if m != 1}" if m&.positive?
+          parts << "#{d} day#{'s' if d != 1}" if d&.positive?
+          parts.join(', ')
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def typed_output(text, delay: TYPED_DELAY)
           text.chars.each do |char|
@@ -158,6 +339,97 @@ module Legion
             sleep delay
           end
         end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        def log_scan_data(scan_data)
+          services = scan_data[:services] || {}
+          running = services.values.select { |s| s[:running] }.map { |s| s[:name] }
+          stopped = services.values.reject { |s| s[:running] }.map { |s| s[:name] }
+          @log.log('scanner', "services running: #{running.join(', ').then { |s| s.empty? ? 'none' : s }}")
+          @log.log('scanner', "services stopped: #{stopped.join(', ').then { |s| s.empty? ? 'none' : s }}")
+
+          repos = scan_data[:repos] || []
+          @log.log('scanner', "git repos found: #{repos.size}")
+          repos.each do |r|
+            @log.log('scanner', "  repo: #{r[:name]} branch=#{r[:branch]} lang=#{r[:language]} remote=#{r[:remote]}")
+          end
+
+          tools = scan_data[:tools] || {}
+          @log.log('scanner', "top shell commands: #{tools.first(10).map { |k, v| "#{k}(#{v})" }.join(', ')}")
+
+          configs = scan_data[:configs] || []
+          @log.log('scanner', "config files: #{configs.join(', ').then { |s| s.empty? ? 'none' : s }}")
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+        # rubocop:disable Metrics/AbcSize
+        def log_github_data(github_data)
+          unless github_data.is_a?(Hash)
+            @log.log('github', 'no data returned')
+            return
+          end
+          @log.log('github', "username: #{github_data[:username] || 'unknown'}")
+          @log.log('github', "authenticated: #{github_data[:authenticated]}")
+
+          profile = github_data[:profile]
+          if profile.is_a?(Hash)
+            @log.log('github', "  name: #{profile[:name]}")
+            @log.log('github', "  email: #{profile[:email]}")
+            @log.log('github', "  company: #{profile[:company]}")
+            @log.log('github', "  location: #{profile[:location]}")
+            @log.log('github', "  public_repos: #{profile[:public_repos]}")
+            @log.log('github', "  private_repos: #{profile[:private_repos]}")
+            @log.log('github', "  followers: #{profile[:followers]} following: #{profile[:following]}")
+          end
+
+          orgs = github_data[:orgs] || []
+          @log.log('github', "orgs: #{orgs.map { |o| o[:login] }.join(', ').then { |s| s.empty? ? 'none' : s }}")
+
+          log_github_repos(github_data)
+          log_github_activity(github_data)
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        # rubocop:disable Metrics/AbcSize
+        def log_github_repos(github_data)
+          public_repos = github_data[:public_repos] || []
+          @log.log('github', "public repos: #{public_repos.size}")
+          public_repos.first(5).each do |r|
+            @log.log('github', "  #{r[:full_name]} (#{r[:language]}) updated=#{r[:updated_at]}")
+          end
+
+          private_repos = github_data[:private_repos] || []
+          @log.log('github', "private repos: #{private_repos.size}")
+          private_repos.first(5).each do |r|
+            @log.log('github', "  #{r[:full_name]} (#{r[:language]}) updated=#{r[:updated_at]}")
+          end
+
+          starred = github_data[:starred] || []
+          @log.log('github', "recently starred: #{starred.size}")
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        # rubocop:disable Metrics/AbcSize
+        def log_github_activity(github_data)
+          prs = github_data[:recent_prs] || []
+          @log.log('github', "recent PRs: #{prs.size}")
+          prs.first(5).each do |pr|
+            @log.log('github', "  [#{pr[:state]}] #{pr[:repo]}: #{pr[:title]}")
+          end
+
+          events = github_data[:events] || []
+          @log.log('github', "recent events: #{events.size}")
+          events.first(5).each do |e|
+            @log.log('github', "  #{e[:type]} on #{e[:repo]} at #{e[:created_at]}")
+          end
+
+          notifs = github_data[:notifications] || []
+          @log.log('github', "notifications: #{notifs.size}")
+          notifs.first(5).each do |n|
+            @log.log('github', "  [#{n[:reason]}] #{n[:repo]}: #{n[:title]}")
+          end
+        end
+        # rubocop:enable Metrics/AbcSize
 
         def drain_with_timeout(queue, timeout:)
           deadline = Time.now + timeout

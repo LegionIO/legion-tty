@@ -25,7 +25,7 @@ module Legion
 
         attr_reader :columns, :width, :height
 
-        def initialize(width:, height:, extensions: nil, density: 0.6)
+        def initialize(width:, height:, extensions: nil, density: 0.7)
           @width = width
           @height = height
           @density = density

@@ -15,6 +15,7 @@ RSpec.describe 'Legion::TTY integration' do
     expect(defined?(Legion::TTY::Screens::Base)).to be_truthy
     expect(defined?(Legion::TTY::Screens::Chat)).to be_truthy
     expect(defined?(Legion::TTY::Screens::Onboarding)).to be_truthy
+    expect(defined?(Legion::TTY::Screens::Dashboard)).to be_truthy
   end
 
   it 'loads all components' do
@@ -25,11 +26,17 @@ RSpec.describe 'Legion::TTY integration' do
     expect(defined?(Legion::TTY::Components::ToolPanel)).to be_truthy
     expect(defined?(Legion::TTY::Components::MarkdownView)).to be_truthy
     expect(defined?(Legion::TTY::Components::WizardPrompt)).to be_truthy
+    expect(defined?(Legion::TTY::Components::TokenTracker)).to be_truthy
   end
 
   it 'loads background modules' do
     expect(defined?(Legion::TTY::Background::Scanner)).to be_truthy
     expect(defined?(Legion::TTY::Background::GitHubProbe)).to be_truthy
+    expect(defined?(Legion::TTY::Background::KerberosProbe)).to be_truthy
+  end
+
+  it 'loads session store' do
+    expect(defined?(Legion::TTY::SessionStore)).to be_truthy
   end
 
   it 'can instantiate App' do

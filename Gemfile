@@ -9,3 +9,8 @@ group :development, :test do
   gem 'rubocop-rspec', '~> 2.25'
   gem 'simplecov', '~> 0.22'
 end
+
+gem 'legionio', path: '../LegionIO'
+gem 'legion-rbac', path: '../legion-rbac'
+gem 'lex-kerberos', path: '../extensions/lex-kerberos'
+gem 'ruby_llm'

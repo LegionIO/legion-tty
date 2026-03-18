@@ -101,6 +101,38 @@ RSpec.describe Legion::TTY::Screens::Chat do
       result = screen.handle_slash_command('/tools')
       expect(result).to eq(:handled)
     end
+
+    it 'recognizes /dashboard' do
+      allow(app).to receive(:respond_to?).and_return(false)
+      result = screen.handle_slash_command('/dashboard')
+      expect(result).to eq(:handled)
+    end
+
+    it 'recognizes /hotkeys' do
+      allow(app).to receive(:respond_to?).and_return(false)
+      result = screen.handle_slash_command('/hotkeys')
+      expect(result).to eq(:handled)
+    end
+
+    it 'recognizes /save' do
+      result = screen.handle_slash_command('/save test-session')
+      expect(result).to eq(:handled)
+    end
+
+    it 'recognizes /sessions' do
+      result = screen.handle_slash_command('/sessions')
+      expect(result).to eq(:handled)
+    end
+
+    it 'recognizes /load' do
+      result = screen.handle_slash_command('/load test-session')
+      expect(result).to eq(:handled)
+    end
+
+    it 'includes all expected commands' do
+      expected = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load /sessions]
+      expect(described_class::SLASH_COMMANDS).to match_array(expected)
+    end
   end
 
   describe '#handle_user_message' do
