@@ -8,7 +8,7 @@ module Legion
       class InputBar
         def initialize(name: 'User', reader: nil)
           @name = name
-          @reader = reader
+          @reader = reader || build_default_reader
           @thinking = false
         end
 
@@ -30,6 +30,15 @@ module Legion
 
         def thinking?
           @thinking
+        end
+
+        private
+
+        def build_default_reader
+          require 'tty-reader'
+          ::TTY::Reader.new
+        rescue LoadError
+          nil
         end
       end
     end
