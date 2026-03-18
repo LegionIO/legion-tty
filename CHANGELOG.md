@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.4] - 2026-03-18
+
+### Added
+- Cache service awakening: detects running Redis/Memcached, offers to activate if missing
+- GAIA daemon discovery: checks for running legionio daemon, offers to start it
+- Cinematic typed prompts: "extending neural pathways", "GAIA is awake", "cognitive threads synchronized"
+- Cache and GAIA status lines in reveal summary box
+- 46 new specs (360 total)
+
 ## [0.2.3] - 2026-03-18
 
 ### Added
