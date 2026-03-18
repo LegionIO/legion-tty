@@ -114,10 +114,13 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:start_background_threads)
       scan_queue = Queue.new
       github_queue = Queue.new
-      scan_queue.push({ type: :scan_complete, data: { services: {} } })
+      scan_queue.push({ type: :scan_complete, data: { services: {}, repos: [] } })
       github_queue.push({ type: :github_probe_complete, data: { username: nil } })
       screen.instance_variable_set(:@scan_queue, scan_queue)
       screen.instance_variable_set(:@github_queue, github_queue)
+      probe = Legion::TTY::Background::GitHubProbe.new
+      allow(probe).to receive(:run_async) { github_queue }
+      screen.instance_variable_set(:@github_probe, probe)
       result = screen.collect_background_results
       expect(result).to be_an(Array)
       expect(result.size).to eq(2)

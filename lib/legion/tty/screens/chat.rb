@@ -20,10 +20,10 @@ module Legion
         def initialize(app, output: $stdout, input_bar: nil)
           super(app)
           @output = output
-          @input_bar = input_bar
           @message_stream = Components::MessageStream.new
           @status_bar = Components::StatusBar.new
           @running = false
+          @input_bar = input_bar || build_default_input_bar
         end
 
         def activate
@@ -108,7 +108,10 @@ module Legion
         end
 
         def render_screen
-          lines = render(terminal_width, terminal_height)
+          require 'tty-cursor'
+          lines = render(terminal_width, terminal_height - 1)
+          @output.print ::TTY::Cursor.move_to(0, 0)
+          @output.print ::TTY::Cursor.clear_screen_down
           lines.each { |line| @output.puts line }
         end
 
@@ -174,6 +177,12 @@ module Legion
         def handle_tools
           @message_stream.add_message(role: :system, content: 'Tools: none loaded.')
           :handled
+        end
+
+        def build_default_input_bar
+          cfg = safe_config
+          name = cfg[:name] || 'User'
+          Components::InputBar.new(name: name)
         end
 
         def terminal_width

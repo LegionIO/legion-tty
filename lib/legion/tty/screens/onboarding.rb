@@ -24,10 +24,10 @@ module Legion
         end
 
         def activate
+          start_background_threads
           run_rain unless @skip_rain
           run_intro
           config = run_wizard
-          start_background_threads
           scan_data, github_data = collect_background_results
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
           config
@@ -71,16 +71,19 @@ module Legion
         end
 
         def start_background_threads
-          scanner = Background::Scanner.new
-          probe = Background::GitHubProbe.new
-          scanner.run_async(@scan_queue)
-          probe.run_async(@github_queue, remotes: [])
+          @scanner = Background::Scanner.new
+          @github_probe = Background::GitHubProbe.new
+          @scanner.run_async(@scan_queue)
         end
 
         def collect_background_results
           scan_result = drain_with_timeout(@scan_queue, timeout: 10)
+          scan_data = scan_result&.dig(:data) || { services: {}, repos: [], tools: {} }
+
+          # Now launch GitHub probe with discovered remotes
+          remotes = scan_data[:repos]&.filter_map { |r| r[:remote] } || []
+          @github_probe.run_async(@github_queue, remotes: remotes)
           github_result = drain_with_timeout(@github_queue, timeout: 8)
-          scan_data = scan_result&.dig(:data)
           github_data = github_result&.dig(:data)
           [scan_data, github_data]
         end
