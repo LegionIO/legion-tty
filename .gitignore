@@ -1,0 +1,7 @@
+/.bundle/
+/vendor/bundle
+/tmp/
+/coverage/
+*.gem
+Gemfile.lock
+.idea/

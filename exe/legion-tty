@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'legion/tty'
+
+# App boot will be wired in Task 17
+puts "legion-tty v#{Legion::TTY::VERSION}"
