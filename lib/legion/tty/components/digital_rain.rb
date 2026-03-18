@@ -60,7 +60,7 @@ module Legion
         # rubocop:disable Metrics/AbcSize
         def run(duration_seconds: 7, fps: 18, output: $stdout)
           require 'tty-cursor'
-          cursor = TTY::Cursor
+          cursor = ::TTY::Cursor
           frame_delay = 1.0 / fps
           output.print cursor.hide
           output.print cursor.save
