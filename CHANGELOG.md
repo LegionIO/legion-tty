@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.6] - 2026-03-18
+
+### Fixed
+- Remove local path references from Gemfile (legionio, legion-rbac, lex-kerberos)
+
 ## [0.2.5] - 2026-03-18
 
 ### Added
