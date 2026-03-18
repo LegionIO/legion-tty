@@ -56,12 +56,12 @@ module Legion
         def run_intro
           sleep 2
           typed_output('...')
-          sleep 0.8
+          sleep 1.2
           @output.puts
           @output.puts
           typed_output("Hello. I'm Legion.")
           @output.puts
-          sleep 1
+          sleep 1.5
           typed_output("Let's get you set up.")
           @output.puts
           @output.puts
@@ -69,9 +69,15 @@ module Legion
 
         def run_wizard
           name = @wizard.ask_name
-          @output.puts Theme.c(:muted, "  Nice to meet you, #{name}.")
+          sleep 0.8
+          typed_output("  Nice to meet you, #{name}.")
+          @output.puts
+          sleep 1
+          typed_output("Let's get you connected.")
+          @output.puts
           @output.puts
           provider = @wizard.select_provider
+          sleep 0.5
           api_key = @wizard.ask_api_key(provider: provider)
           { name: name, provider: provider, api_key: api_key }
         end
@@ -96,10 +102,20 @@ module Legion
 
         def run_reveal(name:, scan_data:, github_data:)
           require 'tty-box'
+          @output.puts
+          typed_output('One moment...')
+          @output.puts
+          sleep 1.5
           summary = build_summary(name: name, scan_data: scan_data, github_data: github_data)
           box = ::TTY::Box.frame(summary, padding: 1, border: :thick)
           @output.puts box
+          @output.puts
           @wizard.confirm('Does this look right?')
+          @output.puts
+          sleep 0.8
+          typed_output("Let's chat.")
+          @output.puts
+          sleep 1
         end
 
         def build_summary(name:, scan_data:, github_data:)
