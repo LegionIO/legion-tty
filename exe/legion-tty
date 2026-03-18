@@ -3,5 +3,4 @@
 
 require 'legion/tty'
 
-# App boot will be wired in Task 17
-puts "legion-tty v#{Legion::TTY::VERSION}"
+Legion::TTY::App.run(ARGV)
