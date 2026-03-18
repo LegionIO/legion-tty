@@ -98,6 +98,8 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:run_intro)
       allow(screen).to receive(:start_background_threads)
       allow(screen).to receive(:collect_background_results).and_return([nil, nil])
+      allow(screen).to receive(:run_cache_awakening)
+      allow(screen).to receive(:run_gaia_awakening)
       allow(screen).to receive(:run_reveal).and_return(true)
       result = screen.activate
       expect(result).to include(:name, :provider)
@@ -107,6 +109,8 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:run_intro)
       allow(screen).to receive(:start_background_threads)
       allow(screen).to receive(:collect_background_results).and_return([nil, nil])
+      allow(screen).to receive(:run_cache_awakening)
+      allow(screen).to receive(:run_gaia_awakening)
       allow(screen).to receive(:run_reveal).and_return(true)
       expect(screen).not_to receive(:run_rain)
       screen.activate
@@ -284,6 +288,182 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       screen.instance_variable_set(:@vault_results, nil)
       summary = screen.build_summary(name: 'Jane', scan_data: nil, github_data: nil)
       expect(summary).not_to include('Vault:')
+    end
+  end
+
+  describe '#run_cache_awakening' do
+    before do
+      allow(screen).to receive(:typed_output)
+      allow(screen).to receive(:sleep)
+    end
+
+    it 'skips when scan_data is nil' do
+      expect(screen).not_to receive(:typed_output)
+      screen.run_cache_awakening(nil)
+    end
+
+    it 'shows extending neural pathways when memcached is running' do
+      scan_data = { services: { memcached: { running: true, name: 'memcached' } } }
+      expect(screen).to receive(:typed_output).with('... extending neural pathways...')
+      expect(screen).to receive(:typed_output).with('Additional memory online.')
+      screen.run_cache_awakening(scan_data)
+    end
+
+    it 'shows extending neural pathways when redis is running' do
+      scan_data = { services: { redis: { running: true, name: 'redis' } } }
+      expect(screen).to receive(:typed_output).with('... extending neural pathways...')
+      expect(screen).to receive(:typed_output).with('Additional memory online.')
+      screen.run_cache_awakening(scan_data)
+    end
+
+    it 'shows no extended memory and asks when neither is running' do
+      scan_data = { services: { redis: { running: false }, memcached: { running: false } } }
+      allow(mock_wizard).to receive(:confirm).with('Shall I activate a memory cache?').and_return(false)
+      expect(screen).to receive(:typed_output).with('No extended memory detected.')
+      screen.run_cache_awakening(scan_data)
+    end
+
+    it 'skips gracefully when services hash is missing from scan_data' do
+      scan_data = { repos: [] }
+      expect(screen).not_to receive(:typed_output)
+      screen.run_cache_awakening(scan_data)
+    end
+
+    it 'attempts to start cache when user confirms and binary is detected' do
+      scan_data = { services: { redis: { running: false }, memcached: { running: false } } }
+      allow(mock_wizard).to receive(:confirm).with('Shall I activate a memory cache?').and_return(true)
+      allow(screen).to receive(:detect_cache_binary).and_return(:memcached)
+      allow(screen).to receive(:start_cache_service).with('memcached').and_return(true)
+      expect(screen).to receive(:typed_output).with('Memory cache activated. Neural capacity expanded.')
+      screen.run_cache_awakening(scan_data)
+    end
+
+    it 'shows install hint when no binary is detected' do
+      scan_data = { services: { redis: { running: false }, memcached: { running: false } } }
+      allow(mock_wizard).to receive(:confirm).with('Shall I activate a memory cache?').and_return(true)
+      allow(screen).to receive(:detect_cache_binary).and_return(nil)
+      expect(screen).to receive(:typed_output).with('No cache service found. Install with: brew install memcached')
+      screen.run_cache_awakening(scan_data)
+    end
+  end
+
+  describe '#run_gaia_awakening' do
+    before do
+      allow(screen).to receive(:typed_output)
+      allow(screen).to receive(:sleep)
+    end
+
+    it 'shows GAIA is awake when daemon is running' do
+      allow(screen).to receive(:legionio_running?).and_return(true)
+      expect(screen).to receive(:typed_output).with('GAIA is awake.')
+      expect(screen).to receive(:typed_output).with('Heuristic mesh: nominal.')
+      expect(screen).to receive(:typed_output).with('Cognitive threads synchronized.')
+      screen.run_gaia_awakening
+    end
+
+    it 'shows GAIA is dormant when daemon is not running and user declines' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(false)
+      expect(screen).to receive(:typed_output).with('Scanning for active cognition threads...')
+      expect(screen).to receive(:typed_output).with('GAIA is dormant.')
+      screen.run_gaia_awakening
+    end
+
+    it 'attempts to start daemon when user confirms' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
+      allow(screen).to receive(:start_legionio_daemon).and_return(true)
+      expect(screen).to receive(:typed_output).with('GAIA online. All systems nominal.')
+      screen.run_gaia_awakening
+    end
+
+    it 'shows failure message when daemon start fails' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
+      allow(screen).to receive(:start_legionio_daemon).and_return(false)
+      expect(screen).to receive(:typed_output).with("Could not start daemon. Run 'legionio start' manually.")
+      screen.run_gaia_awakening
+    end
+  end
+
+  describe '#detect_cache_binary' do
+    it 'returns :memcached when memcached is available' do
+      allow(screen).to receive(:system).with('which memcached > /dev/null 2>&1').and_return(true)
+      expect(screen.send(:detect_cache_binary)).to eq(:memcached)
+    end
+
+    it 'returns :redis as fallback when only redis-server is available' do
+      allow(screen).to receive(:system).with('which memcached > /dev/null 2>&1').and_return(false)
+      allow(screen).to receive(:system).with('which redis-server > /dev/null 2>&1').and_return(true)
+      expect(screen.send(:detect_cache_binary)).to eq(:redis)
+    end
+
+    it 'returns nil when neither is installed' do
+      allow(screen).to receive(:system).with('which memcached > /dev/null 2>&1').and_return(false)
+      allow(screen).to receive(:system).with('which redis-server > /dev/null 2>&1').and_return(false)
+      expect(screen.send(:detect_cache_binary)).to be_nil
+    end
+  end
+
+  describe '#legionio_running?' do
+    it 'returns false when no PID file exists and pgrep returns false' do
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(File.expand_path('~/.legionio/legion.pid')).and_return(false)
+      allow(File).to receive(:exist?).with('/tmp/legionio.pid').and_return(false)
+      allow(screen).to receive(:system).with('pgrep -x legionio > /dev/null 2>&1').and_return(false)
+      expect(screen.send(:legionio_running?)).to be(false)
+    end
+
+    it 'returns true when pgrep finds the process' do
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(File.expand_path('~/.legionio/legion.pid')).and_return(false)
+      allow(File).to receive(:exist?).with('/tmp/legionio.pid').and_return(false)
+      allow(screen).to receive(:system).with('pgrep -x legionio > /dev/null 2>&1').and_return(true)
+      expect(screen.send(:legionio_running?)).to be(true)
+    end
+  end
+
+  describe '#cache_summary_lines' do
+    it 'returns memcached online line when memcached is running' do
+      scan_data = { services: { memcached: { running: true } } }
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      lines = screen.send(:cache_summary_lines, scan_data)
+      expect(lines).to include('Memory: memcached online')
+    end
+
+    it 'returns redis online line when redis is running' do
+      scan_data = { services: { redis: { running: true } } }
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      lines = screen.send(:cache_summary_lines, scan_data)
+      expect(lines).to include('Memory: redis online')
+    end
+
+    it 'returns no cache running line when neither is running' do
+      scan_data = { services: { redis: { running: false }, memcached: { running: false } } }
+      lines = screen.send(:cache_summary_lines, scan_data)
+      expect(lines).to include('Memory: no cache service running')
+    end
+
+    it 'returns empty array when scan_data is nil' do
+      expect(screen.send(:cache_summary_lines, nil)).to eq([])
+    end
+
+    it 'returns empty array when services key is missing' do
+      expect(screen.send(:cache_summary_lines, { repos: [] })).to eq([])
+    end
+  end
+
+  describe '#gaia_summary_lines' do
+    it 'returns GAIA online when running' do
+      allow(screen).to receive(:legionio_running?).and_return(true)
+      lines = screen.send(:gaia_summary_lines)
+      expect(lines).to include('GAIA: online')
+    end
+
+    it 'returns GAIA dormant when not running' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      lines = screen.send(:gaia_summary_lines)
+      expect(lines).to include('GAIA: dormant')
     end
   end
 end

@@ -41,6 +41,8 @@ module Legion
           @log.log('wizard', "name=#{config[:name]} provider=#{config[:provider]}")
           run_vault_auth
           scan_data, github_data = collect_background_results
+          run_cache_awakening(scan_data)
+          run_gaia_awakening
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
           @log.log('onboarding', 'activate complete')
           build_onboarding_result(config, scan_data, github_data)
@@ -138,6 +140,75 @@ module Legion
           @llm_probe.run_async(@llm_queue)
         end
 
+        def run_cache_awakening(scan_data)
+          services = scan_data.is_a?(Hash) ? scan_data[:services] : nil
+          return unless services.is_a?(Hash)
+
+          if services.dig(:memcached, :running) || services.dig(:redis, :running)
+            typed_output('... extending neural pathways...')
+            sleep 0.8
+            typed_output('Additional memory online.')
+          else
+            run_cache_offer
+          end
+          @output.puts
+        end
+
+        def run_cache_offer
+          typed_output('No extended memory detected.')
+          sleep 0.8
+          @output.puts
+          return unless @wizard.confirm('Shall I activate a memory cache?')
+
+          binary = detect_cache_binary
+          if binary
+            run_cache_start(binary)
+          else
+            typed_output('No cache service found. Install with: brew install memcached')
+          end
+        end
+
+        def run_cache_start(binary)
+          started = start_cache_service(binary.to_s)
+          if started
+            typed_output('Memory cache activated. Neural capacity expanded.')
+          else
+            typed_output("No cache service found. Install with: brew install #{binary}")
+          end
+        end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        def run_gaia_awakening
+          typed_output('Scanning for active cognition threads...')
+          sleep 1.2
+          @output.puts
+
+          if legionio_running?
+            typed_output('GAIA is awake.')
+            sleep 0.5
+            typed_output('Heuristic mesh: nominal.')
+            sleep 0.8
+            typed_output('Cognitive threads synchronized.')
+          else
+            typed_output('GAIA is dormant.')
+            sleep 1
+            @output.puts
+            if @wizard.confirm('Shall I wake her?')
+              started = start_legionio_daemon
+              if started
+                typed_output('... initializing cognitive substrate...')
+                sleep 1
+                typed_output('GAIA online. All systems nominal.')
+              else
+                typed_output("Could not start daemon. Run 'legionio start' manually.")
+              end
+            end
+          end
+
+          @output.puts
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
         def collect_background_results
           @log.log('collect', 'waiting for scanner results (10s timeout)')
           scan_result = drain_with_timeout(@scan_queue, timeout: 10)
@@ -179,6 +250,8 @@ module Legion
           lines.concat(dotfiles_summary_lines(scan_data))
           lines.concat(github_summary_lines(github_data))
           lines.concat(vault_summary_lines)
+          lines.concat(cache_summary_lines(scan_data))
+          lines.concat(gaia_summary_lines)
           lines.join("\n")
         end
 
@@ -424,6 +497,27 @@ module Legion
           lines
         end
 
+        def cache_summary_lines(scan_data)
+          services = scan_data.is_a?(Hash) ? scan_data[:services] : nil
+          return [] unless services.is_a?(Hash)
+
+          if services.dig(:memcached, :running)
+            ['', 'Memory: memcached online']
+          elsif services.dig(:redis, :running)
+            ['', 'Memory: redis online']
+          else
+            ['', 'Memory: no cache service running']
+          end
+        end
+
+        def gaia_summary_lines
+          if legionio_running?
+            ['', 'GAIA: online']
+          else
+            ['', 'GAIA: dormant']
+          end
+        end
+
         def terraform_summary_lines(dotfiles_tf)
           return [] unless dotfiles_tf.is_a?(Hash) && dotfiles_tf[:hosts]&.any?
 
@@ -589,6 +683,66 @@ module Legion
           end
         rescue ThreadError
           nil
+        end
+
+        def detect_cache_binary
+          if system('which memcached > /dev/null 2>&1')
+            :memcached
+          elsif system('which redis-server > /dev/null 2>&1')
+            :redis
+          end
+        end
+
+        def start_cache_service(service_name)
+          @log.log('cache', "starting #{service_name} via brew services")
+          result = system("brew services start #{service_name} > /dev/null 2>&1")
+          @log.log('cache', "brew services start #{service_name}: #{result ? 'ok' : 'failed'}")
+          result
+        rescue StandardError => e
+          @log.log('cache', "failed to start #{service_name}: #{e.message}")
+          false
+        end
+
+        def legionio_running?
+          pid_paths = [
+            File.expand_path('~/.legionio/legion.pid'),
+            '/tmp/legionio.pid'
+          ]
+          pid_paths.each do |path|
+            next unless File.exist?(path)
+
+            pid = File.read(path).strip.to_i
+            next unless pid.positive?
+
+            begin
+              ::Process.kill(0, pid)
+              return true
+            rescue Errno::ESRCH
+              next
+            rescue Errno::EPERM
+              return true
+            end
+          end
+          system('pgrep -x legionio > /dev/null 2>&1')
+        rescue StandardError
+          false
+        end
+
+        def start_legionio_daemon
+          @log.log('gaia', 'attempting to start legionio daemon')
+          if system('brew services start legionio > /dev/null 2>&1')
+            @log.log('gaia', 'started via brew services')
+            true
+          elsif system('legionio start -d > /dev/null 2>&1')
+            @log.log('gaia', 'started via legionio start -d')
+            true
+          else
+            @log.log('gaia', 'failed to start daemon')
+            false
+          end
+        rescue StandardError => e
+          @log.log('gaia', "start failed: #{e.message}")
+          false
         end
 
         def terminal_width
