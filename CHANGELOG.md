@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.5] - 2026-03-18
+
+### Added
+- Bootstrap config auto-import: detects `LEGIONIO_BOOTSTRAP_CONFIG` env var during onboarding
+- Fetches config from local file or HTTP/HTTPS URL (raw JSON or base64-encoded)
+- Splits top-level keys into individual settings files (`~/.legionio/settings/{key}.json`)
+- Deep merges with existing config files if present
+- Bootstrap summary line in reveal box showing imported sections
+- 14 new specs (374 total)
+
 ## [0.2.4] - 2026-03-18
 
 ### Added

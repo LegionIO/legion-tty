@@ -6,6 +6,7 @@ require_relative '../components/wizard_prompt'
 require_relative '../background/scanner'
 require_relative '../background/github_probe'
 require_relative '../background/kerberos_probe'
+require_relative '../background/bootstrap_config'
 require_relative '../boot_logger'
 require_relative '../theme'
 
@@ -26,12 +27,15 @@ module Legion
           @github_quick_queue = Queue.new
           @kerberos_queue = Queue.new
           @llm_queue = Queue.new
+          @bootstrap_queue = Queue.new
           @kerberos_identity = nil
           @github_quick = nil
           @vault_results = nil
+          @bootstrap_data = nil
           @log = BootLogger.new
         end
 
+        # rubocop:disable Metrics/AbcSize
         def activate
           @log.log('onboarding', 'activate started')
           start_background_threads
@@ -39,6 +43,7 @@ module Legion
           run_intro
           config = run_wizard
           @log.log('wizard', "name=#{config[:name]} provider=#{config[:provider]}")
+          collect_bootstrap_result
           run_vault_auth
           scan_data, github_data = collect_background_results
           run_cache_awakening(scan_data)
@@ -47,6 +52,7 @@ module Legion
           @log.log('onboarding', 'activate complete')
           build_onboarding_result(config, scan_data, github_data)
         end
+        # rubocop:enable Metrics/AbcSize
 
         # rubocop:disable Metrics/AbcSize
         def run_rain
@@ -138,6 +144,8 @@ module Legion
           require_relative '../background/llm_probe'
           @llm_probe = Background::LlmProbe.new(logger: @log)
           @llm_probe.run_async(@llm_queue)
+          @bootstrap_probe = Background::BootstrapConfig.new(logger: @log)
+          @bootstrap_probe.run_async(@bootstrap_queue)
         end
 
         def run_cache_awakening(scan_data)
@@ -243,8 +251,10 @@ module Legion
           sleep 1
         end
 
+        # rubocop:disable Metrics/AbcSize
         def build_summary(name:, scan_data:, github_data:)
           lines = ["Hello, #{name}!", '', "Here's what I found:"]
+          lines.concat(bootstrap_summary_lines)
           lines.concat(identity_summary_lines)
           lines.concat(scan_summary_lines(scan_data))
           lines.concat(dotfiles_summary_lines(scan_data))
@@ -254,8 +264,20 @@ module Legion
           lines.concat(gaia_summary_lines)
           lines.join("\n")
         end
+        # rubocop:enable Metrics/AbcSize
 
         private
+
+        def collect_bootstrap_result
+          result = drain_with_timeout(@bootstrap_queue, timeout: 5)
+          @bootstrap_data = result&.dig(:data)
+          return unless @bootstrap_data
+
+          files = @bootstrap_data[:files] || []
+          @log.log('bootstrap', "imported #{files.size} config files: #{files.join(', ')}")
+          typed_output('Configuration loaded.')
+          @output.puts
+        end
 
         def run_vault_auth
           return unless vault_clusters_configured?
@@ -508,6 +530,15 @@ module Legion
           else
             ['', 'Memory: no cache service running']
           end
+        end
+
+        def bootstrap_summary_lines
+          return [] unless @bootstrap_data.is_a?(Hash)
+
+          sections = @bootstrap_data[:sections] || []
+          return [] if sections.empty?
+
+          ['', "Bootstrap config: #{sections.join(', ')}"]
         end
 
         def gaia_summary_lines

@@ -98,6 +98,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:run_intro)
       allow(screen).to receive(:start_background_threads)
       allow(screen).to receive(:collect_background_results).and_return([nil, nil])
+      allow(screen).to receive(:collect_bootstrap_result)
       allow(screen).to receive(:run_cache_awakening)
       allow(screen).to receive(:run_gaia_awakening)
       allow(screen).to receive(:run_reveal).and_return(true)
@@ -108,6 +109,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
     it 'skips rain when skip_rain is true' do
       allow(screen).to receive(:run_intro)
       allow(screen).to receive(:start_background_threads)
+      allow(screen).to receive(:collect_bootstrap_result)
       allow(screen).to receive(:collect_background_results).and_return([nil, nil])
       allow(screen).to receive(:run_cache_awakening)
       allow(screen).to receive(:run_gaia_awakening)
@@ -464,6 +466,51 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:legionio_running?).and_return(false)
       lines = screen.send(:gaia_summary_lines)
       expect(lines).to include('GAIA: dormant')
+    end
+  end
+
+  describe '#bootstrap_summary_lines' do
+    it 'returns empty array when bootstrap_data is nil' do
+      screen.instance_variable_set(:@bootstrap_data, nil)
+      expect(screen.send(:bootstrap_summary_lines)).to eq([])
+    end
+
+    it 'returns empty array when sections is empty' do
+      screen.instance_variable_set(:@bootstrap_data, { sections: [], files: [] })
+      expect(screen.send(:bootstrap_summary_lines)).to eq([])
+    end
+
+    it 'returns formatted line when sections are present' do
+      screen.instance_variable_set(:@bootstrap_data, { sections: %w[crypt transport cache], files: [] })
+      lines = screen.send(:bootstrap_summary_lines)
+      expect(lines).to include('Bootstrap config: crypt, transport, cache')
+    end
+  end
+
+  describe '#collect_bootstrap_result' do
+    it 'sets bootstrap_data when queue has data' do
+      queue = Queue.new
+      queue.push({ type: :bootstrap_complete, data: { files: ['crypt.json'], sections: ['crypt'] } })
+      screen.instance_variable_set(:@bootstrap_queue, queue)
+      allow(screen).to receive(:typed_output)
+      screen.send(:collect_bootstrap_result)
+      expect(screen.instance_variable_get(:@bootstrap_data)).to eq({ files: ['crypt.json'], sections: ['crypt'] })
+    end
+
+    it 'leaves bootstrap_data nil when queue has nil data' do
+      queue = Queue.new
+      queue.push({ type: :bootstrap_complete, data: nil })
+      screen.instance_variable_set(:@bootstrap_queue, queue)
+      screen.send(:collect_bootstrap_result)
+      expect(screen.instance_variable_get(:@bootstrap_data)).to be_nil
+    end
+
+    it 'shows configuration loaded message when data is present' do
+      queue = Queue.new
+      queue.push({ type: :bootstrap_complete, data: { files: ['crypt.json'], sections: ['crypt'] } })
+      screen.instance_variable_set(:@bootstrap_queue, queue)
+      expect(screen).to receive(:typed_output).with('Configuration loaded.')
+      screen.send(:collect_bootstrap_result)
     end
   end
 end
