@@ -12,7 +12,7 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Onboarding < Base
-        TYPED_DELAY = 0.03
+        TYPED_DELAY = 0.05
 
         def initialize(app, wizard: nil, output: $stdout, skip_rain: false)
           super(app)
@@ -40,7 +40,7 @@ module Legion
           width = terminal_width
           height = terminal_height
           rain = Components::DigitalRain.new(width: width, height: height)
-          rain.run(duration_seconds: 7, fps: 18, output: @output)
+          rain.run(duration_seconds: 15, fps: 18, output: @output)
           @output.print ::TTY::Cursor.clear_screen
           font = ::TTY::Font.new(:standard)
           title = font.write('LEGION')
@@ -48,14 +48,20 @@ module Legion
             @output.puts line.center(width)
           end
           @output.puts Theme.c(:muted, 'async cognition engine').center(width + 20)
-          sleep 2
+          sleep 4
           @output.print ::TTY::Cursor.clear_screen
         end
         # rubocop:enable Metrics/AbcSize
 
         def run_intro
+          sleep 2
+          typed_output('...')
+          sleep 0.8
+          @output.puts
+          @output.puts
           typed_output("Hello. I'm Legion.")
           @output.puts
+          sleep 1
           typed_output("Let's get you set up.")
           @output.puts
           @output.puts
