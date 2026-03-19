@@ -11,7 +11,8 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands' do
     instance_double('Legion::TTY::App',
                     config: { provider: 'claude' },
                     llm_chat: nil,
-                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil),
+                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil,
+                                                 show_overlay: nil),
                     hotkeys: double('hk', list: []),
                     respond_to?: true)
   end
@@ -302,34 +303,31 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands' do
   # Help text
   # -----------------------------------------------------------------------
   describe '/help includes new commands' do
+    def capture_overlay(chat_obj, app_obj)
+      captured = nil
+      allow(app_obj.screen_manager).to receive(:show_overlay) { |text| captured = text }
+      chat_obj.handle_slash_command('/help')
+      captured
+    end
+
     it 'mentions /undo in help text' do
-      chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/undo')
+      expect(capture_overlay(chat, app)).to include('/undo')
     end
 
     it 'mentions /history in help text' do
-      chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/history')
+      expect(capture_overlay(chat, app)).to include('/history')
     end
 
     it 'mentions /pin in help text' do
-      chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/pin')
+      expect(capture_overlay(chat, app)).to include('/pin')
     end
 
     it 'mentions /pins in help text' do
-      chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/pins')
+      expect(capture_overlay(chat, app)).to include('/pins')
     end
 
     it 'mentions /rename in help text' do
-      chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/rename')
+      expect(capture_overlay(chat, app)).to include('/rename')
     end
   end
 end

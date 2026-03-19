@@ -28,7 +28,7 @@ module Legion
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
-                            /context /alias /snippet /debug /uptime /time /bookmark].freeze
+                            /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -71,6 +71,7 @@ module Legion
             role: :system,
             content: "Welcome#{", #{cfg[:name]}" if cfg[:name]}. Type /help for commands."
           )
+          @status_bar.update(message_count: @message_stream.messages.size)
         end
 
         def running?
@@ -124,6 +125,7 @@ module Legion
             @message_stream.add_message(role: :assistant, content: '')
             send_to_llm(input)
           end
+          @status_bar.update(message_count: @message_stream.messages.size)
           render_screen
         end
 
@@ -336,6 +338,8 @@ module Legion
           when '/uptime' then handle_uptime
           when '/time' then handle_time
           when '/bookmark' then handle_bookmark
+          when '/welcome' then handle_welcome
+          when '/tips' then handle_tips
           else :handled
           end
         end

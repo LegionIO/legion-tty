@@ -11,7 +11,8 @@ RSpec.describe Legion::TTY::Screens::Chat, '/alias command' do
     instance_double('Legion::TTY::App',
                     config: { provider: 'claude' },
                     llm_chat: nil,
-                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil),
+                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil,
+                                                 show_overlay: nil),
                     hotkeys: double('hk', list: []),
                     respond_to?: true)
   end
@@ -101,10 +102,11 @@ RSpec.describe Legion::TTY::Screens::Chat, '/alias command' do
       expect(result).to eq(:handled)
     end
 
-    it 'dispatched expansion adds a message (e.g., help text)' do
+    it 'dispatched expansion shows the help overlay (e.g., help text)' do
+      overlay_text = nil
+      allow(app.screen_manager).to receive(:show_overlay) { |text| overlay_text = text }
       chat.handle_slash_command('/h')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('Commands:')
+      expect(overlay_text).to include('SESSION')
     end
 
     it 'returns nil for unknown commands that are not aliases' do
@@ -122,9 +124,10 @@ RSpec.describe Legion::TTY::Screens::Chat, '/alias command' do
 
   describe '/help mentions /alias' do
     it 'includes /alias in help text' do
+      overlay_text = nil
+      allow(app.screen_manager).to receive(:show_overlay) { |text| overlay_text = text }
       chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/alias')
+      expect(overlay_text).to include('/alias')
     end
   end
 end

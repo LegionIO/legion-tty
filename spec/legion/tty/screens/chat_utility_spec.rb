@@ -11,7 +11,8 @@ RSpec.describe Legion::TTY::Screens::Chat, 'utility commands' do
     instance_double('Legion::TTY::App',
                     config: { provider: 'claude' },
                     llm_chat: nil,
-                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil),
+                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil,
+                                                 show_overlay: nil),
                     hotkeys: double('hk', list: []),
                     respond_to?: true)
   end

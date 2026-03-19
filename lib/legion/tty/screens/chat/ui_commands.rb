@@ -6,40 +6,61 @@ module Legion
       class Chat < Base
         # rubocop:disable Metrics/ModuleLength
         module UiCommands
+          TIPS = [
+            'Press Tab after / to auto-complete commands',
+            'Use /alias to create shortcuts (e.g., /alias s /save)',
+            'Press Ctrl+K to open the command palette',
+            'Use /grep for regex search (e.g., /grep error|warning)',
+            'Pin important messages with /pin, export with /bookmark',
+            'Use /compact 3 to keep only the last 3 message pairs',
+            "Press 'o' in Extensions browser to open gem homepage",
+            '/export html creates a styled dark-theme HTML export',
+            'Use /snippet save name to save assistant responses for reuse',
+            'The dashboard updates every 5 seconds; press r to refresh',
+            '/context shows your full session state at a glance',
+            'Use /personality technical for code-focused responses',
+            '/debug shows internal state counters in the status bar',
+            'Navigate dashboard panels with j/k or number keys 1-5',
+            'Use /diff to see new messages since a session was loaded'
+          ].freeze
+
+          HELP_TEXT = [
+            'SESSION : /save /load /sessions /delete /rename',
+            'CHAT    : /clear /undo /compact /copy /search /grep /diff /stats',
+            'LLM     : /model /system /personality /cost',
+            'NAV     : /dashboard /extensions /config /palette /hotkeys',
+            'DISPLAY : /theme /plan /debug /context /time /uptime',
+            'TOOLS   : /tools /export /bookmark /pin /pins /alias /snippet /history',
+            '',
+            'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
+          ].freeze
+
           private
 
-          # rubocop:disable Metrics/MethodLength
           def handle_help
+            text = HELP_TEXT.join("\n")
+            if @app.respond_to?(:screen_manager) && @app.screen_manager
+              @app.screen_manager.show_overlay(text)
+            else
+              @message_stream.add_message(role: :system, content: text)
+            end
+            :handled
+          end
+
+          def handle_welcome
+            cfg = safe_config
             @message_stream.add_message(
               role: :system,
-              content: "Commands:\n  /help /quit /clear /model <name> /session <name> /cost\n  " \
-                       "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
-                       "/system <prompt> /delete <session> /plan /palette /extensions /config\n  " \
-                       "/theme [name] -- switch color theme (purple, green, blue, amber)\n  " \
-                       "/search <text> -- search message history\n  " \
-                       "/grep <regex> -- regex search message history\n  " \
-                       "/compact [n] -- keep last n message pairs (default 5)\n  " \
-                       "/copy -- copy last assistant message to clipboard\n  " \
-                       "/diff -- show new messages since session was loaded\n  " \
-                       "/stats -- show conversation statistics\n  " \
-                       "/personality [name] -- switch assistant personality\n  " \
-                       "/undo -- remove last user+assistant message pair\n  " \
-                       "/history -- show recent input history\n  " \
-                       "/pin [N] -- pin last assistant message (or message at index N)\n  " \
-                       "/pins -- show all pinned messages\n  " \
-                       "/rename <name> -- rename current session\n  " \
-                       "/context -- show active session context summary\n  " \
-                       "/alias [shortname /command] -- create or list command aliases\n  " \
-                       "/snippet save|load|list|delete <name> -- manage reusable text snippets\n  " \
-                       "/debug -- toggle debug mode (shows internal state)\n  " \
-                       "/uptime -- show how long this session has been active\n  " \
-                       "/time -- show current date, time, and timezone\n  " \
-                       "/bookmark -- export pinned messages to a markdown file\n\n" \
-                       'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
+              content: "Welcome#{", #{cfg[:name]}" if cfg[:name]}. Type /help for commands."
             )
             :handled
           end
-          # rubocop:enable Metrics/MethodLength
+
+          def handle_tips
+            tip = TIPS.sample
+            @message_stream.add_message(role: :system, content: "Tip: #{tip}")
+            :handled
+          end
 
           def handle_clear
             @message_stream.messages.clear

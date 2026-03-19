@@ -6,10 +6,11 @@ require_relative 'notification'
 module Legion
   module TTY
     module Components
+      # rubocop:disable Metrics/ClassLength
       class StatusBar
         def initialize
           @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false, plan_mode: false,
-                     debug_mode: false }
+                     debug_mode: false, message_count: 0 }
           @notifications = []
         end
 
@@ -46,6 +47,7 @@ module Legion
             notification_segment,
             tokens_segment,
             cost_segment,
+            message_count_segment,
             session_segment,
             scroll_segment
           ].compact
@@ -90,6 +92,11 @@ module Legion
           Theme.c(:success, format('$%.3f', @state[:cost])) if @state[:cost].to_f.positive?
         end
 
+        def message_count_segment
+          count = @state[:message_count].to_i
+          Theme.c(:muted, "#{count} msgs") if count.positive?
+        end
+
         def session_segment
           Theme.c(:muted, @state[:session]) if @state[:session]
         end
@@ -132,6 +139,7 @@ module Legion
           result
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

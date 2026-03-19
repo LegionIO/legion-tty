@@ -11,7 +11,8 @@ RSpec.describe Legion::TTY::Screens::Chat, '/grep and /time commands' do
     instance_double('Legion::TTY::App',
                     config: { provider: 'claude' },
                     llm_chat: nil,
-                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil),
+                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil,
+                                                 show_overlay: nil),
                     hotkeys: double('hk', list: []),
                     respond_to?: true)
   end
@@ -92,9 +93,10 @@ RSpec.describe Legion::TTY::Screens::Chat, '/grep and /time commands' do
     end
 
     it 'is mentioned in /help text' do
+      overlay_text = nil
+      allow(app.screen_manager).to receive(:show_overlay) { |text| overlay_text = text }
       chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/grep')
+      expect(overlay_text).to include('/grep')
     end
   end
 
@@ -137,9 +139,10 @@ RSpec.describe Legion::TTY::Screens::Chat, '/grep and /time commands' do
     end
 
     it 'is mentioned in /help text' do
+      overlay_text = nil
+      allow(app.screen_manager).to receive(:show_overlay) { |text| overlay_text = text }
       chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/time')
+      expect(overlay_text).to include('/time')
     end
   end
 end

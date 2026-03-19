@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.13] - 2026-03-19
+
+### Added
+- Help overlay: `/help` now renders as a categorized overlay (SESSION/CHAT/LLM/NAV/DISPLAY/TOOLS) via screen manager
+- Session message count in status bar ("N msgs" segment)
+- `/welcome` command: redisplay the welcome message
+- `/tips` command: show random usage tips (15 tips covering commands, hotkeys, features)
+
 ## [0.4.12] - 2026-03-19
 
 ### Added

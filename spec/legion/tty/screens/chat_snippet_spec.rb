@@ -11,7 +11,8 @@ RSpec.describe Legion::TTY::Screens::Chat, '/snippet command' do
     instance_double('Legion::TTY::App',
                     config: { provider: 'claude' },
                     llm_chat: nil,
-                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil),
+                    screen_manager: double('sm', overlay: nil, push: nil, pop: nil, dismiss_overlay: nil,
+                                                 show_overlay: nil),
                     hotkeys: double('hk', list: []),
                     respond_to?: true)
   end
@@ -191,9 +192,10 @@ RSpec.describe Legion::TTY::Screens::Chat, '/snippet command' do
 
   describe '/help mentions /snippet' do
     it 'includes /snippet in help text' do
+      overlay_text = nil
+      allow(app.screen_manager).to receive(:show_overlay) { |text| overlay_text = text }
       chat.handle_slash_command('/help')
-      content = chat.message_stream.messages.last[:content]
-      expect(content).to include('/snippet')
+      expect(overlay_text).to include('/snippet')
     end
   end
 end
