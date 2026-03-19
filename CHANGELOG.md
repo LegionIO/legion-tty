@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.6] - 2026-03-19
+
+### Added
+- `/stats` command: show conversation statistics (message counts, characters, token summary)
+- `/personality <style>` command: switch between default/concise/detailed/friendly/technical personas
+- Notification component: transient message display with TTL expiry and level-based icons/colors
+
 ## [0.4.5] - 2026-03-19
 
 ### Added

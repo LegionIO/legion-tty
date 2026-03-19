@@ -14,7 +14,15 @@ module Legion
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
-                            /theme /search].freeze
+                            /theme /search /stats /personality].freeze
+
+        PERSONALITIES = {
+          'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
+          'concise' => 'You are Legion. Respond in as few words as possible. No filler.',
+          'detailed' => 'You are Legion. Provide thorough, detailed explanations with examples when helpful.',
+          'friendly' => 'You are Legion, a friendly AI companion. Use a warm, conversational tone.',
+          'technical' => 'You are Legion, a senior engineer. Use precise technical language. Include code examples.'
+        }.freeze
 
         attr_reader :message_stream, :status_bar
 
@@ -281,6 +289,8 @@ module Legion
           when '/config' then handle_config_screen
           when '/theme' then handle_theme(input)
           when '/search' then handle_search(input)
+          when '/stats' then handle_stats
+          when '/personality' then handle_personality(input)
           else :handled
           end
         end
@@ -296,7 +306,9 @@ module Legion
                      "/search <text> -- search message history\n  " \
                      "/compact [n] -- keep last n message pairs (default 5)\n  " \
                      "/copy -- copy last assistant message to clipboard\n  " \
-                     "/diff -- show new messages since session was loaded\n\n" \
+                     "/diff -- show new messages since session was loaded\n  " \
+                     "/stats -- show conversation statistics\n  " \
+                     "/personality [name] -- switch assistant personality\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
@@ -617,6 +629,64 @@ module Legion
             )
           end
           :handled
+        end
+
+        def handle_stats
+          @message_stream.add_message(role: :system, content: build_stats_lines.join("\n"))
+          :handled
+        end
+
+        def build_stats_lines
+          msgs = @message_stream.messages
+          counts = count_by_role(msgs)
+          total_chars = msgs.sum { |m| m[:content].to_s.length }
+          lines = stats_header_lines(msgs, counts, total_chars)
+          lines << "  Tool calls: #{counts[:tool]}" if counts[:tool].positive?
+          lines
+        end
+
+        def count_by_role(msgs)
+          %i[user assistant system tool].to_h { |role| [role, msgs.count { |m| m[:role] == role }] }
+        end
+
+        def stats_header_lines(msgs, counts, total_chars)
+          [
+            "Messages: #{msgs.size} total",
+            "  User: #{counts[:user]}, Assistant: #{counts[:assistant]}, System: #{counts[:system]}",
+            "Characters: #{format_stat_number(total_chars)}",
+            "Session: #{@session_name}",
+            "Tokens: #{@token_tracker.summary}"
+          ]
+        end
+
+        def format_stat_number(num)
+          num.to_s.chars.reverse.each_slice(3).map(&:join).join(',').reverse
+        end
+
+        def handle_personality(input)
+          name = input.split(nil, 2)[1]
+          if name && PERSONALITIES.key?(name)
+            apply_personality(name)
+          elsif name
+            available = PERSONALITIES.keys.join(', ')
+            @message_stream.add_message(role: :system,
+                                        content: "Unknown personality '#{name}'. Available: #{available}")
+          else
+            current = @personality || 'default'
+            available = PERSONALITIES.keys.join(', ')
+            @message_stream.add_message(role: :system, content: "Current: #{current}\nAvailable: #{available}")
+          end
+          :handled
+        end
+
+        def apply_personality(name)
+          @personality = name
+          if @llm_chat.respond_to?(:with_instructions)
+            @llm_chat.with_instructions(PERSONALITIES[name])
+            @message_stream.add_message(role: :system, content: "Personality switched to: #{name}")
+          else
+            @message_stream.add_message(role: :system, content: "Personality set to: #{name} (no active LLM)")
+          end
         end
 
         # rubocop:disable Metrics/AbcSize
