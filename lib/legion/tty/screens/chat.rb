@@ -31,7 +31,8 @@ module Legion
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
                             /wc /import /mute /autosave /react /macro /tag /tags /repeat /count
                             /template /fav /favs /log /version
-                            /focus /retry /merge /sort].freeze
+                            /focus /retry /merge /sort
+                            /chain /info /scroll /summary].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -405,6 +406,10 @@ module Legion
           when '/retry' then handle_retry
           when '/merge' then handle_merge(input)
           when '/sort' then handle_sort(input)
+          when '/chain' then handle_chain(input)
+          when '/info' then handle_info
+          when '/scroll' then handle_scroll(input)
+          when '/summary' then handle_summary
           else :handled
           end
         end

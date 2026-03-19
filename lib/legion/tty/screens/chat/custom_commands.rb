@@ -280,6 +280,42 @@ module Legion
               @message_stream.add_message(role: :system, content: "Snippet '#{name}' not found.")
             end
           end
+
+          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          def handle_chain(input)
+            args = input.split(nil, 2)[1]
+            unless args
+              @message_stream.add_message(
+                role: :system,
+                content: 'Usage: /chain prompt1 | prompt2 | prompt3'
+              )
+              return :handled
+            end
+
+            unless @llm_chat || daemon_available?
+              @message_stream.add_message(role: :system, content: 'LLM not configured. Cannot run chain.')
+              return :handled
+            end
+
+            prompts = args.split('|').map(&:strip).reject(&:empty?)
+            if prompts.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /chain prompt1 | prompt2 | prompt3')
+              return :handled
+            end
+
+            prompts.each do |prompt|
+              @message_stream.add_message(role: :user, content: prompt)
+              @message_stream.add_message(role: :assistant, content: '')
+              send_to_llm(prompt)
+            end
+
+            @message_stream.add_message(
+              role: :system,
+              content: "Chain complete: #{prompts.size} prompt#{'s' unless prompts.size == 1} sent."
+            )
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         end
         # rubocop:enable Metrics/ModuleLength
       end

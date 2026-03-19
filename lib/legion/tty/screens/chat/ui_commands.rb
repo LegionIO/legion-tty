@@ -313,6 +313,78 @@ module Legion
             end
             :handled
           end
+
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+          def handle_scroll(input)
+            arg = input.split(nil, 2)[1]
+            unless arg
+              pos = @message_stream.scroll_position
+              @message_stream.add_message(
+                role: :system,
+                content: "Scroll position: offset=#{pos[:current]}, messages=#{pos[:total]}"
+              )
+              return :handled
+            end
+
+            case arg.strip
+            when 'top'
+              @message_stream.scroll_up(@message_stream.messages.size * 5)
+              @message_stream.add_message(role: :system, content: 'Scrolled to top.')
+            when 'bottom'
+              @message_stream.scroll_down(@message_stream.scroll_offset)
+              @message_stream.add_message(role: :system, content: 'Scrolled to bottom.')
+            else
+              idx = arg.strip.to_i
+              if idx >= 0 && idx < @message_stream.messages.size
+                @message_stream.scroll_down(@message_stream.scroll_offset)
+                target_offset = [@message_stream.messages.size - idx - 1, 0].max
+                @message_stream.scroll_up(target_offset)
+                @message_stream.add_message(role: :system, content: "Scrolled to message #{idx}.")
+              else
+                @message_stream.add_message(
+                  role: :system,
+                  content: 'Invalid index. Usage: /scroll top|bottom|<N>'
+                )
+              end
+            end
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          def handle_summary
+            msgs = @message_stream.messages
+            elapsed = Time.now - @session_start
+            hours   = (elapsed / 3600).to_i
+            minutes = ((elapsed % 3600) / 60).to_i
+            seconds = (elapsed % 60).to_i
+            uptime_str = "#{hours}h #{minutes}m #{seconds}s"
+
+            counts = %i[user assistant system].to_h { |r| [r, msgs.count { |m| m[:role] == r }] }
+            most_active = counts.max_by { |_, v| v }&.first || :none
+
+            user_msgs = msgs.select { |m| m[:role] == :user }
+            top_words = user_msgs.flat_map { |m| m[:content].to_s.split.first(1) }
+                                 .tally.sort_by { |_, c| -c }.first(5).map(&:first)
+
+            longest = msgs.max_by { |m| m[:content].to_s.length }
+            longest_preview = longest ? truncate_text(longest[:content].to_s, 60) : 'none'
+
+            last_user = user_msgs.last
+            recent_topic = last_user ? truncate_text(last_user[:content].to_s, 40) : 'none'
+
+            lines = [
+              'Conversation Summary',
+              "  Messages: #{msgs.size}, Duration: #{uptime_str}",
+              "  Most active role: #{most_active}",
+              "  Top starting words: #{top_words.empty? ? 'none' : top_words.join(', ')}",
+              "  Longest message: #{longest_preview}",
+              "  Most recent topic: #{recent_topic}"
+            ]
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         end
         # rubocop:enable Metrics/ModuleLength
       end

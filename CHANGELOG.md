@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.19] - 2026-03-19
+
+### Added
+- `/chain` command: send a sequence of pipe-separated prompts to the LLM sequentially
+- `/info` command: comprehensive session info (modes, counts, aliases, snippets, macros, provider)
+- `/scroll [top|bottom|N]` command: navigate to specific scroll position in message stream
+- `/summary` command: generate a local conversation summary (topics, lengths, duration)
+
 ## [0.4.18] - 2026-03-19
 
 ### Added

@@ -157,6 +157,60 @@ module Legion
             nil
           end
 
+          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          def handle_info
+            cfg = safe_config
+            elapsed = Time.now - @session_start
+            hours   = (elapsed / 3600).to_i
+            minutes = ((elapsed % 3600) / 60).to_i
+            seconds = (elapsed % 60).to_i
+            uptime_str = "#{hours}h #{minutes}m #{seconds}s"
+
+            msgs = @message_stream.messages
+            counts = %i[user assistant system tool].to_h { |r| [r, msgs.count { |m| m[:role] == r }] }
+            total_chars = msgs.sum { |m| m[:content].to_s.length }
+            avg_len = (total_chars.to_f / [msgs.size, 1].max).round
+
+            model_info = if @llm_chat.respond_to?(:model)
+                           @llm_chat.model.to_s
+                         else
+                           cfg[:provider] || 'none'
+                         end
+
+            tagged_count = msgs.count { |m| m[:tags]&.any? }
+            fav_count = msgs.count { |m| m[:favorited] }
+
+            lines = [
+              "Session: #{@session_name}",
+              "Started: #{@session_start.strftime('%Y-%m-%d %H:%M:%S')}",
+              "Uptime: #{uptime_str}",
+              '',
+              "Messages: #{msgs.size} total",
+              "  User: #{counts[:user]}, Assistant: #{counts[:assistant]}, System: #{counts[:system]}",
+              "  Tool: #{counts[:tool]}",
+              '',
+              "Total characters: #{total_chars}",
+              "Avg message length: #{avg_len} chars",
+              '',
+              "Pinned: #{@pinned_messages.size}",
+              "Tagged: #{tagged_count}",
+              "Favorited: #{fav_count}",
+              "Aliases: #{@aliases.size}",
+              "Snippets: #{@snippets.size}",
+              "Macros: #{@macros.size}",
+              '',
+              "Autosave: #{@autosave_enabled ? "ON (every #{@autosave_interval}s)" : 'OFF'}",
+              "Focus mode: #{@focus_mode ? 'on' : 'off'}",
+              "Muted system: #{@muted_system ? 'on' : 'off'}",
+              "Plan mode: #{@plan_mode ? 'on' : 'off'}",
+              "Debug mode: #{@debug_mode ? 'on' : 'off'}",
+              "LLM: #{model_info}"
+            ]
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+
           def handle_merge(input)
             name = input.split(nil, 2)[1]
             unless name
