@@ -2,7 +2,6 @@
 
 require 'spec_helper'
 require 'tmpdir'
-require 'json'
 
 RSpec.describe Legion::TTY::DaemonClient do
   let(:cache_dir) { Dir.mktmpdir('legion-tty') }
@@ -31,7 +30,7 @@ RSpec.describe Legion::TTY::DaemonClient do
     end
 
     it 'returns parsed manifest when cache file exists' do
-      File.write(cache_file, JSON.dump([{ name: 'lex-detect', state: 'running' }]))
+      File.write(cache_file, Legion::JSON.dump([{ name: 'lex-detect', state: 'running' }]))
       manifest = described_class.cached_manifest
       expect(manifest).to be_an(Array)
       expect(manifest.first[:name]).to eq('lex-detect')

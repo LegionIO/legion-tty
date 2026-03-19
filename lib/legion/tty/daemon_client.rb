@@ -2,8 +2,8 @@
 
 require 'net/http'
 require 'uri'
-require 'json'
 require 'fileutils'
+require 'legion/json'
 
 module Legion
   module TTY
@@ -35,7 +35,7 @@ module Legion
           end
           return nil unless response.code.to_i == 200
 
-          body = ::JSON.parse(response.body, symbolize_names: true)
+          body = Legion::JSON.load(response.body)
           @manifest = body[:data]
           write_cache(@manifest)
           @manifest
@@ -48,7 +48,7 @@ module Legion
 
           return nil unless @cache_file && File.exist?(@cache_file)
 
-          @manifest = ::JSON.parse(File.read(@cache_file), symbolize_names: true)
+          @manifest = Legion::JSON.load(File.read(@cache_file))
         rescue StandardError
           nil
         end
@@ -75,12 +75,12 @@ module Legion
           return nil unless available?
 
           uri = URI("#{daemon_url}/api/llm/chat")
-          payload = ::JSON.dump({ message: message, model: model, provider: provider })
+          payload = Legion::JSON.dump({ message: message, model: model, provider: provider })
           response = post_json(uri, payload)
 
           return nil unless response && SUCCESS_CODES.include?(response.code.to_i)
 
-          ::JSON.parse(response.body, symbolize_names: true)
+          Legion::JSON.load(response.body)
         rescue StandardError
           nil
         end
@@ -109,7 +109,7 @@ module Legion
           return unless @cache_file
 
           FileUtils.mkdir_p(File.dirname(@cache_file))
-          File.write(@cache_file, ::JSON.dump(data))
+          File.write(@cache_file, Legion::JSON.dump(data))
         rescue StandardError
           nil
         end
