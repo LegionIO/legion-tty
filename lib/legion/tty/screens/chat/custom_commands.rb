@@ -125,6 +125,105 @@ module Legion
           end
           # rubocop:enable Metrics/AbcSize
 
+          # rubocop:disable Metrics/MethodLength
+          def handle_macro(input)
+            parts = input.split(nil, 3)
+            subcommand = parts[1]
+            name = parts[2]
+
+            case subcommand
+            when 'record'
+              macro_record(name)
+            when 'stop'
+              macro_stop
+            when 'play'
+              macro_play(name)
+            when 'list'
+              macro_list
+            when 'delete'
+              macro_delete(name)
+            else
+              @message_stream.add_message(
+                role: :system,
+                content: 'Usage: /macro record|stop|play|list|delete <name>'
+              )
+            end
+            :handled
+          end
+          # rubocop:enable Metrics/MethodLength
+
+          def macro_record(name)
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /macro record <name>')
+              return
+            end
+
+            @recording_macro = name
+            @macro_buffer = []
+            @message_stream.add_message(role: :system,
+                                        content: "Recording macro '#{name}'... Use /macro stop to finish.")
+          end
+
+          def macro_stop
+            unless @recording_macro
+              @message_stream.add_message(role: :system, content: 'No macro recording in progress.')
+              return
+            end
+
+            name = @recording_macro
+            @macros[name] = @macro_buffer.dup
+            @recording_macro = nil
+            @macro_buffer = []
+            @message_stream.add_message(role: :system,
+                                        content: "Macro '#{name}' saved (#{@macros[name].size} commands).")
+          end
+
+          def macro_play(name)
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /macro play <name>')
+              return
+            end
+
+            commands = @macros[name]
+            unless commands
+              @message_stream.add_message(role: :system, content: "Macro '#{name}' not found.")
+              return
+            end
+
+            @message_stream.add_message(role: :system,
+                                        content: "Playing macro '#{name}' (#{commands.size} commands)...")
+            commands.each { |cmd| handle_slash_command(cmd) }
+          end
+
+          def macro_list
+            if @macros.empty?
+              @message_stream.add_message(role: :system, content: 'No macros defined.')
+              return
+            end
+
+            lines = @macros.map do |n, cmds|
+              preview = cmds.first(3).join(', ')
+              preview += ', ...' if cmds.size > 3
+              "  #{n} (#{cmds.size}): #{preview}"
+            end
+            status = @recording_macro ? " [recording: #{@recording_macro}]" : ''
+            @message_stream.add_message(role: :system,
+                                        content: "Macros (#{@macros.size})#{status}:\n#{lines.join("\n")}")
+          end
+
+          def macro_delete(name)
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /macro delete <name>')
+              return
+            end
+
+            if @macros.delete(name)
+              @message_stream.add_message(role: :system, content: "Macro '#{name}' deleted.")
+            else
+              @message_stream.add_message(role: :system, content: "Macro '#{name}' not found.")
+            end
+          end
+
           def snippet_delete(name)
             unless name
               @message_stream.add_message(role: :system, content: 'Usage: /snippet delete <name>')

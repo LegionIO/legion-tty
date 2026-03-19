@@ -29,7 +29,7 @@ module Legion
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
-                            /wc /import /mute].freeze
+                            /wc /import /mute /autosave /react /macro /tag /tags].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -41,7 +41,7 @@ module Legion
 
         attr_reader :message_stream, :status_bar
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
         def initialize(app, output: $stdout, input_bar: nil)
           super(app)
           @output = output
@@ -57,12 +57,18 @@ module Legion
           @pinned_messages = []
           @aliases = {}
           @snippets = {}
+          @macros = {}
           @debug_mode = false
           @session_start = Time.now
           @muted_system = false
+          @autosave_enabled = false
+          @autosave_interval = 60
+          @last_autosave = Time.now
+          @recording_macro = nil
+          @macro_buffer = []
         end
 
-        # rubocop:enable Metrics/AbcSize
+        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
         def activate
           @running = true
@@ -116,7 +122,9 @@ module Legion
             return handle_slash_command("#{expanded} #{input.split(nil, 2)[1]}".strip)
           end
 
-          dispatch_slash(cmd, input)
+          result = dispatch_slash(cmd, input)
+          record_macro_step(input, cmd, result)
+          result
         end
 
         def handle_user_message(input)
@@ -128,6 +136,7 @@ module Legion
             send_to_llm(input)
           end
           @status_bar.update(message_count: @message_stream.messages.size)
+          check_autosave
           render_screen
         end
 
@@ -174,6 +183,14 @@ module Legion
         end
 
         private
+
+        def record_macro_step(input, cmd, result)
+          return unless @recording_macro
+          return if cmd == '/macro'
+          return unless result == :handled
+
+          @macro_buffer << input
+        end
 
         def setup_system_prompt
           cfg = safe_config
@@ -353,6 +370,11 @@ module Legion
           when '/wc' then handle_wc
           when '/import' then handle_import(input)
           when '/mute' then handle_mute
+          when '/autosave' then handle_autosave(input)
+          when '/react' then handle_react(input)
+          when '/macro' then handle_macro(input)
+          when '/tag' then handle_tag(input)
+          when '/tags' then handle_tags(input)
           else :handled
           end
         end
@@ -431,7 +453,9 @@ module Legion
             "personality:#{@personality || 'default'} " \
             "aliases:#{@aliases.size} " \
             "snippets:#{@snippets.size} " \
-            "pinned:#{@pinned_messages.size}"
+            "macros:#{@macros.size} " \
+            "pinned:#{@pinned_messages.size} " \
+            "autosave:#{@autosave_enabled}"
         end
 
         def build_default_input_bar

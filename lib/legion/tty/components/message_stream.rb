@@ -96,7 +96,9 @@ module Legion
         def user_lines(msg, _width)
           ts = format_timestamp(msg[:timestamp])
           header = "#{Theme.c(:accent, 'You')} #{Theme.c(:muted, ts)}"
-          ['', "#{header}: #{msg[:content]}"]
+          lines = ['', "#{header}: #{msg[:content]}"]
+          lines << reaction_line(msg) if msg[:reactions]&.any?
+          lines
         end
 
         def format_timestamp(time)
@@ -107,7 +109,14 @@ module Legion
 
         def assistant_lines(msg, width)
           rendered = render_markdown(msg[:content], width)
-          ['', *rendered.split("\n")]
+          lines = ['', *rendered.split("\n")]
+          lines << reaction_line(msg) if msg[:reactions]&.any?
+          lines
+        end
+
+        def reaction_line(msg)
+          reactions = msg[:reactions].map { |r| "[#{r}]" }.join(' ')
+          "  #{Theme.c(:muted, reactions)}"
         end
 
         def render_markdown(text, width)

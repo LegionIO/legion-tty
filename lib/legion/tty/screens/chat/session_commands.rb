@@ -113,6 +113,39 @@ module Legion
             :handled
           end
 
+          def handle_autosave(input)
+            arg = input.split(nil, 2)[1]
+            if arg.nil?
+              @autosave_enabled = !@autosave_enabled
+              status = @autosave_enabled ? "ON (every #{@autosave_interval}s)" : 'OFF'
+              @status_bar.notify(message: "Autosave: #{status}", level: :info, ttl: 3)
+              @message_stream.add_message(role: :system, content: "Autosave #{status}.")
+            elsif arg == 'off'
+              @autosave_enabled = false
+              @status_bar.notify(message: 'Autosave: OFF', level: :info, ttl: 3)
+              @message_stream.add_message(role: :system, content: 'Autosave OFF.')
+            elsif arg.match?(/\A\d+\z/)
+              @autosave_interval = arg.to_i
+              @autosave_enabled = true
+              @status_bar.notify(message: "Autosave: ON (every #{@autosave_interval}s)", level: :info, ttl: 3)
+              @message_stream.add_message(role: :system, content: "Autosave ON (every #{@autosave_interval}s).")
+            else
+              @message_stream.add_message(role: :system, content: 'Usage: /autosave [off|<seconds>]')
+            end
+            :handled
+          end
+
+          def check_autosave
+            return unless @autosave_enabled
+            return unless Time.now - @last_autosave >= @autosave_interval
+
+            auto_save_session
+            @last_autosave = Time.now
+            @status_bar.notify(message: 'Autosaved', level: :info, ttl: 2)
+          rescue StandardError
+            nil
+          end
+
           def auto_save_session
             return if @message_stream.messages.empty?
 

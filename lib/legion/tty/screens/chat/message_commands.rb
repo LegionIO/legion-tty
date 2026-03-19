@@ -162,6 +162,70 @@ module Legion
             :handled
           end
 
+          # rubocop:disable Metrics/AbcSize
+          def handle_react(input)
+            parts = input.split(nil, 3)
+            if parts.size == 2
+              emoji = parts[1]
+              msg = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+            elsif parts.size >= 3 && parts[1].match?(/\A\d+\z/)
+              idx = parts[1].to_i
+              emoji = parts[2]
+              msg = @message_stream.messages[idx]
+            else
+              @message_stream.add_message(role: :system, content: 'Usage: /react <emoji> or /react <N> <emoji>')
+              return :handled
+            end
+
+            unless msg
+              @message_stream.add_message(role: :system, content: 'No message to react to.')
+              return :handled
+            end
+
+            msg[:reactions] ||= []
+            msg[:reactions] << emoji
+            @message_stream.add_message(role: :system, content: "Reaction #{emoji} added.")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_tag(input)
+            parts = input.split(nil, 3)
+            if parts.size == 2
+              label = parts[1]
+              msg = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+            elsif parts.size >= 3 && parts[1].match?(/\A\d+\z/)
+              idx = parts[1].to_i
+              label = parts[2]
+              msg = @message_stream.messages[idx]
+            else
+              @message_stream.add_message(role: :system, content: 'Usage: /tag <label> or /tag <N> <label>')
+              return :handled
+            end
+
+            unless msg
+              @message_stream.add_message(role: :system, content: 'No message to tag.')
+              return :handled
+            end
+
+            msg[:tags] ||= []
+            msg[:tags] |= [label]
+            @message_stream.add_message(role: :system, content: "Tag '#{label}' added.")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_tags(input)
+            label = input.split(nil, 2)[1]
+            if label
+              filter_messages_by_tag(label)
+            else
+              show_all_tags
+            end
+            :handled
+          end
+
           def search_messages(query)
             pattern = query.downcase
             @message_stream.messages.select do |msg|
@@ -182,6 +246,34 @@ module Legion
               IO.popen('xclip -selection clipboard', 'w') { |io| io.write(text) }
             rescue Errno::ENOENT
               nil
+            end
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def show_all_tags
+            tagged = @message_stream.messages.select { |m| m[:tags]&.any? }
+            if tagged.empty?
+              @message_stream.add_message(role: :system, content: 'No tagged messages.')
+              return
+            end
+
+            counts = Hash.new(0)
+            tagged.each { |m| m[:tags].each { |t| counts[t] += 1 } }
+            lines = counts.sort.map { |tag, count| "  ##{tag} (#{count})" }
+            @message_stream.add_message(role: :system, content: "Tags:\n#{lines.join("\n")}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def filter_messages_by_tag(label)
+            results = @message_stream.messages.select { |m| m[:tags]&.include?(label) }
+            if results.empty?
+              @message_stream.add_message(role: :system, content: "No messages tagged '##{label}'.")
+            else
+              lines = results.map { |r| "  [#{r[:role]}] #{truncate_text(r[:content].to_s, 80)}" }
+              @message_stream.add_message(
+                role: :system,
+                content: "Messages tagged '##{label}' (#{results.size}):\n#{lines.join("\n")}"
+              )
             end
           end
         end

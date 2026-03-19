@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.15] - 2026-03-19
+
+### Added
+- `/autosave [N|off]` command: toggle periodic auto-save with configurable interval (default 60s)
+- `/react <emoji>` command: add emoji reactions to messages (displayed in render)
+- `/macro record|stop|play|list|delete` command: record and replay slash command sequences
+- `/tag` and `/tags` commands: tag messages with labels, filter by tag, show tag statistics
+
 ## [0.4.14] - 2026-03-19
 
 ### Added
