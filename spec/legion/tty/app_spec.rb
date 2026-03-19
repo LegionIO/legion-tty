@@ -128,4 +128,60 @@ RSpec.describe Legion::TTY::App do
       end
     end
   end
+
+  describe '#setup_hotkeys' do
+    it 'registers Ctrl+D for toggle dashboard' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        app.setup_hotkeys
+        keys = app.hotkeys.list.map { |b| b[:key] }
+        expect(keys).to include("\x04")
+      end
+    end
+
+    it 'registers Ctrl+L for refresh' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        app.setup_hotkeys
+        keys = app.hotkeys.list.map { |b| b[:key] }
+        expect(keys).to include("\x0C")
+      end
+    end
+
+    it 'registers Ctrl+K for command palette' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        app.setup_hotkeys
+        keys = app.hotkeys.list.map { |b| b[:key] }
+        expect(keys).to include("\x0B")
+      end
+    end
+
+    it 'registers Ctrl+S for session picker' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        app.setup_hotkeys
+        keys = app.hotkeys.list.map { |b| b[:key] }
+        expect(keys).to include("\x13")
+      end
+    end
+
+    it 'registers Escape for go back' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        app.setup_hotkeys
+        keys = app.hotkeys.list.map { |b| b[:key] }
+        expect(keys).to include("\e")
+      end
+    end
+
+    it 'does NOT register ? as a hotkey' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        app.setup_hotkeys
+        keys = app.hotkeys.list.map { |b| b[:key] }
+        expect(keys).not_to include('?')
+      end
+    end
+  end
 end

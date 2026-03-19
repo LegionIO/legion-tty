@@ -46,15 +46,11 @@ module Legion
       end
 
       def setup_hotkeys
-        @hotkeys.register("\x04", 'Toggle dashboard (Ctrl+D)') do
-          toggle_dashboard
-        end
-        @hotkeys.register("\x0C", 'Refresh screen (Ctrl+L)') do
-          :refresh
-        end
-        @hotkeys.register('?', 'Show help overlay') do
-          show_help_overlay
-        end
+        @hotkeys.register("\x04", 'Toggle dashboard (Ctrl+D)') { toggle_dashboard }
+        @hotkeys.register("\x0C", 'Refresh screen (Ctrl+L)') { :refresh }
+        @hotkeys.register("\x0B", 'Command palette (Ctrl+K)') { :command_palette }
+        @hotkeys.register("\x13", 'Session picker (Ctrl+S)') { :session_picker }
+        @hotkeys.register("\e", 'Go back (Escape)') { :escape }
       end
 
       def toggle_dashboard
@@ -66,13 +62,6 @@ module Legion
           dashboard = Screens::Dashboard.new(self)
           @screen_manager.push(dashboard)
         end
-      end
-
-      def show_help_overlay
-        bindings = @hotkeys.list
-        lines = bindings.map { |b| "  #{b[:key].inspect} - #{b[:description]}" }
-        text = "Hotkeys:\n#{lines.join("\n")}"
-        @screen_manager.show_overlay(text)
       end
 
       def run_onboarding

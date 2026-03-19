@@ -157,8 +157,40 @@ RSpec.describe Legion::TTY::Screens::Chat do
 
     it 'includes all expected commands' do
       expected = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
-                    /sessions /system /delete /plan]
+                    /sessions /system /delete /plan /palette /extensions /config]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
+    end
+
+    it 'includes /palette in SLASH_COMMANDS' do
+      expect(described_class::SLASH_COMMANDS).to include('/palette')
+    end
+
+    it 'includes /extensions in SLASH_COMMANDS' do
+      expect(described_class::SLASH_COMMANDS).to include('/extensions')
+    end
+
+    it 'includes /config in SLASH_COMMANDS' do
+      expect(described_class::SLASH_COMMANDS).to include('/config')
+    end
+
+    describe '#handle_extensions_screen' do
+      it 'rescues LoadError and adds a system message' do
+        allow(screen).to receive(:require_relative).and_raise(LoadError, 'cannot load')
+        result = screen.send(:handle_extensions_screen)
+        expect(result).to eq(:handled)
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Extensions screen not available.')
+      end
+    end
+
+    describe '#handle_config_screen' do
+      it 'rescues LoadError and adds a system message' do
+        allow(screen).to receive(:require_relative).and_raise(LoadError, 'cannot load')
+        result = screen.send(:handle_config_screen)
+        expect(result).to eq(:handled)
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Config screen not available.')
+      end
     end
 
     describe '/system' do

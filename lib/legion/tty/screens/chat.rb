@@ -13,7 +13,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
-                            /sessions /system /delete /plan].freeze
+                            /sessions /system /delete /plan /palette /extensions /config].freeze
 
         attr_reader :message_stream, :status_bar
 
@@ -223,7 +223,7 @@ module Legion
           nil
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
         def dispatch_slash(cmd, input)
           case cmd
           when '/quit' then :quit
@@ -242,17 +242,21 @@ module Legion
           when '/system' then handle_system(input)
           when '/delete' then handle_delete(input)
           when '/plan' then handle_plan
+          when '/palette' then handle_palette
+          when '/extensions' then handle_extensions_screen
+          when '/config' then handle_config_screen
           else :handled
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
 
         def handle_help
           @message_stream.add_message(
             role: :system,
             content: "Commands:\n  /help /quit /clear /model <name> /session <name> /cost\n  " \
                      "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
-                     '/system <prompt> /delete <session> /plan'
+                     "/system <prompt> /delete <session> /plan /palette /extensions /config\n\n" \
+                     'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
         end
@@ -424,7 +428,7 @@ module Legion
         def handle_system(input)
           text = input.split(nil, 2)[1]
           if text
-            if @llm_chat&.respond_to?(:with_instructions)
+            if @llm_chat.respond_to?(:with_instructions)
               @llm_chat.with_instructions(text)
               @message_stream.add_message(role: :system, content: 'System prompt updated.')
             else
@@ -457,6 +461,48 @@ module Legion
             @status_bar.update(plan_mode: false)
             @message_stream.add_message(role: :system, content: 'Plan mode OFF -- messages sent to LLM.')
           end
+          :handled
+        end
+
+        def handle_palette
+          require_relative '../components/command_palette'
+          palette = Components::CommandPalette.new(session_store: @session_store)
+          selection = palette.select_with_prompt(output: @output)
+          return :handled unless selection
+
+          if selection.start_with?('/')
+            handle_slash_command(selection)
+          else
+            dispatch_screen_by_name(selection)
+          end
+          :handled
+        end
+
+        def dispatch_screen_by_name(name)
+          case name
+          when 'dashboard' then handle_dashboard
+          when 'extensions' then handle_extensions_screen
+          when 'config' then handle_config_screen
+          end
+        end
+
+        def handle_extensions_screen
+          require_relative '../screens/extensions'
+          screen = Screens::Extensions.new(@app, output: @output)
+          @app.screen_manager.push(screen)
+          :handled
+        rescue LoadError
+          @message_stream.add_message(role: :system, content: 'Extensions screen not available.')
+          :handled
+        end
+
+        def handle_config_screen
+          require_relative '../screens/config'
+          screen = Screens::Config.new(@app, output: @output)
+          @app.screen_manager.push(screen)
+          :handled
+        rescue LoadError
+          @message_stream.add_message(role: :system, content: 'Config screen not available.')
           :handled
         end
 
