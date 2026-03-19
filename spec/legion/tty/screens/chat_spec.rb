@@ -167,7 +167,11 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /annotate /annotations /filter /truncate
                     /tee /pipe
                     /archive /archives
-                    /calc /rand]
+                    /calc /rand
+                    /echo /env
+                    /ls /pwd
+                    /wrap /number
+                    /speak /silent]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 

@@ -9,7 +9,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class MessageStream
         attr_reader :messages, :scroll_offset
-        attr_accessor :mute_system, :highlights, :filter, :truncate_limit
+        attr_accessor :mute_system, :silent_mode, :highlights, :filter, :truncate_limit, :wrap_width, :show_numbers
 
         HIGHLIGHT_COLOR = "\e[1;33m"
         HIGHLIGHT_RESET = "\e[0m"
@@ -18,7 +18,10 @@ module Legion
           @messages = []
           @scroll_offset = 0
           @mute_system = false
+          @silent_mode = false
           @highlights = []
+          @wrap_width = nil
+          @show_numbers = false
         end
 
         def add_message(role:, content:)
@@ -61,7 +64,8 @@ module Legion
         end
 
         def render(width:, height:)
-          all_lines = build_all_lines(width)
+          effective_width = @wrap_width || width
+          all_lines = build_all_lines(effective_width)
           total = all_lines.size
           start_idx = [total - height - @scroll_offset, 0].max
           start_idx = [start_idx, total].min
@@ -77,10 +81,11 @@ module Legion
         private
 
         def build_all_lines(width)
-          filtered_messages.flat_map do |msg|
+          filtered_messages.each_with_index.flat_map do |msg, idx|
             next [] if @mute_system && msg[:role] == :system
+            next [] if @silent_mode && msg[:role] == :assistant
 
-            render_message(msg, width)
+            render_message(msg, width, @show_numbers ? idx + 1 : nil)
           end
         end
 
@@ -99,8 +104,17 @@ module Legion
           end
         end
 
-        def render_message(msg, width)
-          role_lines(msg, width) + panel_lines(msg, width)
+        def render_message(msg, width, number = nil)
+          lines = role_lines(msg, width) + panel_lines(msg, width)
+          prepend_number(lines, number)
+        end
+
+        def prepend_number(lines, number)
+          return lines unless number
+
+          lines.each_with_index.map do |line, i|
+            i == 1 ? "[#{number}] #{line}" : line
+          end
         end
 
         def role_lines(msg, width)

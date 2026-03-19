@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.23] - 2026-03-19
+
+### Added
+- `/wrap [N|off]` command: set custom word wrap width for message display
+- `/number [on|off]` command: toggle message numbering with `[N]` prefix
+- `/echo <text>` command: add user-defined system messages (notes/markers)
+- `/env` command: show environment info (Ruby version, platform, terminal, PID, Legion gems)
+- `/speak [on|off]` command: toggle text-to-speech for assistant messages (macOS only, via `say`)
+- `/silent` command: toggle silent mode (responses tracked but not displayed), `[SILENT]` indicator
+- `/ls [path]` command: list directory contents with directory markers
+- `/pwd` command: show current working directory
+
 ## [0.4.22] - 2026-03-19
 
 ### Added

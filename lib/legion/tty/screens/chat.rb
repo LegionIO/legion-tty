@@ -37,7 +37,11 @@ module Legion
                             /annotate /annotations /filter /truncate
                             /tee /pipe
                             /archive /archives
-                            /calc /rand].freeze
+                            /calc /rand
+                            /echo /env
+                            /ls /pwd
+                            /wrap /number
+                            /speak /silent].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -79,6 +83,8 @@ module Legion
           @last_user_input = nil
           @highlights = []
           @multiline_mode = false
+          @speak_mode = false
+          @silent_mode = false
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -244,20 +250,35 @@ module Legion
           send_via_direct(message)
         end
 
+        # rubocop:disable Metrics/AbcSize
         def send_via_direct(message)
           return unless @llm_chat
 
           @status_bar.update(thinking: true)
           render_screen
           start_time = Time.now
+          response_text = +''
           response = @llm_chat.ask(message) do |chunk|
             @status_bar.update(thinking: false)
-            @message_stream.append_streaming(chunk.content) if chunk.content
+            if chunk.content
+              response_text << chunk.content
+              @message_stream.append_streaming(chunk.content)
+            end
             render_screen
           end
           record_response_time(Time.now - start_time)
           @status_bar.update(thinking: false)
           track_response_tokens(response)
+          speak_response(response_text) if @speak_mode
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        def speak_response(text)
+          return unless RUBY_PLATFORM =~ /darwin/
+
+          ::Process.spawn('say', text[0..500], err: '/dev/null', out: '/dev/null')
+        rescue StandardError
+          nil
         end
 
         def record_response_time(elapsed)
@@ -448,6 +469,14 @@ module Legion
           when '/archives' then handle_archives
           when '/calc' then handle_calc(input)
           when '/rand' then handle_rand(input)
+          when '/echo' then handle_echo(input)
+          when '/env' then handle_env
+          when '/ls' then handle_ls(input)
+          when '/pwd' then handle_pwd
+          when '/wrap' then handle_wrap(input)
+          when '/number' then handle_number(input)
+          when '/speak' then handle_speak(input)
+          when '/silent' then handle_silent
           else :handled
           end
         end

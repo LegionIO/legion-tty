@@ -471,8 +471,73 @@ module Legion
             end
           end
 
+          def handle_wrap(input)
+            arg = input.split(nil, 2)[1]&.strip
+            if arg.nil?
+              status = @message_stream.wrap_width ? "#{@message_stream.wrap_width} columns" : 'off'
+              @message_stream.add_message(role: :system, content: "Wrap: #{status}")
+            elsif arg == 'off'
+              @message_stream.wrap_width = nil
+              @message_stream.add_message(role: :system, content: 'Word wrap disabled.')
+            else
+              n = arg.to_i
+              if n >= 20
+                @message_stream.wrap_width = n
+                @message_stream.add_message(role: :system, content: "Word wrap set to #{n} columns.")
+              else
+                @message_stream.add_message(role: :system, content: 'Usage: /wrap [N|off]')
+              end
+            end
+            :handled
+          end
+
+          def handle_number(input)
+            arg = input.split(nil, 2)[1]&.strip
+            case arg
+            when 'on'
+              @message_stream.show_numbers = true
+              @message_stream.add_message(role: :system, content: 'Message numbering ON.')
+            when 'off'
+              @message_stream.show_numbers = false
+              @message_stream.add_message(role: :system, content: 'Message numbering OFF.')
+            else
+              @message_stream.show_numbers = !@message_stream.show_numbers
+              state = @message_stream.show_numbers ? 'ON' : 'OFF'
+              @message_stream.add_message(role: :system, content: "Message numbering #{state}.")
+            end
+            :handled
+          end
+
           def safe_calc_expr?(expr)
             CALC_SAFE_PATTERN.match?(expr) || CALC_MATH_PATTERN.match?(expr)
+          end
+
+          def handle_echo(input)
+            text = input.split(nil, 2)[1]&.strip
+            unless text && !text.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /echo <text>')
+              return :handled
+            end
+
+            @message_stream.add_message(role: :system, content: text)
+            :handled
+          end
+
+          def handle_env
+            width  = terminal_width
+            height = terminal_height
+            legion_gems = Gem::Specification.select { |s| s.name.start_with?('legion-', 'lex-') }
+                                            .map { |s| "#{s.name} #{s.version}" }
+                                            .sort
+            lines = [
+              "Ruby:     #{RUBY_VERSION} (#{RUBY_PLATFORM})",
+              "Terminal: #{width}x#{height}",
+              "PID:      #{::Process.pid}",
+              "TTY:      legion-tty v#{Legion::TTY::VERSION}",
+              "Gems (#{legion_gems.size}): #{legion_gems.join(', ')}"
+            ]
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
           end
 
           # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -540,6 +605,37 @@ module Legion
             result.to_s.chomp
           rescue StandardError => e
             raise "command failed: #{e.message}"
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_ls(input)
+            path = File.expand_path(input.split(nil, 2)[1]&.strip || '.')
+            entries = Dir.entries(path).sort.reject { |e| ['.', '..'].include?(e) }
+            entries = entries.map { |e| File.directory?(File.join(path, e)) ? "#{e}/" : e }
+            @message_stream.add_message(role: :system, content: "#{path}:\n#{entries.join("\n")}")
+            :handled
+          rescue Errno::ENOENT, Errno::EACCES => e
+            @message_stream.add_message(role: :system, content: "ls: #{e.message}")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_pwd
+            @message_stream.add_message(role: :system, content: Dir.pwd)
+            :handled
+          end
+
+          def handle_silent
+            @silent_mode = !@silent_mode
+            @message_stream.silent_mode = @silent_mode
+            if @silent_mode
+              @status_bar.update(silent: true)
+              @message_stream.add_message(role: :system, content: 'Silent mode ON -- assistant responses hidden.')
+            else
+              @status_bar.update(silent: false)
+              @message_stream.add_message(role: :system, content: 'Silent mode OFF -- assistant responses visible.')
+            end
+            :handled
           end
         end
       end

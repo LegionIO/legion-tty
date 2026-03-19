@@ -132,6 +132,28 @@ module Legion
             send_to_llm(@last_user_input)
             :handled
           end
+
+          def handle_speak(input)
+            unless RUBY_PLATFORM =~ /darwin/
+              @message_stream.add_message(role: :system, content: 'Text-to-speech is only available on macOS.')
+              return :handled
+            end
+
+            arg = input.split(nil, 2)[1]&.strip&.downcase
+            case arg
+            when 'on'
+              @speak_mode = true
+              @message_stream.add_message(role: :system, content: 'Text-to-speech ON.')
+            when 'off'
+              @speak_mode = false
+              @message_stream.add_message(role: :system, content: 'Text-to-speech OFF.')
+            else
+              @speak_mode = !@speak_mode
+              state = @speak_mode ? 'ON' : 'OFF'
+              @message_stream.add_message(role: :system, content: "Text-to-speech #{state}.")
+            end
+            :handled
+          end
         end
       end
     end
