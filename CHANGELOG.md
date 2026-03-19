@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.28] - 2026-03-19
+
+### Added
+- `Legion::TTY::DaemonClient` module for daemon-first manifest fetching, intent matching, and LLM routing
+- Manifest caching to `~/.legionio/catalog.json` with intent confidence threshold matching
+- `chat` method for daemon-routed LLM requests via `/api/llm/chat`
+
 ## [0.4.27] - 2026-03-19
 
 ### Added
