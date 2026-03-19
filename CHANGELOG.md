@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.9] - 2026-03-18
+
+### Fixed
+- Chat LLM not configured: setup_llm now reads from Legion::Settings llm.json first, falls back to legacy credentials.json
+
 ## [0.2.8] - 2026-03-18
 
 ### Added

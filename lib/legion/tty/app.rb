@@ -93,12 +93,7 @@ module Legion
       end
 
       def setup_llm
-        return unless @credentials[:provider] && @credentials[:api_key]
-
-        provider = @credentials[:provider].to_sym
-        api_key = @credentials[:api_key]
-        configure_llm_provider(provider, api_key)
-        @llm_chat = create_llm_chat(provider)
+        @llm_chat = try_settings_llm || try_credentials_llm
       rescue StandardError
         @llm_chat = nil
       end
@@ -144,6 +139,31 @@ module Legion
       }.freeze
 
       private
+
+      def try_settings_llm
+        require 'legion/llm'
+        require 'legion/settings'
+        Legion::LLM.start unless Legion::LLM.started?
+        return nil unless Legion::LLM.started?
+
+        provider = Legion::LLM.settings[:default_provider]
+        return nil unless provider
+
+        Legion::LLM.chat(provider: provider)
+      rescue LoadError, StandardError
+        nil
+      end
+
+      def try_credentials_llm
+        return nil unless @credentials[:provider] && @credentials[:api_key]
+
+        provider = @credentials[:provider].to_sym
+        api_key = @credentials[:api_key]
+        configure_llm_provider(provider, api_key)
+        create_llm_chat(provider)
+      rescue StandardError
+        nil
+      end
 
       # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
       def save_identity(data)
