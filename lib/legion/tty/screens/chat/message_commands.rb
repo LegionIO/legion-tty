@@ -4,7 +4,6 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
-        # rubocop:disable Metrics/ModuleLength
         module MessageCommands
           private
 
@@ -402,7 +401,7 @@ module Legion
             File.write(favorites_file, ::JSON.generate(favs))
           end
 
-          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+          # rubocop:disable Metrics/AbcSize
           def handle_fav(input)
             idx_str = input.split(nil, 2)[1]
             msg = if idx_str
@@ -428,7 +427,51 @@ module Legion
             @message_stream.add_message(role: :system, content: "Favorited: #{preview}")
             :handled
           end
-          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+          # rubocop:enable Metrics/AbcSize
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_annotate(input)
+            parts = input.split(nil, 3)
+            if parts.size >= 3 && parts[1].match?(/\A\d+\z/)
+              idx = parts[1].to_i
+              text = parts[2]
+              msg = @message_stream.messages[idx]
+            elsif parts.size == 2 && !parts[1].match?(/\A\d+\z/)
+              text = parts[1]
+              msg = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+            elsif parts.size >= 3
+              text = parts[1..].join(' ')
+              msg = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+            else
+              @message_stream.add_message(role: :system, content: 'Usage: /annotate [N] <text>')
+              return :handled
+            end
+
+            unless msg
+              @message_stream.add_message(role: :system, content: 'No message to annotate.')
+              return :handled
+            end
+
+            msg[:annotations] ||= []
+            msg[:annotations] << { text: text, timestamp: Time.now.iso8601 }
+            @message_stream.add_message(role: :system, content: "Annotation added: #{text}")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_annotations(_input)
+            annotated = @message_stream.messages.each_with_index.select { |m, _| m[:annotations]&.any? }
+            if annotated.empty?
+              @message_stream.add_message(role: :system, content: 'No annotated messages.')
+              return :handled
+            end
+
+            lines = annotated.flat_map do |msg, idx|
+              msg[:annotations].map { |a| "  [#{idx}][#{msg[:role]}] #{a[:text]} (#{a[:timestamp]})" }
+            end
+            @message_stream.add_message(role: :system, content: "Annotations:\n#{lines.join("\n")}")
+            :handled
+          end
 
           def handle_favs
             all_favs = load_favorites
@@ -447,8 +490,64 @@ module Legion
             )
             :handled
           end
+
+          def handle_filter(input)
+            parts = input.split(nil, 3)
+            subcommand = parts[1]
+            case subcommand
+            when 'role'
+              apply_role_filter(parts[2])
+            when 'tag'
+              apply_tag_filter(parts[2])
+            when 'pinned'
+              @message_stream.filter = { type: :pinned }
+              @message_stream.add_message(role: :system, content: 'Filter: pinned messages only.')
+            when 'clear'
+              @message_stream.filter = nil
+              @message_stream.add_message(role: :system, content: 'Filter cleared.')
+            when nil
+              show_filter_status
+            else
+              @message_stream.add_message(
+                role: :system,
+                content: 'Usage: /filter [role|tag|pinned|clear] [value]'
+              )
+            end
+            :handled
+          end
+
+          def apply_role_filter(value)
+            unless value
+              @message_stream.add_message(role: :system, content: 'Usage: /filter role <user|assistant|system>')
+              return
+            end
+
+            @message_stream.filter = { type: :role, value: value }
+            @message_stream.add_message(role: :system, content: "Filter: role=#{value}.")
+          end
+
+          def apply_tag_filter(value)
+            unless value
+              @message_stream.add_message(role: :system, content: 'Usage: /filter tag <label>')
+              return
+            end
+
+            @message_stream.filter = { type: :tag, value: value }
+            @message_stream.add_message(role: :system, content: "Filter: tag=#{value}.")
+          end
+
+          def show_filter_status
+            f = @message_stream.filter
+            content = if f.nil?
+                        'No active filter.'
+                      elsif f[:type] == :pinned
+                        'Active filter: pinned.'
+                      else
+                        "Active filter: #{f[:type]}=#{f[:value]}."
+                      end
+            @message_stream.add_message(role: :system, content: content)
+          end
         end
-        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

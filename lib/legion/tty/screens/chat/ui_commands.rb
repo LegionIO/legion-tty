@@ -4,7 +4,6 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
-        # rubocop:disable Metrics/ModuleLength
         module UiCommands
           TIPS = [
             'Press Tab after / to auto-complete commands',
@@ -314,6 +313,19 @@ module Legion
             :handled
           end
 
+          def handle_multiline
+            @multiline_mode = !@multiline_mode
+            if @multiline_mode
+              @status_bar.update(multiline: true)
+              @message_stream.add_message(role: :system,
+                                          content: 'Multi-line mode ON. Submit with empty line.')
+            else
+              @status_bar.update(multiline: false)
+              @message_stream.add_message(role: :system, content: 'Multi-line mode OFF.')
+            end
+            :handled
+          end
+
           # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
           def handle_scroll(input)
             arg = input.split(nil, 2)[1]
@@ -390,7 +402,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Highlight added: '#{pattern}'")
           end
 
-          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
           def handle_summary
             msgs = @message_stream.messages
             elapsed = Time.now - @session_start
@@ -423,9 +435,8 @@ module Legion
             @message_stream.add_message(role: :system, content: lines.join("\n"))
             :handled
           end
-          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         end
-        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

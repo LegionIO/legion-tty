@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.21] - 2026-03-19
+
+### Added
+- `/annotate [N] <text>` command: add notes/annotations to specific messages with timestamps
+- `/annotations` command: list all annotated messages with their notes
+- `/filter [role|tag|pinned|clear]` command: filter displayed messages by role, tag, or pinned status
+- `/multiline` command: toggle multi-line input mode (submit with empty line)
+- `/export yaml` format: export chat history as YAML alongside existing md/json/html formats
+- Annotation rendering in message stream (displayed after reactions)
+- `[ML]` status bar indicator for multi-line input mode
+
 ## [0.4.20] - 2026-03-19
 
 ### Added

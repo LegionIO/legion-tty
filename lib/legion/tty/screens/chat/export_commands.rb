@@ -21,19 +21,22 @@ module Legion
 
           def build_export_path(input)
             format = input.split[1]&.downcase
-            format = 'md' unless %w[json md html].include?(format)
+            format = 'md' unless %w[json md html yaml].include?(format)
             exports_dir = File.expand_path('~/.legionio/exports')
             FileUtils.mkdir_p(exports_dir)
             timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
-            ext = { 'json' => 'json', 'md' => 'md', 'html' => 'html' }[format]
+            ext = { 'json' => 'json', 'md' => 'md', 'html' => 'html', 'yaml' => 'yaml' }[format]
             File.join(exports_dir, "chat-#{timestamp}.#{ext}")
           end
 
           def dispatch_export(path, format)
-            if format == 'json'
+            case format
+            when 'json'
               export_json(path)
-            elsif format == 'html'
+            when 'html'
               export_html(path)
+            when 'yaml'
+              export_yaml(path)
             else
               export_markdown(path)
             end
@@ -56,6 +59,17 @@ module Legion
               messages: @message_stream.messages.map { |m| { role: m[:role].to_s, content: m[:content] } }
             }
             File.write(path, ::JSON.pretty_generate(data))
+          end
+
+          def export_yaml(path)
+            require 'yaml'
+            data = {
+              'exported_at' => Time.now.iso8601,
+              'messages' => @message_stream.messages.map do |m|
+                { 'role' => m[:role].to_s, 'content' => m[:content], 'timestamp' => m[:timestamp]&.iso8601 }
+              end
+            }
+            File.write(path, ::YAML.dump(data))
           end
 
           # rubocop:disable Metrics/MethodLength, Metrics/AbcSize

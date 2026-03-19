@@ -9,7 +9,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class MessageStream
         attr_reader :messages, :scroll_offset
-        attr_accessor :mute_system, :highlights
+        attr_accessor :mute_system, :highlights, :filter
 
         HIGHLIGHT_COLOR = "\e[1;33m"
         HIGHLIGHT_RESET = "\e[0m"
@@ -77,10 +77,25 @@ module Legion
         private
 
         def build_all_lines(width)
-          @messages.flat_map do |msg|
+          filtered_messages.flat_map do |msg|
             next [] if @mute_system && msg[:role] == :system
 
             render_message(msg, width)
+          end
+        end
+
+        def filtered_messages
+          return @messages if @filter.nil?
+
+          case @filter[:type]
+          when :role
+            @messages.select { |m| m[:role].to_s == @filter[:value].to_s }
+          when :tag
+            @messages.select { |m| (m[:tags] || []).include?(@filter[:value]) }
+          when :pinned
+            @messages.select { |m| m[:pinned] }
+          else
+            @messages
           end
         end
 
@@ -104,6 +119,7 @@ module Legion
           content = apply_highlights(msg[:content].to_s)
           lines = ['', "#{header}: #{content}"]
           lines << reaction_line(msg) if msg[:reactions]&.any?
+          lines.concat(annotation_lines(msg)) if msg[:annotations]&.any?
           lines
         end
 
@@ -118,12 +134,20 @@ module Legion
           rendered = apply_highlights(rendered)
           lines = ['', *rendered.split("\n")]
           lines << reaction_line(msg) if msg[:reactions]&.any?
+          lines.concat(annotation_lines(msg)) if msg[:annotations]&.any?
           lines
         end
 
         def reaction_line(msg)
           reactions = msg[:reactions].map { |r| "[#{r}]" }.join(' ')
           "  #{Theme.c(:muted, reactions)}"
+        end
+
+        def annotation_lines(msg)
+          msg[:annotations].map do |a|
+            ts = a[:timestamp].to_s[11..15] || ''
+            "  #{Theme.c(:muted, "note [#{ts}]: #{a[:text]}")}"
+          end
         end
 
         def render_markdown(text, width)

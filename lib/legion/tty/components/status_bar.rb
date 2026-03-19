@@ -10,7 +10,7 @@ module Legion
       class StatusBar
         def initialize
           @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false, plan_mode: false,
-                     debug_mode: false, message_count: 0 }
+                     debug_mode: false, message_count: 0, multiline: false }
           @notifications = []
         end
 
@@ -42,6 +42,7 @@ module Legion
           [
             model_segment,
             plan_segment,
+            multiline_segment,
             debug_segment,
             thinking_segment,
             notification_segment,
@@ -61,6 +62,12 @@ module Legion
           return nil unless @state[:plan_mode]
 
           Theme.c(:warning, '[PLAN]')
+        end
+
+        def multiline_segment
+          return nil unless @state[:multiline]
+
+          Theme.c(:accent, '[ML]')
         end
 
         def debug_segment

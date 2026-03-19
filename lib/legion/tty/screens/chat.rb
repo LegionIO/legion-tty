@@ -33,7 +33,8 @@ module Legion
                             /template /fav /favs /log /version
                             /focus /retry /merge /sort
                             /chain /info /scroll /summary
-                            /prompt /reset /replace /highlight].freeze
+                            /prompt /reset /replace /highlight /multiline
+                            /annotate /annotations /filter].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -74,6 +75,7 @@ module Legion
           @focus_mode = false
           @last_user_input = nil
           @highlights = []
+          @multiline_mode = false
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -94,7 +96,7 @@ module Legion
           @running
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable Metrics/AbcSize
         def run
           activate
           while @running
@@ -117,7 +119,7 @@ module Legion
             end
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def handle_slash_command(input)
           return nil unless input.start_with?('/')
@@ -339,8 +341,23 @@ module Legion
 
         def read_input
           return nil unless @input_bar.respond_to?(:read_line)
+          return read_multiline_input if @multiline_mode
 
           @input_bar.read_line
+        rescue Interrupt
+          nil
+        end
+
+        def read_multiline_input
+          lines = []
+          loop do
+            line = @input_bar.read_line
+            return nil if line.nil? && lines.empty?
+            break if line.nil? || line.empty?
+
+            lines << line
+          end
+          lines.empty? ? nil : lines.join("\n")
         rescue Interrupt
           nil
         end
@@ -416,6 +433,10 @@ module Legion
           when '/reset' then handle_reset
           when '/replace' then handle_replace(input)
           when '/highlight' then handle_highlight(input)
+          when '/multiline' then handle_multiline
+          when '/annotate' then handle_annotate(input)
+          when '/annotations' then handle_annotations(input)
+          when '/filter' then handle_filter(input)
           else :handled
           end
         end
@@ -500,6 +521,7 @@ module Legion
           "[DEBUG] msgs:#{@message_stream.messages.size} " \
             "scroll:#{@message_stream.scroll_position&.dig(:current) || 0} " \
             "plan:#{@plan_mode} " \
+            "multiline:#{@multiline_mode} " \
             "personality:#{@personality || 'default'} " \
             "aliases:#{@aliases.size} " \
             "snippets:#{@snippets.size} " \
