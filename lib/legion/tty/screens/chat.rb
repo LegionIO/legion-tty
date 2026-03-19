@@ -14,7 +14,7 @@ module Legion
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
-                            /theme /search /stats /personality].freeze
+                            /theme /search /stats /personality /undo /history /pin /pins /rename].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -38,6 +38,7 @@ module Legion
           @session_store = SessionStore.new
           @session_name = 'default'
           @plan_mode = false
+          @pinned_messages = []
         end
 
         def activate
@@ -292,6 +293,11 @@ module Legion
           when '/search' then handle_search(input)
           when '/stats' then handle_stats
           when '/personality' then handle_personality(input)
+          when '/undo' then handle_undo
+          when '/history' then handle_history
+          when '/pin' then handle_pin(input)
+          when '/pins' then handle_pins
+          when '/rename' then handle_rename(input)
           else :handled
           end
         end
@@ -309,7 +315,12 @@ module Legion
                      "/copy -- copy last assistant message to clipboard\n  " \
                      "/diff -- show new messages since session was loaded\n  " \
                      "/stats -- show conversation statistics\n  " \
-                     "/personality [name] -- switch assistant personality\n\n" \
+                     "/personality [name] -- switch assistant personality\n  " \
+                     "/undo -- remove last user+assistant message pair\n  " \
+                     "/history -- show recent input history\n  " \
+                     "/pin [N] -- pin last assistant message (or message at index N)\n  " \
+                     "/pins -- show all pinned messages\n  " \
+                     "/rename <name> -- rename current session\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
@@ -403,6 +414,7 @@ module Legion
           @session_name = name
           @session_store.save(name, messages: @message_stream.messages)
           @status_bar.update(session: name)
+          @status_bar.notify(message: "Saved '#{name}'", level: :success, ttl: 3)
           @message_stream.add_message(role: :system, content: "Session saved as '#{name}'.")
           :handled
         end
@@ -422,6 +434,7 @@ module Legion
           @loaded_message_count = @message_stream.messages.size
           @session_name = name
           @status_bar.update(session: name)
+          @status_bar.notify(message: "Loaded '#{name}'", level: :info, ttl: 3)
           @message_stream.add_message(role: :system,
                                       content: "Session '#{name}' loaded (#{data[:messages].size} messages).")
           :handled
@@ -454,23 +467,11 @@ module Legion
           :handled
         end
 
-        # rubocop:disable Metrics/AbcSize
         def handle_export(input)
           require 'fileutils'
-          format = input.split[1]&.downcase
-          format = 'md' unless %w[json md html].include?(format)
-          exports_dir = File.expand_path('~/.legionio/exports')
-          FileUtils.mkdir_p(exports_dir)
-          timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
-          ext = { 'json' => 'json', 'md' => 'md', 'html' => 'html' }[format]
-          path = File.join(exports_dir, "chat-#{timestamp}.#{ext}")
-          if format == 'json'
-            export_json(path)
-          elsif format == 'html'
-            export_html(path)
-          else
-            export_markdown(path)
-          end
+          path = build_export_path(input)
+          dispatch_export(path, input.split[1]&.downcase)
+          @status_bar.notify(message: 'Exported', level: :success, ttl: 3)
           @message_stream.add_message(role: :system, content: "Exported to: #{path}")
           :handled
         rescue StandardError => e
@@ -478,7 +479,25 @@ module Legion
           :handled
         end
 
-        # rubocop:enable Metrics/AbcSize
+        def build_export_path(input)
+          format = input.split[1]&.downcase
+          format = 'md' unless %w[json md html].include?(format)
+          exports_dir = File.expand_path('~/.legionio/exports')
+          FileUtils.mkdir_p(exports_dir)
+          timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
+          ext = { 'json' => 'json', 'md' => 'md', 'html' => 'html' }[format]
+          File.join(exports_dir, "chat-#{timestamp}.#{ext}")
+        end
+
+        def dispatch_export(path, format)
+          if format == 'json'
+            export_json(path)
+          elsif format == 'html'
+            export_html(path)
+          else
+            export_markdown(path)
+          end
+        end
 
         # rubocop:disable Metrics/AbcSize
         def handle_tools
@@ -605,6 +624,7 @@ module Legion
           name = input.split(nil, 2)[1]
           if name
             if Theme.switch(name)
+              @status_bar.notify(message: "Theme: #{name}", level: :info, ttl: 2)
               @message_stream.add_message(role: :system, content: "Theme switched to: #{name}")
             else
               available = Theme.available_themes.join(', ')
@@ -851,6 +871,78 @@ module Legion
 
         def escape_html(text)
           text.gsub('&', '&amp;').gsub('<', '&lt;').gsub('>', '&gt;').gsub('"', '&quot;')
+        end
+
+        def handle_undo
+          msgs = @message_stream.messages
+          last_user_idx = msgs.rindex { |m| m[:role] == :user }
+          unless last_user_idx
+            @message_stream.add_message(role: :system, content: 'Nothing to undo.')
+            return :handled
+          end
+
+          msgs.slice!(last_user_idx..)
+          :handled
+        end
+
+        def handle_history
+          entries = @input_bar.history
+          if entries.empty?
+            @message_stream.add_message(role: :system, content: 'No input history.')
+          else
+            recent = entries.last(20)
+            lines = recent.each_with_index.map { |entry, i| "  #{i + 1}. #{entry}" }
+            @message_stream.add_message(role: :system,
+                                        content: "Input history (last #{recent.size}):\n#{lines.join("\n")}")
+          end
+          :handled
+        end
+
+        def handle_pin(input)
+          idx_str = input.split(nil, 2)[1]
+          msg = if idx_str
+                  @message_stream.messages[idx_str.to_i]
+                else
+                  @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+                end
+          unless msg
+            @message_stream.add_message(role: :system, content: 'No message to pin.')
+            return :handled
+          end
+
+          @pinned_messages << msg
+          preview = truncate_text(msg[:content].to_s, 60)
+          @message_stream.add_message(role: :system, content: "Pinned: #{preview}")
+          :handled
+        end
+
+        def handle_pins
+          if @pinned_messages.empty?
+            @message_stream.add_message(role: :system, content: 'No pinned messages.')
+          else
+            lines = @pinned_messages.each_with_index.map do |msg, i|
+              "  #{i + 1}. [#{msg[:role]}] #{truncate_text(msg[:content].to_s, 70)}"
+            end
+            @message_stream.add_message(role: :system,
+                                        content: "Pinned messages (#{@pinned_messages.size}):\n#{lines.join("\n")}")
+          end
+          :handled
+        end
+
+        def handle_rename(input)
+          name = input.split(nil, 2)[1]
+          unless name
+            @message_stream.add_message(role: :system, content: 'Usage: /rename <new-name>')
+            return :handled
+          end
+
+          old_name = @session_name
+          @session_store.delete(old_name) if old_name != 'default'
+          @session_name = name
+          @status_bar.update(session: name)
+          @session_store.save(name, messages: @message_stream.messages)
+          @message_stream.add_message(role: :system, content: "Session renamed to '#{name}'.")
+          :handled
         end
 
         def build_default_input_bar

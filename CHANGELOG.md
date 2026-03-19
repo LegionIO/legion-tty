@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.9] - 2026-03-19
+
+### Added
+- StatusBar notifications: transient toast-style messages with TTL expiry (wired to save/load/export/theme)
+- `/undo` command: remove last user+assistant message pair
+- `/history` command: show last 20 input entries
+- `/pin` and `/pins` commands: pin important messages, view pinned list
+- `/rename <name>` command: rename current session (deletes old, saves new)
+
 ## [0.4.8] - 2026-03-19
 
 ### Added

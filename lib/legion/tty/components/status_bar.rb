@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../theme'
+require_relative 'notification'
 
 module Legion
   module TTY
@@ -8,6 +9,11 @@ module Legion
       class StatusBar
         def initialize
           @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false, plan_mode: false }
+          @notifications = []
+        end
+
+        def notify(message:, level: :info, ttl: 5)
+          @notifications << Notification.new(message: message, level: level, ttl: ttl)
         end
 
         def update(**fields)
@@ -35,6 +41,7 @@ module Legion
             model_segment,
             plan_segment,
             thinking_segment,
+            notification_segment,
             tokens_segment,
             cost_segment,
             session_segment,
@@ -58,6 +65,13 @@ module Legion
           @spinner_index = ((@spinner_index || 0) + 1) % SPINNER_FRAMES.size
           frame = SPINNER_FRAMES[@spinner_index]
           Theme.c(:warning, "#{frame} thinking...")
+        end
+
+        def notification_segment
+          @notifications.reject!(&:expired?)
+          return nil if @notifications.empty?
+
+          @notifications.first.render
         end
 
         def tokens_segment

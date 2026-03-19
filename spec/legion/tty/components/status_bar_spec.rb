@@ -92,4 +92,43 @@ RSpec.describe Legion::TTY::Components::StatusBar do
       bar.render(width: 120)
     end
   end
+
+  describe '#notify and notification_segment' do
+    it 'notify adds a notification' do
+      bar.notify(message: 'Hello', level: :success, ttl: 5)
+      result = bar.render(width: 120)
+      expect(result).to include('Hello')
+    end
+
+    it 'notification_segment returns nil when no notifications' do
+      result = bar.send(:notification_segment)
+      expect(result).to be_nil
+    end
+
+    it 'notification_segment returns nil when all notifications expired' do
+      bar.notify(message: 'gone', ttl: 0)
+      sleep 0.01
+      result = bar.send(:notification_segment)
+      expect(result).to be_nil
+    end
+
+    it 'notification_segment renders the first active notification' do
+      bar.notify(message: 'active', level: :info, ttl: 10)
+      result = bar.send(:notification_segment)
+      expect(result).to include('active')
+    end
+
+    it 'cleans expired notifications when rendering' do
+      bar.notify(message: 'expired', ttl: 0)
+      sleep 0.01
+      bar.render(width: 120)
+      expect(bar.instance_variable_get(:@notifications)).to be_empty
+    end
+
+    it 'defaults level to :info when not specified' do
+      bar.notify(message: 'test')
+      notifications = bar.instance_variable_get(:@notifications)
+      expect(notifications.first.level).to eq(:info)
+    end
+  end
 end
