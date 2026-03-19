@@ -303,6 +303,16 @@ module Legion
             )
             :handled
           end
+
+          def handle_focus
+            @focus_mode = !@focus_mode
+            if @focus_mode
+              @status_bar.notify(message: 'Focus mode ON', level: :info, ttl: 2)
+            else
+              @status_bar.notify(message: 'Focus mode OFF', level: :info, ttl: 2)
+            end
+            :handled
+          end
         end
         # rubocop:enable Metrics/ModuleLength
       end

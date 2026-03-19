@@ -4,6 +4,7 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
+        # rubocop:disable Metrics/ModuleLength
         module ModelCommands
           private
 
@@ -116,7 +117,24 @@ module Legion
               @message_stream.add_message(role: :system, content: "Personality set to: #{name} (no active LLM)")
             end
           end
+
+          def handle_retry
+            unless @last_user_input
+              @message_stream.add_message(role: :system, content: 'Nothing to retry.')
+              return :handled
+            end
+
+            msgs = @message_stream.messages
+            last_assistant_idx = msgs.rindex { |m| m[:role] == :assistant }
+            msgs.delete_at(last_assistant_idx) if last_assistant_idx
+
+            @status_bar.notify(message: 'Retrying...', level: :info, ttl: 2)
+            @message_stream.add_message(role: :assistant, content: '')
+            send_to_llm(@last_user_input)
+            :handled
+          end
         end
+        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

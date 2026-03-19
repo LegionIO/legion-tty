@@ -299,6 +299,54 @@ module Legion
             end
           end
 
+          def handle_sort(input)
+            arg = input.split(nil, 2)[1]
+            if arg == 'role'
+              sort_by_role
+            else
+              sort_by_length
+            end
+            :handled
+          end
+
+          def sort_by_length
+            msgs = @message_stream.messages
+            if msgs.empty?
+              @message_stream.add_message(role: :system, content: 'No messages to sort.')
+              return
+            end
+
+            sorted = msgs.sort_by { |m| -m[:content].to_s.length }.first(10)
+            lines = sorted.map { |m| format_length_line(m) }
+            @message_stream.add_message(
+              role: :system,
+              content: "Messages by length (top #{sorted.size}):\n#{lines.join("\n")}"
+            )
+          end
+
+          def format_length_line(msg)
+            len = msg[:content].to_s.length
+            preview = truncate_text(msg[:content].to_s, 60)
+            "  [#{msg[:role]}] (#{len} chars) #{preview}"
+          end
+
+          def sort_by_role
+            msgs = @message_stream.messages
+            if msgs.empty?
+              @message_stream.add_message(role: :system, content: 'No messages to sort.')
+              return
+            end
+
+            counts = msgs.group_by { |m| m[:role] }
+                         .transform_values(&:size)
+                         .sort_by { |_, count| -count }
+            lines = counts.map { |role, count| "  #{role}: #{count}" }
+            @message_stream.add_message(
+              role: :system,
+              content: "Messages by role:\n#{lines.join("\n")}"
+            )
+          end
+
           def favorites_file
             File.expand_path('~/.legionio/favorites.json')
           end

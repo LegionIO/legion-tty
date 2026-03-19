@@ -30,7 +30,8 @@ module Legion
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
                             /wc /import /mute /autosave /react /macro /tag /tags /repeat /count
-                            /template /fav /favs /log /version].freeze
+                            /template /fav /favs /log /version
+                            /focus /retry /merge /sort].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -68,6 +69,8 @@ module Legion
           @recording_macro = nil
           @macro_buffer = []
           @last_command = nil
+          @focus_mode = false
+          @last_user_input = nil
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -131,6 +134,7 @@ module Legion
         end
 
         def handle_user_message(input)
+          @last_user_input = input
           @message_stream.add_message(role: :user, content: input)
           if @plan_mode
             @message_stream.add_message(role: :system, content: '(bookmarked)')
@@ -160,16 +164,9 @@ module Legion
         end
 
         def render(width, height)
-          bar_line = @status_bar.render(width: width)
-          divider = Theme.c(:muted, '-' * width)
-          dbg = debug_segment
-          extra_rows = dbg ? 1 : 0
-          stream_height = [height - 2 - extra_rows, 1].max
-          stream_lines = @message_stream.render(width: width, height: stream_height)
-          @status_bar.update(scroll: @message_stream.scroll_position)
-          lines = stream_lines + [divider, bar_line]
-          lines << dbg if dbg
-          lines
+          return render_focus(width, height) if @focus_mode
+
+          render_normal(width, height)
         end
 
         def handle_input(key)
@@ -186,6 +183,25 @@ module Legion
         end
 
         private
+
+        def render_focus(width, height)
+          stream_lines = @message_stream.render(width: width, height: [height, 1].max)
+          @status_bar.update(scroll: @message_stream.scroll_position)
+          stream_lines
+        end
+
+        def render_normal(width, height)
+          bar_line = @status_bar.render(width: width)
+          divider = Theme.c(:muted, '-' * width)
+          dbg = debug_segment
+          extra_rows = dbg ? 1 : 0
+          stream_height = [height - 2 - extra_rows, 1].max
+          stream_lines = @message_stream.render(width: width, height: stream_height)
+          @status_bar.update(scroll: @message_stream.scroll_position)
+          lines = stream_lines + [divider, bar_line]
+          lines << dbg if dbg
+          lines
+        end
 
         def record_macro_step(input, cmd, result)
           return unless @recording_macro
@@ -385,6 +401,10 @@ module Legion
           when '/favs' then handle_favs
           when '/log' then handle_log(input)
           when '/version' then handle_version
+          when '/focus' then handle_focus
+          when '/retry' then handle_retry
+          when '/merge' then handle_merge(input)
+          when '/sort' then handle_sort(input)
           else :handled
           end
         end

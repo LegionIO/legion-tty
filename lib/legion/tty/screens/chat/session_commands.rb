@@ -156,6 +156,29 @@ module Legion
           rescue StandardError
             nil
           end
+
+          def handle_merge(input)
+            name = input.split(nil, 2)[1]
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /merge <session-name>')
+              return :handled
+            end
+
+            data = @session_store.load(name)
+            unless data
+              @message_stream.add_message(role: :system, content: 'Session not found.')
+              return :handled
+            end
+
+            imported = data[:messages]
+            @message_stream.messages.concat(imported)
+            @status_bar.update(message_count: @message_stream.messages.size)
+            @message_stream.add_message(
+              role: :system,
+              content: "Merged #{imported.size} messages from '#{name}'."
+            )
+            :handled
+          end
         end
         # rubocop:enable Metrics/ModuleLength
       end

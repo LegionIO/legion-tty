@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.18] - 2026-03-19
+
+### Added
+- `/focus` command: toggle minimal UI mode (hides status bar for distraction-free writing)
+- `/retry` command: resend last user message to LLM, replacing previous assistant response
+- `/merge <session>` command: import messages from another saved session into current conversation
+- `/sort [length|role]` command: display messages sorted by character length or grouped by role
+
 ## [0.4.17] - 2026-03-19
 
 ### Added
