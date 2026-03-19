@@ -13,7 +13,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
-                            /sessions /system /delete /plan /palette /extensions /config].freeze
+                            /sessions /system /delete /plan /palette /extensions /config /theme].freeze
 
         attr_reader :message_stream, :status_bar
 
@@ -275,6 +275,7 @@ module Legion
           when '/palette' then handle_palette
           when '/extensions' then handle_extensions_screen
           when '/config' then handle_config_screen
+          when '/theme' then handle_theme(input)
           else :handled
           end
         end
@@ -285,7 +286,8 @@ module Legion
             role: :system,
             content: "Commands:\n  /help /quit /clear /model <name> /session <name> /cost\n  " \
                      "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
-                     "/system <prompt> /delete <session> /plan /palette /extensions /config\n\n" \
+                     "/system <prompt> /delete <session> /plan /palette /extensions /config\n  " \
+                     "/theme [name] -- switch color theme (purple, green, blue, amber)\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
@@ -567,6 +569,23 @@ module Legion
           :handled
         rescue LoadError
           @message_stream.add_message(role: :system, content: 'Config screen not available.')
+          :handled
+        end
+
+        def handle_theme(input)
+          name = input.split(nil, 2)[1]
+          if name
+            if Theme.switch(name)
+              @message_stream.add_message(role: :system, content: "Theme switched to: #{name}")
+            else
+              available = Theme.available_themes.join(', ')
+              @message_stream.add_message(role: :system, content: "Unknown theme '#{name}'. Available: #{available}")
+            end
+          else
+            current = Theme.current_theme
+            available = Theme.available_themes.join(', ')
+            @message_stream.add_message(role: :system, content: "Current theme: #{current}\nAvailable: #{available}")
+          end
           :handled
         end
 

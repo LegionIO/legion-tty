@@ -20,9 +20,10 @@ RSpec.describe Legion::TTY::Theme do
 
   describe 'SEMANTIC' do
     it 'maps to palette symbols or RGB arrays' do
+      purple_palette = described_class::THEMES[:purple][:palette]
       described_class::SEMANTIC.each_value do |val|
         if val.is_a?(Symbol)
-          expect(described_class::PALETTE).to have_key(val)
+          expect(described_class::PALETTE.merge(purple_palette)).to have_key(val)
         else
           expect(val).to be_an(Array)
           expect(val.size).to eq(3)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3] - 2026-03-19
+
+### Added
+- Daemon-first chat routing: chat screen routes through LegionIO daemon when available
+- `send_via_daemon` and `send_via_direct` methods with automatic fallback
+- `daemon_available?` guard for `Legion::LLM::DaemonClient` presence
+
 ## [0.4.2] - 2026-03-19
 
 ### Added

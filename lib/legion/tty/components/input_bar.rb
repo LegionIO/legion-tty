@@ -41,11 +41,17 @@ module Legion
           @completions.select { |c| c.start_with?(partial) }.sort
         end
 
+        def history
+          return [] unless @reader.respond_to?(:history)
+
+          @reader.history.to_a
+        end
+
         private
 
         def build_default_reader
           require 'tty-reader'
-          reader = ::TTY::Reader.new
+          reader = ::TTY::Reader.new(history_cycle: true)
           register_tab_completion(reader)
           reader
         rescue LoadError
