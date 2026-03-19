@@ -28,6 +28,20 @@ RSpec.describe Legion::TTY::Components::TokenTracker do
       t = described_class.new
       expect(t.total_cost).to eq(0.0)
     end
+
+    it 'accepts a model argument' do
+      t = described_class.new(provider: 'claude', model: 'claude-sonnet-4-6')
+      expect(t).to be_a(described_class)
+    end
+  end
+
+  describe '#update_model' do
+    it 'changes the model used for future tracking' do
+      tracker.update_model('claude-opus-4-6')
+      tracker.track(input_tokens: 1000, output_tokens: 1000)
+      # opus: 0.015/1K input + 0.075/1K output = 0.090
+      expect(tracker.total_cost).to be_within(0.0001).of(0.090)
+    end
   end
 
   describe '#track' do
@@ -43,9 +57,9 @@ RSpec.describe Legion::TTY::Components::TokenTracker do
       expect(tracker.total_output_tokens).to eq(125)
     end
 
-    it 'calculates cost using claude pricing' do
+    it 'calculates cost using claude provider pricing as fallback' do
       tracker.track(input_tokens: 1000, output_tokens: 1000)
-      # claude: 0.003/1K input + 0.015/1K output = 0.003 + 0.015 = 0.018
+      # claude provider: 0.003/1K input + 0.015/1K output = 0.018
       expect(tracker.total_cost).to be_within(0.0001).of(0.018)
     end
 
@@ -53,6 +67,19 @@ RSpec.describe Legion::TTY::Components::TokenTracker do
       tracker.track(input_tokens: nil, output_tokens: nil)
       expect(tracker.total_input_tokens).to eq(0)
       expect(tracker.total_output_tokens).to eq(0)
+    end
+
+    it 'uses per-model rates when model kwarg is provided' do
+      tracker.track(input_tokens: 1000, output_tokens: 1000, model: 'claude-sonnet-4-6')
+      # sonnet: 0.003/1K input + 0.015/1K output = 0.018
+      expect(tracker.total_cost).to be_within(0.0001).of(0.018)
+    end
+
+    it 'updates stored model when model kwarg is provided' do
+      tracker.track(input_tokens: 0, output_tokens: 0, model: 'gpt-4o')
+      tracker.track(input_tokens: 1000, output_tokens: 1000)
+      # gpt-4o: 0.0025/1K input + 0.010/1K output = 0.0125
+      expect(tracker.total_cost).to be_within(0.0001).of(0.0125)
     end
   end
 
@@ -80,12 +107,41 @@ RSpec.describe Legion::TTY::Components::TokenTracker do
     end
   end
 
-  describe 'provider pricing' do
-    it 'uses openai pricing when provider is openai' do
+  describe 'per-model pricing' do
+    it 'uses sonnet rates for claude-sonnet-4-6' do
+      t = described_class.new(provider: 'claude', model: 'claude-sonnet-4-6')
+      t.track(input_tokens: 1000, output_tokens: 1000)
+      # sonnet: 0.003/1K + 0.015/1K = 0.018
+      expect(t.total_cost).to be_within(0.0001).of(0.018)
+    end
+
+    it 'uses opus rates for claude-opus-4-6' do
+      t = described_class.new(provider: 'claude', model: 'claude-opus-4-6')
+      t.track(input_tokens: 1000, output_tokens: 1000)
+      # opus: 0.015/1K + 0.075/1K = 0.090
+      expect(t.total_cost).to be_within(0.0001).of(0.090)
+    end
+
+    it 'matches partial model name for bedrock-style model IDs' do
+      t = described_class.new(provider: 'bedrock', model: 'us.anthropic.claude-sonnet-4-6-v1')
+      t.track(input_tokens: 1000, output_tokens: 1000)
+      # matches claude-sonnet-4-6: 0.003/1K + 0.015/1K = 0.018
+      expect(t.total_cost).to be_within(0.0001).of(0.018)
+    end
+
+    it 'uses zero cost for local model' do
+      t = described_class.new(provider: 'ollama', model: 'local')
+      t.track(input_tokens: 10_000, output_tokens: 10_000)
+      expect(t.total_cost).to eq(0.0)
+    end
+  end
+
+  describe 'provider pricing fallback' do
+    it 'uses openai pricing when provider is openai and no model given' do
       t = described_class.new(provider: 'openai')
       t.track(input_tokens: 1000, output_tokens: 1000)
-      # openai: 0.005/1K input + 0.015/1K output = 0.020
-      expect(t.total_cost).to be_within(0.0001).of(0.020)
+      # openai: 0.0025/1K input + 0.010/1K output = 0.0125
+      expect(t.total_cost).to be_within(0.0001).of(0.0125)
     end
 
     it 'uses zero pricing for local provider' do
@@ -99,15 +155,39 @@ RSpec.describe Legion::TTY::Components::TokenTracker do
       t.track(input_tokens: 1000, output_tokens: 1000)
       expect(t.total_cost).to be_within(0.0001).of(0.018)
     end
+
+    it 'falls back to claude pricing for unknown model and unknown provider' do
+      t = described_class.new(provider: 'unknown', model: 'totally-fake-model')
+      t.track(input_tokens: 1000, output_tokens: 1000)
+      expect(t.total_cost).to be_within(0.0001).of(0.018)
+    end
   end
 
-  describe 'PRICING' do
+  describe 'PROVIDER_PRICING' do
     it 'includes all expected providers' do
-      expect(described_class::PRICING.keys).to include('claude', 'openai', 'gemini', 'azure', 'local')
+      expect(described_class::PROVIDER_PRICING.keys).to include('claude', 'openai', 'gemini', 'azure', 'local',
+                                                                 'anthropic', 'bedrock', 'ollama')
     end
 
     it 'each provider has input and output rates' do
-      described_class::PRICING.each_value do |rates|
+      described_class::PROVIDER_PRICING.each_value do |rates|
+        expect(rates).to have_key(:input)
+        expect(rates).to have_key(:output)
+      end
+    end
+  end
+
+  describe 'MODEL_PRICING' do
+    it 'includes all expected models' do
+      expect(described_class::MODEL_PRICING.keys).to include(
+        'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5',
+        'gpt-4o', 'gpt-4o-mini', 'gpt-4.1',
+        'gemini-2.0-flash', 'gemini-2.5-pro', 'local'
+      )
+    end
+
+    it 'each model has input and output rates' do
+      described_class::MODEL_PRICING.each_value do |rates|
         expect(rates).to have_key(:input)
         expect(rates).to have_key(:output)
       end

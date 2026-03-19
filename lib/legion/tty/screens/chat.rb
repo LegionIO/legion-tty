@@ -382,7 +382,7 @@ module Legion
         def detect_provider
           cfg = safe_config
           provider = cfg[:provider].to_s.downcase
-          return provider if Components::TokenTracker::PRICING.key?(provider)
+          return provider if Components::TokenTracker::PROVIDER_PRICING.key?(provider)
 
           'claude'
         end
@@ -390,9 +390,11 @@ module Legion
         def track_response_tokens(response)
           return unless response.respond_to?(:input_tokens)
 
+          model_id = response.respond_to?(:model) ? response.model.to_s : nil
           @token_tracker.track(
             input_tokens: response.input_tokens.to_i,
-            output_tokens: response.output_tokens.to_i
+            output_tokens: response.output_tokens.to_i,
+            model: model_id
           )
           @status_bar.update(
             tokens: @token_tracker.total_input_tokens + @token_tracker.total_output_tokens,
