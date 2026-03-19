@@ -174,7 +174,8 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /speak /silent
                     /color /timestamps
                     /top /bottom /head /tail
-                    /draft /revise /freq /mark]
+                    /draft /revise /freq /mark
+                    /about /commands /ask /define /status /prefs]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 

@@ -154,6 +154,32 @@ module Legion
             end
             :handled
           end
+
+          def handle_ask(input)
+            question = input.split(nil, 2)[1]&.strip
+            unless question && !question.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /ask <question>')
+              return :handled
+            end
+
+            @message_stream.add_message(role: :user, content: question)
+            @message_stream.add_message(role: :assistant, content: '')
+            send_to_llm("Answer the following question concisely in one paragraph: #{question}")
+            :handled
+          end
+
+          def handle_define(input)
+            term = input.split(nil, 2)[1]&.strip
+            unless term && !term.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /define <term>')
+              return :handled
+            end
+
+            @message_stream.add_message(role: :user, content: term)
+            @message_stream.add_message(role: :assistant, content: '')
+            send_to_llm("Define the following term concisely: #{term}")
+            :handled
+          end
         end
       end
     end

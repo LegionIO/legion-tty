@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.25] - 2026-03-19
+
+### Added
+- `/ask <question>` command: quick concise Q&A mode (instructs LLM to answer in one paragraph)
+- `/define <term>` command: ask LLM for a concise definition
+- `/status` command: comprehensive view of all 18 toggleable modes and settings
+- `/prefs [key] [value]` command: persistent user preferences in `~/.legionio/prefs.json`
+- `/about` command: show legion-tty name, version, author, license, GitHub URL
+- `/commands [pattern]` command: list all slash commands with optional pattern filter and count
+
+### Changed
+- Total slash commands: 103 (milestone)
+
 ## [0.4.24] - 2026-03-19
 
 ### Added

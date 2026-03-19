@@ -680,6 +680,49 @@ module Legion
             :handled
           end
 
+          def handle_about
+            lines = [
+              'legion-tty',
+              'Description : Rich terminal UI for the LegionIO async cognition engine',
+              "Version     : #{Legion::TTY::VERSION}",
+              'Author      : Matthew Iverson (@Esity)',
+              'License     : Apache-2.0',
+              'GitHub      : https://github.com/LegionIO/legion-tty'
+            ]
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
+          end
+
+          def handle_commands(input)
+            pattern = input.split(nil, 2)[1]&.strip&.downcase
+            cmds = filter_commands(pattern)
+            header = commands_header(pattern, cmds)
+            rows = format_command_columns(cmds)
+            @message_stream.add_message(role: :system, content: "#{header}\n#{rows.join("\n")}")
+            :handled
+          end
+
+          def filter_commands(pattern)
+            cmds = SLASH_COMMANDS.sort
+            return cmds unless pattern && !pattern.empty?
+
+            cmds.select { |c| c.include?(pattern) }
+          end
+
+          def commands_header(pattern, cmds)
+            if pattern && !pattern.empty?
+              "Commands matching '#{pattern}' (#{cmds.size}):"
+            else
+              "All commands (#{cmds.size}):"
+            end
+          end
+
+          def format_command_columns(cmds)
+            col_width = cmds.map(&:length).max.to_i + 2
+            cols = [terminal_width / [col_width, 1].max, 1].max
+            cmds.each_slice(cols).map { |row| row.map { |c| c.ljust(col_width) }.join.rstrip }
+          end
+
           def handle_freq
             words = collect_freq_words
             if words.empty?
@@ -705,6 +748,108 @@ module Legion
             top.map.with_index(1) do |(word, count), rank|
               pct = (count.to_f / total * 100).round(1)
               format(FREQ_ROW_FMT, rank: rank, word: word, count: count, pct: pct)
+            end
+          end
+
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+          def handle_status
+            autosave_val = @autosave_enabled ? "on (every #{@autosave_interval}s)" : 'off'
+            filter_val   = @message_stream.filter ? @message_stream.filter[:type].to_s : 'none'
+            wrap_val     = @message_stream.wrap_width ? @message_stream.wrap_width.to_s : 'off'
+            truncate_val = @message_stream.truncate_limit ? @message_stream.truncate_limit.to_s : 'off'
+            tee_val      = @tee_path || 'off'
+            lines = [
+              'Mode Status:',
+              "  Plan mode  : #{@plan_mode ? 'on' : 'off'}",
+              "  Focus mode : #{@focus_mode ? 'on' : 'off'}",
+              "  Debug mode : #{@debug_mode ? 'on' : 'off'}",
+              "  Silent mode: #{@silent_mode ? 'on' : 'off'}",
+              "  Mute system: #{@muted_system ? 'on' : 'off'}",
+              "  Multi-line : #{@multiline_mode ? 'on' : 'off'}",
+              "  Speak mode : #{defined?(@speak_mode) && @speak_mode ? 'on' : 'off'}",
+              "  Autosave   : #{autosave_val}",
+              "  Color      : #{@message_stream.colorize ? 'on' : 'off'}",
+              "  Timestamps : #{@message_stream.show_timestamps ? 'on' : 'off'}",
+              "  Numbers    : #{@message_stream.show_numbers ? 'on' : 'off'}",
+              "  Wrap       : #{wrap_val}",
+              "  Truncate   : #{truncate_val}",
+              "  Filter     : #{filter_val}",
+              "  Tee        : #{tee_val}",
+              "  Theme      : #{Theme.current_theme}",
+              "  Personality: #{@personality || 'default'}"
+            ]
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+          def handle_prefs(input)
+            parts = input.split(nil, 3)
+            key   = parts[1]
+            value = parts[2]
+            if key.nil?
+              show_all_prefs
+            elsif value.nil?
+              show_one_pref(key)
+            else
+              set_pref(key, value)
+            end
+            :handled
+          end
+
+          def prefs_path
+            File.expand_path('~/.legionio/prefs.json')
+          end
+
+          def load_prefs
+            return {} unless File.exist?(prefs_path)
+
+            require 'json'
+            ::JSON.parse(File.read(prefs_path))
+          rescue ::JSON::ParserError
+            {}
+          end
+
+          def save_prefs(prefs)
+            require 'fileutils'
+            require 'json'
+            FileUtils.mkdir_p(File.dirname(prefs_path))
+            File.write(prefs_path, ::JSON.pretty_generate(prefs))
+          end
+
+          def show_all_prefs
+            prefs = load_prefs
+            if prefs.empty?
+              @message_stream.add_message(role: :system, content: 'No preferences saved.')
+            else
+              lines = prefs.map { |k, v| "  #{k}: #{v}" }
+              @message_stream.add_message(role: :system, content: "Preferences:\n#{lines.join("\n")}")
+            end
+          end
+
+          def show_one_pref(key)
+            val = load_prefs[key]
+            if val.nil?
+              @message_stream.add_message(role: :system, content: "No preference set for '#{key}'.")
+            else
+              @message_stream.add_message(role: :system, content: "#{key}: #{val}")
+            end
+          end
+
+          def set_pref(key, value)
+            prefs = load_prefs
+            prefs[key] = value
+            save_prefs(prefs)
+            apply_pref(key, value)
+            @message_stream.add_message(role: :system, content: "Preference set: #{key} = #{value}")
+          end
+
+          def apply_pref(key, value)
+            case key
+            when 'theme'       then handle_theme("/theme #{value}")
+            when 'personality' then handle_personality("/personality #{value}")
+            when 'color'       then handle_color("/color #{value}")
+            when 'timestamps'  then handle_timestamps("/timestamps #{value}")
             end
           end
         end

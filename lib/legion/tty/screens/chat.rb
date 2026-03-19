@@ -45,7 +45,10 @@ module Legion
                             /color /timestamps
                             /top /bottom /head /tail
                             /draft /revise
-                            /mark /freq].freeze
+                            /mark /freq
+                            /about /commands
+                            /ask /define
+                            /status /prefs].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -492,6 +495,12 @@ module Legion
           when '/revise' then handle_revise(input)
           when '/mark' then handle_mark(input)
           when '/freq' then handle_freq
+          when '/about' then handle_about
+          when '/commands' then handle_commands(input)
+          when '/ask' then handle_ask(input)
+          when '/define' then handle_define(input)
+          when '/status' then handle_status
+          when '/prefs' then handle_prefs(input)
           else :handled
           end
         end
