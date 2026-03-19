@@ -387,8 +387,8 @@ module Legion
         end
 
         def default_vault_username
-          if @kerberos_identity&.dig(:samaccountname)
-            @kerberos_identity[:samaccountname]
+          if @kerberos_identity&.dig(:username)
+            @kerberos_identity[:username]
           else
             ENV.fetch('USER', 'unknown')
           end

@@ -178,8 +178,8 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#default_vault_username' do
-    it 'returns the kerberos samaccountname when available' do
-      screen.instance_variable_set(:@kerberos_identity, { samaccountname: 'jdoe', first_name: 'Jane' })
+    it 'returns the kerberos username when available' do
+      screen.instance_variable_set(:@kerberos_identity, { username: 'jdoe', first_name: 'Jane' })
       expect(screen.send(:default_vault_username)).to eq('jdoe')
     end
 
@@ -189,7 +189,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       expect(screen.send(:default_vault_username)).to eq('testuser')
     end
 
-    it 'falls back to ENV USER when kerberos identity has no samaccountname' do
+    it 'falls back to ENV USER when kerberos identity has no username' do
       screen.instance_variable_set(:@kerberos_identity, { first_name: 'Jane' })
       allow(ENV).to receive(:fetch).with('USER', 'unknown').and_return('testuser')
       expect(screen.send(:default_vault_username)).to eq('testuser')
