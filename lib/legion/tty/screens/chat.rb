@@ -121,6 +121,7 @@ module Legion
           divider = Theme.c(:muted, '-' * width)
           stream_height = [height - 2, 1].max
           stream_lines = @message_stream.render(width: width, height: stream_height)
+          @status_bar.update(scroll: @message_stream.scroll_position)
           stream_lines + [divider, bar_line]
         end
 
@@ -440,6 +441,9 @@ module Legion
         def auto_save_session
           return if @message_stream.messages.empty?
 
+          if @session_name == 'default'
+            @session_name = @session_store.auto_session_name(messages: @message_stream.messages)
+          end
           @session_store.save(@session_name, messages: @message_stream.messages)
         rescue StandardError
           nil

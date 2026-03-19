@@ -51,8 +51,14 @@ module Legion
         FileUtils.rm_f(path)
       end
 
-      def auto_session_name
-        "auto-#{Time.now.strftime('%Y%m%d-%H%M%S')}"
+      def auto_session_name(messages: [])
+        first_user = messages.find { |m| m[:role] == :user }
+        return "session-#{Time.now.strftime('%H%M%S')}" unless first_user
+
+        words = first_user[:content].to_s.downcase.gsub(/[^a-z0-9\s]/, '').split
+        slug = words.first(4).join('-')
+        slug = "session-#{Time.now.strftime('%H%M%S')}" if slug.empty?
+        slug
       end
 
       private

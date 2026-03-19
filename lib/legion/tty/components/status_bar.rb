@@ -37,7 +37,8 @@ module Legion
             thinking_segment,
             tokens_segment,
             cost_segment,
-            session_segment
+            session_segment,
+            scroll_segment
           ].compact
         end
 
@@ -69,6 +70,13 @@ module Legion
 
         def session_segment
           Theme.c(:muted, @state[:session]) if @state[:session]
+        end
+
+        def scroll_segment
+          scroll = @state[:scroll]
+          return nil unless scroll.is_a?(Hash) && scroll[:total].to_i > scroll[:visible].to_i
+
+          Theme.c(:muted, "#{scroll[:current]}/#{scroll[:total]}")
         end
 
         def format_number(num)

@@ -125,13 +125,13 @@ RSpec.describe Legion::TTY::SessionStore do
   end
 
   describe '#auto_session_name' do
-    it 'returns a string starting with auto-' do
-      expect(store.auto_session_name).to start_with('auto-')
+    it 'returns a string starting with session- when no messages given' do
+      expect(store.auto_session_name).to start_with('session-')
     end
 
-    it 'includes a timestamp' do
+    it 'includes a 6-digit timestamp when no messages given' do
       name = store.auto_session_name
-      expect(name).to match(/auto-\d{8}-\d{6}/)
+      expect(name).to match(/session-\d{6}/)
     end
   end
 end

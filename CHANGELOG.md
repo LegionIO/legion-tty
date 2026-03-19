@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.7] - 2026-03-19
+
+### Added
+- Smart session auto-naming: generates slug from first user message instead of "default"
+- Message timestamps: each message records creation time, displayed in user message headers
+- Scroll position indicator in status bar (shows current/total when content is scrollable)
+
 ## [0.4.6] - 2026-03-19
 
 ### Added

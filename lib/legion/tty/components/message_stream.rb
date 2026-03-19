@@ -14,7 +14,7 @@ module Legion
         end
 
         def add_message(role:, content:)
-          @messages << { role: role, content: content, tool_panels: [] }
+          @messages << { role: role, content: content, tool_panels: [], timestamp: Time.now }
         end
 
         def append_streaming(text)
@@ -57,7 +57,13 @@ module Legion
           total = all_lines.size
           start_idx = [total - height - @scroll_offset, 0].max
           start_idx = [start_idx, total].min
-          all_lines[start_idx, height] || []
+          result = all_lines[start_idx, height] || []
+          @last_visible_count = result.size
+          result
+        end
+
+        def scroll_position
+          { current: @scroll_offset, total: @messages.size, visible: @last_visible_count || 0 }
         end
 
         private
@@ -72,7 +78,7 @@ module Legion
 
         def role_lines(msg, width)
           case msg[:role]
-          when :user then user_lines(msg)
+          when :user then user_lines(msg, width)
           when :assistant then assistant_lines(msg, width)
           when :system then system_lines(msg)
           when :tool then tool_call_lines(msg, width)
@@ -80,9 +86,16 @@ module Legion
           end
         end
 
-        def user_lines(msg)
-          prefix = Theme.c(:accent, 'You')
-          ['', "#{prefix}: #{msg[:content]}"]
+        def user_lines(msg, _width)
+          ts = format_timestamp(msg[:timestamp])
+          header = "#{Theme.c(:accent, 'You')} #{Theme.c(:muted, ts)}"
+          ['', "#{header}: #{msg[:content]}"]
+        end
+
+        def format_timestamp(time)
+          return '' unless time
+
+          time.strftime('%H:%M')
         end
 
         def assistant_lines(msg, width)
