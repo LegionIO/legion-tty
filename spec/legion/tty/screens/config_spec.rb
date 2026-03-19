@@ -361,7 +361,7 @@ RSpec.describe Legion::TTY::Screens::Config do
     it 'writes file_data back to disk as pretty JSON' do
       screen.instance_variable_get(:@file_data)['key'] = 'updated'
       screen.send(:save_current_file)
-      written = ::JSON.parse(File.read(config_file))
+      written = JSON.parse(File.read(config_file))
       expect(written['key']).to eq('updated')
     end
 

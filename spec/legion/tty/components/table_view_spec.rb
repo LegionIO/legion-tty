@@ -37,7 +37,7 @@ RSpec.describe Legion::TTY::Components::TableView do
     end
 
     it 'rescues errors and returns error message string' do
-      allow(::TTY::Table).to receive(:new).and_raise(StandardError, 'something went wrong')
+      allow(TTY::Table).to receive(:new).and_raise(StandardError, 'something went wrong')
       result = described_class.render(headers: headers, rows: rows)
       expect(result).to include('Table render error:')
       expect(result).to include('something went wrong')

@@ -129,6 +129,36 @@ RSpec.describe Legion::TTY::App do
     end
   end
 
+  describe '.parse_argv' do
+    it 'sets skip_rain: true when --skip-rain is present' do
+      expect(described_class.parse_argv(['--skip-rain'])).to eq(skip_rain: true)
+    end
+
+    it 'returns empty hash when --skip-rain is absent' do
+      expect(described_class.parse_argv([])).to eq({})
+    end
+
+    it 'ignores unknown flags' do
+      expect(described_class.parse_argv(['--unknown'])).to eq({})
+    end
+  end
+
+  describe '#initialize with skip_rain' do
+    it 'stores skip_rain: true' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir, skip_rain: true)
+        expect(app.instance_variable_get(:@skip_rain)).to be true
+      end
+    end
+
+    it 'defaults skip_rain to false' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        expect(app.instance_variable_get(:@skip_rain)).to be false
+      end
+    end
+  end
+
   describe '#setup_hotkeys' do
     it 'registers Ctrl+D for toggle dashboard' do
       Dir.mktmpdir do |dir|

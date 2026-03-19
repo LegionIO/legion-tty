@@ -39,7 +39,7 @@ RSpec.describe Legion::TTY::Components::SessionPicker do
       it 'rescues Interrupt and returns nil' do
         prompt_double = double('TTY::Prompt')
         allow(prompt_double).to receive(:select).and_raise(Interrupt)
-        allow(::TTY::Prompt).to receive(:new).and_return(prompt_double)
+        allow(TTY::Prompt).to receive(:new).and_return(prompt_double)
 
         result = picker.select_with_prompt
         expect(result).to be_nil
@@ -48,7 +48,7 @@ RSpec.describe Legion::TTY::Components::SessionPicker do
       it 'rescues TTY::Reader::InputInterrupt and returns nil' do
         prompt_double = double('TTY::Prompt')
         allow(prompt_double).to receive(:select).and_raise(TTY::Reader::InputInterrupt)
-        allow(::TTY::Prompt).to receive(:new).and_return(prompt_double)
+        allow(TTY::Prompt).to receive(:new).and_return(prompt_double)
 
         result = picker.select_with_prompt
         expect(result).to be_nil
@@ -61,7 +61,7 @@ RSpec.describe Legion::TTY::Components::SessionPicker do
           captured_choices = choices
           raise Interrupt
         end
-        allow(::TTY::Prompt).to receive(:new).and_return(prompt_double)
+        allow(TTY::Prompt).to receive(:new).and_return(prompt_double)
 
         picker.select_with_prompt
 
@@ -76,7 +76,7 @@ RSpec.describe Legion::TTY::Components::SessionPicker do
           captured_choices = choices
           raise Interrupt
         end
-        allow(::TTY::Prompt).to receive(:new).and_return(prompt_double)
+        allow(TTY::Prompt).to receive(:new).and_return(prompt_double)
 
         picker.select_with_prompt
 

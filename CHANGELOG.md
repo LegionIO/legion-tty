@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.4.0] - 2026-03-19
+
+### Fixed
+- /model crash: empty or invalid model name no longer crashes the shell
+- Removed all RubyLLM direct usage -- all LLM access goes through Legion::LLM exclusively
+- Kerberos username key mismatch in vault auth pre-fill (was :samaccountname, now :username)
+- Overlay rendering: help overlay now actually displays on screen
+- Thinking indicator: status bar shows "thinking..." during LLM requests
+- --skip-rain CLI option now forwarded to onboarding
+
+### Added
+- Per-model token pricing (Opus/Sonnet/Haiku, GPT-4o/4o-mini, Gemini Flash/Pro)
+- Markdown rendering for assistant messages via TTY::Markdown
+- /system command: set or override system prompt at runtime
+- /delete command: delete saved sessions
+- /plan command: toggle read-only bookmark mode with [PLAN] status indicator
+- /palette command: fuzzy-search command palette for all commands, screens, sessions
+- /extensions command: browse installed LEX gems by category
+- /config command: view and edit ~/.legionio/settings/*.json files
+- Command palette component with fuzzy search
+- Model picker component for switching LLM providers
+- Session picker component for quick session switching
+- Table view component wrapping tty-table
+- Extensions browser screen (grouped by core/agentic/service/AI/other)
+- Config viewer/editor screen with vault:// masking
+- Hotkeys: Ctrl+K (palette), Ctrl+S (sessions), Escape (back)
+- Plan mode: bookmark messages without sending to LLM
+
+### Changed
+- Token tracker now uses per-model rates with provider fallback
+- Hotkey ? removed (conflicted with typing questions)
+- Help text updated with all new commands and hotkey reference
+
+### Removed
+- RubyLLM direct fallback in app.rb (PROVIDER_MAP, try_credentials_llm, configure_llm_provider)
+
 ## [0.3.1] - 2026-03-19
 
 ### Fixed

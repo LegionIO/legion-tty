@@ -7,6 +7,7 @@ require_relative '../theme'
 module Legion
   module TTY
     module Screens
+      # rubocop:disable Metrics/ClassLength
       class Config < Base
         MASKED_PATTERNS = %w[vault:// env://].freeze
 
@@ -28,18 +29,18 @@ module Legion
         def discover_config_files
           return [] unless Dir.exist?(@config_dir)
 
-          Dir.glob(File.join(@config_dir, '*.json')).sort.map do |path|
+          Dir.glob(File.join(@config_dir, '*.json')).map do |path|
             { name: File.basename(path), path: path }
           end
         end
 
-        def render(width, height)
+        def render(_width, height)
           lines = [Theme.c(:accent, '  Settings'), '']
-          if @viewing_file
-            lines += file_detail_lines(height - 4)
-          else
-            lines += file_list_lines(height - 4)
-          end
+          lines += if @viewing_file
+                     file_detail_lines(height - 4)
+                   else
+                     file_list_lines(height - 4)
+                   end
           lines += ['', Theme.c(:muted, '  Enter=view  e=edit  q=back')]
           pad_lines(lines, height)
         end
@@ -57,11 +58,11 @@ module Legion
         def handle_file_list_input(key)
           case key
           when :up then @selected_file = [(@selected_file - 1), 0].max
-          :handled
+                        :handled
           when :down then @selected_file = [(@selected_file + 1), @files.size - 1].max
-          :handled
+                          :handled
           when :enter then open_file
-          :handled
+                           :handled
           when 'q', :escape then :pop_screen
           else
             :pass
@@ -73,11 +74,11 @@ module Legion
           max = [keys.size - 1, 0].max
           case key
           when :up then @selected_key = [(@selected_key - 1), 0].max
-          :handled
+                        :handled
           when :down then @selected_key = [(@selected_key + 1), max].max
-          :handled
+                          :handled
           when 'e', :enter then edit_selected_key
-          :handled
+                                :handled
           when 'q', :escape
             @viewing_file = false
             @selected_key = 0
@@ -99,7 +100,7 @@ module Legion
           @viewing_file = true
         end
 
-        def edit_selected_key
+        def edit_selected_key # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
           keys = @file_data.keys
           return unless keys[@selected_key]
 
@@ -163,6 +164,7 @@ module Legion
           lines + Array.new([height - lines.size, 0].max, '')
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

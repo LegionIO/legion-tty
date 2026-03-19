@@ -16,19 +16,26 @@ module Legion
       attr_reader :config, :credentials, :screen_manager, :hotkeys, :llm_chat
 
       def self.run(argv = [])
-        _ = argv
-        app = new
+        opts = parse_argv(argv)
+        app = new(**opts)
         app.start
       rescue Interrupt
         app&.shutdown
+      end
+
+      def self.parse_argv(argv)
+        opts = {}
+        opts[:skip_rain] = true if argv.include?('--skip-rain')
+        opts
       end
 
       def self.first_run?(config_dir: CONFIG_DIR)
         !File.exist?(File.join(config_dir, 'identity.json'))
       end
 
-      def initialize(config_dir: CONFIG_DIR)
+      def initialize(config_dir: CONFIG_DIR, skip_rain: false)
         @config_dir = config_dir
+        @skip_rain = skip_rain
         @config = load_config
         @credentials = load_credentials
         @screen_manager = ScreenManager.new
@@ -65,7 +72,7 @@ module Legion
       end
 
       def run_onboarding
-        onboarding = Screens::Onboarding.new(self)
+        onboarding = Screens::Onboarding.new(self, skip_rain: @skip_rain)
         data = onboarding.activate
         save_config(data)
         @config = load_config

@@ -166,7 +166,7 @@ RSpec.describe Legion::TTY::Components::TokenTracker do
   describe 'PROVIDER_PRICING' do
     it 'includes all expected providers' do
       expect(described_class::PROVIDER_PRICING.keys).to include('claude', 'openai', 'gemini', 'azure', 'local',
-                                                                 'anthropic', 'bedrock', 'ollama')
+                                                                'anthropic', 'bedrock', 'ollama')
     end
 
     it 'each provider has input and output rates' do

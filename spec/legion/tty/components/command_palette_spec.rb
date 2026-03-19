@@ -101,7 +101,7 @@ RSpec.describe Legion::TTY::Components::CommandPalette do
     it 'rescues Interrupt and returns nil' do
       prompt_double = double('TTY::Prompt')
       allow(prompt_double).to receive(:select).and_raise(Interrupt)
-      allow(::TTY::Prompt).to receive(:new).and_return(prompt_double)
+      allow(TTY::Prompt).to receive(:new).and_return(prompt_double)
 
       result = palette.select_with_prompt
       expect(result).to be_nil
@@ -110,7 +110,7 @@ RSpec.describe Legion::TTY::Components::CommandPalette do
     it 'rescues TTY::Reader::InputInterrupt and returns nil' do
       prompt_double = double('TTY::Prompt')
       allow(prompt_double).to receive(:select).and_raise(TTY::Reader::InputInterrupt)
-      allow(::TTY::Prompt).to receive(:new).and_return(prompt_double)
+      allow(TTY::Prompt).to receive(:new).and_return(prompt_double)
 
       result = palette.select_with_prompt
       expect(result).to be_nil

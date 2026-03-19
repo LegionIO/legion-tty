@@ -15,13 +15,10 @@ module Legion
         end
 
         def entries
-          all = []
-          COMMANDS.each { |cmd| all << { label: cmd, category: 'Commands' } }
+          all = COMMANDS.map { |cmd| { label: cmd, category: 'Commands' } }
           SCREENS.each { |s| all << { label: s, category: 'Screens' } }
-          if @session_store
-            @session_store.list.each do |s|
-              all << { label: "/load #{s[:name]}", category: 'Sessions' }
-            end
+          @session_store&.list&.each do |s|
+            all << { label: "/load #{s[:name]}", category: 'Sessions' }
           end
           all
         end
