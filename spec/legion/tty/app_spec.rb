@@ -116,4 +116,16 @@ RSpec.describe Legion::TTY::App do
       end
     end
   end
+
+  describe '#setup_llm' do
+    it 'sets llm_chat to nil when Legion::LLM is not available' do
+      Dir.mktmpdir do |dir|
+        app = described_class.new(config_dir: dir)
+        allow(app).to receive(:boot_legion_subsystems)
+        allow(app).to receive(:try_settings_llm).and_return(nil)
+        app.send(:setup_llm)
+        expect(app.llm_chat).to be_nil
+      end
+    end
+  end
 end

@@ -223,19 +223,36 @@ module Legion
         def handle_model(input)
           name = input.split(nil, 2)[1]
           if name
-            if @llm_chat.respond_to?(:with_model)
-              @llm_chat.with_model(name)
-              @status_bar.update(model: name)
-              @message_stream.add_message(role: :system, content: "Model switched to: #{name}")
-            else
-              @status_bar.update(model: name)
-              @message_stream.add_message(role: :system, content: "Model set to: #{name} (no active LLM session)")
-            end
+            switch_model(name)
           else
-            current = safe_config[:provider] || 'unknown'
-            @message_stream.add_message(role: :system, content: "Current model: #{current}")
+            show_current_model
           end
           :handled
+        end
+
+        def switch_model(name)
+          unless @llm_chat
+            @message_stream.add_message(role: :system, content: 'No active LLM session.')
+            return
+          end
+
+          if @llm_chat.respond_to?(:with_model)
+            @llm_chat.with_model(name)
+            @status_bar.update(model: name)
+            @message_stream.add_message(role: :system, content: "Model switched to: #{name}")
+          else
+            @status_bar.update(model: name)
+            @message_stream.add_message(role: :system, content: "Model set to: #{name}")
+          end
+        rescue StandardError => e
+          @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
+        end
+
+        def show_current_model
+          model = @llm_chat.respond_to?(:model) ? @llm_chat.model : nil
+          provider = safe_config[:provider] || 'unknown'
+          info = model ? "#{model} (#{provider})" : provider
+          @message_stream.add_message(role: :system, content: "Current model: #{info}")
         end
 
         def handle_session(input)

@@ -94,7 +94,7 @@ module Legion
 
       def setup_llm
         boot_legion_subsystems
-        @llm_chat = try_settings_llm || try_credentials_llm
+        @llm_chat = try_settings_llm
       rescue StandardError
         @llm_chat = nil
       end
@@ -133,11 +133,6 @@ module Legion
       def shutdown
         @screen_manager.teardown_all
       end
-
-      PROVIDER_MAP = {
-        claude: :anthropic,
-        azure: :openai
-      }.freeze
 
       private
 
@@ -190,17 +185,6 @@ module Legion
         return nil unless provider
 
         Legion::LLM.chat(provider: provider)
-      rescue StandardError
-        nil
-      end
-
-      def try_credentials_llm
-        return nil unless @credentials[:provider] && @credentials[:api_key]
-
-        provider = @credentials[:provider].to_sym
-        api_key = @credentials[:api_key]
-        configure_llm_provider(provider, api_key)
-        create_llm_chat(provider)
       rescue StandardError
         nil
       end
@@ -268,43 +252,6 @@ module Legion
         deep_symbolize(::JSON.parse(File.read(path)))
       rescue ::JSON::ParserError, Errno::ENOENT
         {}
-      end
-
-      def configure_llm_provider(provider, api_key)
-        llm_provider = PROVIDER_MAP[provider] || provider
-
-        # Try Legion::LLM first (full stack)
-        return if try_legion_llm(llm_provider, api_key)
-
-        # Fallback: configure ruby_llm directly
-        require 'ruby_llm'
-        RubyLLM.configure do |c|
-          case llm_provider
-          when :anthropic then c.anthropic_api_key = api_key
-          when :openai    then c.openai_api_key = api_key
-          when :gemini    then c.gemini_api_key = api_key
-          end
-        end
-      end
-
-      def try_legion_llm(llm_provider, api_key)
-        return false unless defined?(Legion::LLM) && defined?(Legion::Settings)
-
-        Legion::Settings[:llm][:providers][llm_provider][:enabled] = true
-        Legion::Settings[:llm][:providers][llm_provider][:api_key] = api_key
-        Legion::LLM.start unless Legion::LLM.started?
-        true
-      rescue StandardError
-        false
-      end
-
-      def create_llm_chat(provider)
-        llm_provider = PROVIDER_MAP[provider] || provider
-        if defined?(Legion::LLM) && Legion::LLM.started?
-          Legion::LLM.chat(provider: llm_provider)
-        else
-          RubyLLM.chat(provider: llm_provider)
-        end
       end
 
       def save_credentials(data)
