@@ -204,13 +204,60 @@ module Legion
             end
           end
 
+          def handle_wc
+            msgs = @message_stream.messages
+            by_role = word_counts_by_role(msgs)
+            total = by_role.values.sum
+            avg = (total.to_f / [msgs.size, 1].max).round
+            @message_stream.add_message(role: :system, content: build_wc_lines(by_role, total, avg).join("\n"))
+            :handled
+          end
+
+          def word_counts_by_role(msgs)
+            %i[user assistant system].to_h do |role|
+              words = msgs.select { |m| m[:role] == role }.sum { |m| m[:content].to_s.split.size }
+              [role, words]
+            end
+          end
+
+          def build_wc_lines(by_role, total, avg)
+            [
+              'Word count:',
+              "  Total: #{format_stat_number(total)}",
+              "  User: #{format_stat_number(by_role[:user])}",
+              "  Assistant: #{format_stat_number(by_role[:assistant])}",
+              "  System: #{format_stat_number(by_role[:system])}",
+              "  Avg words/message: #{avg}"
+            ]
+          end
+
+          def handle_mute
+            @muted_system = !@muted_system
+            @message_stream.mute_system = @muted_system
+            if @muted_system
+              @status_bar.notify(message: 'System messages hidden', level: :info, ttl: 3)
+            else
+              @status_bar.notify(message: 'System messages visible', level: :info, ttl: 3)
+            end
+            :handled
+          end
+
           def build_stats_lines
             msgs = @message_stream.messages
             counts = count_by_role(msgs)
             total_chars = msgs.sum { |m| m[:content].to_s.length }
             lines = stats_header_lines(msgs, counts, total_chars)
             lines << "  Tool calls: #{counts[:tool]}" if counts[:tool].positive?
+            append_response_time_stat(lines, msgs)
             lines
+          end
+
+          def append_response_time_stat(lines, msgs)
+            timed = msgs.select { |m| m[:response_time] }
+            return unless timed.any?
+
+            avg_rt = timed.sum { |m| m[:response_time] }.to_f / timed.size
+            lines << "  Avg response time: #{avg_rt.round(2)}s (#{timed.size} responses)"
           end
 
           def count_by_role(msgs)

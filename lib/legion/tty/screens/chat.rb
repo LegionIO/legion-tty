@@ -28,7 +28,8 @@ module Legion
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
-                            /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips].freeze
+                            /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
+                            /wc /import /mute].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -58,6 +59,7 @@ module Legion
           @snippets = {}
           @debug_mode = false
           @session_start = Time.now
+          @muted_system = false
         end
 
         # rubocop:enable Metrics/AbcSize
@@ -202,13 +204,21 @@ module Legion
 
           @status_bar.update(thinking: true)
           render_screen
+          start_time = Time.now
           response = @llm_chat.ask(message) do |chunk|
             @status_bar.update(thinking: false)
             @message_stream.append_streaming(chunk.content) if chunk.content
             render_screen
           end
+          record_response_time(Time.now - start_time)
           @status_bar.update(thinking: false)
           track_response_tokens(response)
+        end
+
+        def record_response_time(elapsed)
+          @last_response_time = elapsed
+          @message_stream.messages.last[:response_time] = elapsed if @message_stream.messages.last
+          @status_bar.notify(message: "Response: #{elapsed.round(1)}s", level: :info, ttl: 4)
         end
 
         def daemon_available?
@@ -340,6 +350,9 @@ module Legion
           when '/bookmark' then handle_bookmark
           when '/welcome' then handle_welcome
           when '/tips' then handle_tips
+          when '/wc' then handle_wc
+          when '/import' then handle_import(input)
+          when '/mute' then handle_mute
           else :handled
           end
         end

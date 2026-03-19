@@ -4,6 +4,7 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
+        # rubocop:disable Metrics/ModuleLength
         module SessionCommands
           private
 
@@ -76,6 +77,42 @@ module Legion
             :handled
           end
 
+          def handle_import(input)
+            path = input.split(nil, 2)[1]
+            unless path
+              @message_stream.add_message(role: :system, content: 'Usage: /import <path>')
+              return :handled
+            end
+
+            load_import_file(File.expand_path(path))
+          rescue ::JSON::ParserError => e
+            @message_stream.add_message(role: :system, content: "Invalid JSON: #{e.message}")
+            :handled
+          end
+
+          def load_import_file(path)
+            unless File.exist?(path)
+              @message_stream.add_message(role: :system, content: "File not found: #{path}")
+              return :handled
+            end
+
+            data = ::JSON.parse(File.read(path), symbolize_names: true)
+            unless data.is_a?(Hash) && data[:messages].is_a?(Array)
+              @message_stream.add_message(role: :system, content: 'Invalid session file: missing messages array.')
+              return :handled
+            end
+
+            apply_imported_messages(data[:messages], path)
+          end
+
+          def apply_imported_messages(messages, path)
+            imported = messages.map { |m| { role: m[:role].to_sym, content: m[:content].to_s } }
+            @message_stream.messages.replace(imported)
+            @status_bar.notify(message: "Imported #{imported.size} messages", level: :success, ttl: 3)
+            @message_stream.add_message(role: :system, content: "Imported #{imported.size} messages from #{path}.")
+            :handled
+          end
+
           def auto_save_session
             return if @message_stream.messages.empty?
 
@@ -87,6 +124,7 @@ module Legion
             nil
           end
         end
+        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

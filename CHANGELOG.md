@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.14] - 2026-03-19
+
+### Added
+- LLM response timing: tracks elapsed time per response, shows notification, includes avg in `/stats`
+- `/wc` command: word count statistics per role (user/assistant/system) with averages
+- `/import <path>` command: import session from any JSON file path with validation
+- `/mute` command: toggle system message display in chat (messages still tracked, just hidden)
+
 ## [0.4.13] - 2026-03-19
 
 ### Added

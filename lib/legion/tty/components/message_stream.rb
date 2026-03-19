@@ -5,12 +5,15 @@ require_relative '../theme'
 module Legion
   module TTY
     module Components
+      # rubocop:disable Metrics/ClassLength
       class MessageStream
         attr_reader :messages, :scroll_offset
+        attr_accessor :mute_system
 
         def initialize
           @messages = []
           @scroll_offset = 0
+          @mute_system = false
         end
 
         def add_message(role:, content:)
@@ -69,7 +72,11 @@ module Legion
         private
 
         def build_all_lines(width)
-          @messages.flat_map { |msg| render_message(msg, width) }
+          @messages.flat_map do |msg|
+            next [] if @mute_system && msg[:role] == :system
+
+            render_message(msg, width)
+          end
         end
 
         def render_message(msg, width)
@@ -131,6 +138,7 @@ module Legion
           panel.instance_variable_set(:@error, error) if error
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end
