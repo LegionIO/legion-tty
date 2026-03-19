@@ -1,0 +1,168 @@
+# frozen_string_literal: true
+
+require 'json'
+require_relative 'base'
+require_relative '../theme'
+
+module Legion
+  module TTY
+    module Screens
+      class Config < Base
+        MASKED_PATTERNS = %w[vault:// env://].freeze
+
+        def initialize(app, output: $stdout, config_dir: nil)
+          super(app)
+          @output = output
+          @config_dir = config_dir || File.expand_path('~/.legionio/settings')
+          @files = []
+          @selected_file = 0
+          @selected_key = 0
+          @viewing_file = false
+          @file_data = {}
+        end
+
+        def activate
+          @files = discover_config_files
+        end
+
+        def discover_config_files
+          return [] unless Dir.exist?(@config_dir)
+
+          Dir.glob(File.join(@config_dir, '*.json')).sort.map do |path|
+            { name: File.basename(path), path: path }
+          end
+        end
+
+        def render(width, height)
+          lines = [Theme.c(:accent, '  Settings'), '']
+          if @viewing_file
+            lines += file_detail_lines(height - 4)
+          else
+            lines += file_list_lines(height - 4)
+          end
+          lines += ['', Theme.c(:muted, '  Enter=view  e=edit  q=back')]
+          pad_lines(lines, height)
+        end
+
+        def handle_input(key)
+          if @viewing_file
+            handle_file_view_input(key)
+          else
+            handle_file_list_input(key)
+          end
+        end
+
+        private
+
+        def handle_file_list_input(key)
+          case key
+          when :up then @selected_file = [(@selected_file - 1), 0].max
+          :handled
+          when :down then @selected_file = [(@selected_file + 1), @files.size - 1].max
+          :handled
+          when :enter then open_file
+          :handled
+          when 'q', :escape then :pop_screen
+          else
+            :pass
+          end
+        end
+
+        def handle_file_view_input(key)
+          keys = @file_data.keys
+          max = [keys.size - 1, 0].max
+          case key
+          when :up then @selected_key = [(@selected_key - 1), 0].max
+          :handled
+          when :down then @selected_key = [(@selected_key + 1), max].max
+          :handled
+          when 'e', :enter then edit_selected_key
+          :handled
+          when 'q', :escape
+            @viewing_file = false
+            @selected_key = 0
+            :handled
+          else
+            :pass
+          end
+        end
+
+        def open_file
+          return unless @files[@selected_file]
+
+          path = @files[@selected_file][:path]
+          @file_data = ::JSON.parse(File.read(path))
+          @viewing_file = true
+          @selected_key = 0
+        rescue ::JSON::ParserError, Errno::ENOENT
+          @file_data = { 'error' => 'Failed to parse file' }
+          @viewing_file = true
+        end
+
+        def edit_selected_key
+          keys = @file_data.keys
+          return unless keys[@selected_key]
+
+          key = keys[@selected_key]
+          current = @file_data[key]
+          return if current.is_a?(Hash) || current.is_a?(Array)
+
+          require 'tty-prompt'
+          prompt = ::TTY::Prompt.new
+          display = masked?(current.to_s) ? '********' : current.to_s
+          new_val = prompt.ask("#{key}:", default: display)
+          return if new_val.nil? || new_val == '********'
+
+          @file_data[key] = new_val
+          save_current_file
+        rescue ::TTY::Reader::InputInterrupt, Interrupt
+          nil
+        end
+
+        def save_current_file
+          return unless @files[@selected_file]
+
+          path = @files[@selected_file][:path]
+          File.write(path, ::JSON.pretty_generate(@file_data))
+        end
+
+        def masked?(val)
+          MASKED_PATTERNS.any? { |p| val.to_s.start_with?(p) }
+        end
+
+        def file_list_lines(max_height)
+          @files.each_with_index.map do |f, i|
+            indicator = i == @selected_file ? Theme.c(:accent, '>') : ' '
+            "  #{indicator} #{f[:name]}"
+          end.first(max_height)
+        end
+
+        def file_detail_lines(max_height)
+          return ["  #{Theme.c(:muted, 'Empty file')}"] if @file_data.empty?
+
+          name = @files[@selected_file]&.dig(:name) || 'unknown'
+          lines = ["  #{Theme.c(:secondary, name)}", '']
+          @file_data.each_with_index do |(key, val), i|
+            indicator = i == @selected_key ? Theme.c(:accent, '>') : ' '
+            display_val = format_value(val)
+            lines << "  #{indicator} #{Theme.c(:accent, key)}: #{display_val}"
+          end
+          lines.first(max_height)
+        end
+
+        def format_value(val)
+          case val
+          when Hash then Theme.c(:muted, "{#{val.size} keys}")
+          when Array then Theme.c(:muted, "[#{val.size} items]")
+          else
+            masked?(val.to_s) ? Theme.c(:warning, '********') : val.to_s
+          end
+        end
+
+        def pad_lines(lines, height)
+          lines + Array.new([height - lines.size, 0].max, '')
+        end
+      end
+    end
+  end
+end
