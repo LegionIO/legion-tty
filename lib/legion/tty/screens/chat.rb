@@ -48,7 +48,9 @@ module Legion
                             /mark /freq
                             /about /commands
                             /ask /define
-                            /status /prefs].freeze
+                            /status /prefs
+                            /stopwatch /ago
+                            /goto /inject].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -93,6 +95,8 @@ module Legion
           @speak_mode = false
           @silent_mode = false
           @draft = nil
+          @stopwatch_start = nil
+          @stopwatch_elapsed = 0
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -501,6 +505,10 @@ module Legion
           when '/define' then handle_define(input)
           when '/status' then handle_status
           when '/prefs' then handle_prefs(input)
+          when '/stopwatch' then handle_stopwatch(input)
+          when '/ago' then handle_ago(input)
+          when '/goto' then handle_goto(input)
+          when '/inject' then handle_inject(input)
           else :handled
           end
         end

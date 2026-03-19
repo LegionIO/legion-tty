@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.26] - 2026-03-19
+
+### Added
+- `/goto <N>` command: jump to specific message by index
+- `/inject <role> <text>` command: inject a message with specific role (user/assistant/system)
+- `/stopwatch [start|stop|lap|reset]` command: built-in stopwatch with MM:SS.ms format
+- `/ago <N>` command: show what was said N messages ago
+
+### Changed
+- Updated README.md and CLAUDE.md to reflect 107 slash commands, 1732 specs, 146 files
+
 ## [0.4.25] - 2026-03-19
 
 ### Added

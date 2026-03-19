@@ -5,6 +5,8 @@ module Legion
     module Screens
       class Chat < Base
         module MessageCommands
+          INJECT_VALID_ROLES = %w[user assistant system].freeze
+
           private
 
           # rubocop:disable Metrics/AbcSize
@@ -653,6 +655,46 @@ module Legion
 
             msg[:content] = new_content
             @message_stream.add_message(role: :system, content: "Revised: #{new_content}")
+            :handled
+          end
+
+          def handle_inject(input)
+            parts = input.split(nil, 3)
+            role_str = parts[1]
+            text = parts[2]
+
+            unless role_str && INJECT_VALID_ROLES.include?(role_str) && text && !text.strip.empty?
+              @message_stream.add_message(
+                role: :system,
+                content: 'Usage: /inject <user|assistant|system> <text>'
+              )
+              return :handled
+            end
+
+            @message_stream.add_message(role: role_str.to_sym, content: text.strip)
+            @status_bar.update(message_count: @message_stream.messages.size)
+            @message_stream.add_message(role: :system, content: "Injected [#{role_str}] message.")
+            :handled
+          end
+
+          def handle_ago(input)
+            n = (input.split(nil, 2)[1] || '1').to_i
+            msgs = @message_stream.messages
+            if n < 1 || n > msgs.size
+              @message_stream.add_message(
+                role: :system,
+                content: "No message #{n} ago (conversation has #{msgs.size} message(s))."
+              )
+              return :handled
+            end
+
+            idx = msgs.size - n
+            msg = msgs[idx]
+            preview = truncate_text(msg[:content].to_s, 200)
+            @message_stream.add_message(
+              role: :system,
+              content: "[#{n} ago | ##{idx} | #{msg[:role]}] #{preview}"
+            )
             :handled
           end
         end

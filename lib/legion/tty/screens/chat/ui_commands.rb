@@ -393,6 +393,37 @@ module Legion
           end
           # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
+          def handle_goto(input)
+            n_str = input.split(nil, 2)[1]
+            unless n_str&.match?(/\A\d+\z/)
+              @message_stream.add_message(role: :system, content: 'Usage: /goto <N>')
+              return :handled
+            end
+
+            idx = n_str.to_i
+            return goto_out_of_range(idx) unless goto_in_range?(idx)
+
+            scroll_to_message(idx)
+            @message_stream.add_message(role: :system, content: "Jumped to message #{idx}.")
+            :handled
+          end
+
+          def goto_in_range?(idx)
+            idx >= 0 && idx < @message_stream.messages.size
+          end
+
+          def goto_out_of_range(idx)
+            total = @message_stream.messages.size
+            @message_stream.add_message(role: :system, content: "Message #{idx} out of range (0..#{total - 1}).")
+            :handled
+          end
+
+          def scroll_to_message(idx)
+            total = @message_stream.messages.size
+            @message_stream.scroll_down(@message_stream.scroll_offset)
+            @message_stream.scroll_up([total - idx - 1, 0].max)
+          end
+
           def handle_highlight(input)
             arg = input.split(nil, 2)[1]
             @highlights ||= []
@@ -851,6 +882,67 @@ module Legion
             when 'color'       then handle_color("/color #{value}")
             when 'timestamps'  then handle_timestamps("/timestamps #{value}")
             end
+          end
+
+          def handle_stopwatch(input)
+            sub = input.split(nil, 2)[1]&.strip
+            case sub
+            when 'start'  then stopwatch_start
+            when 'stop'   then stopwatch_stop
+            when 'lap'    then stopwatch_lap
+            when 'reset'  then stopwatch_reset
+            else               stopwatch_status
+            end
+            :handled
+          end
+
+          def stopwatch_start
+            @stopwatch_start = Time.now
+            @message_stream.add_message(role: :system, content: 'Stopwatch started.')
+          end
+
+          def stopwatch_stop
+            unless @stopwatch_start
+              @message_stream.add_message(role: :system, content: 'Stopwatch is not running.')
+              return
+            end
+
+            @stopwatch_elapsed += Time.now - @stopwatch_start
+            @stopwatch_start = nil
+            @message_stream.add_message(role: :system,
+                                        content: "Stopwatch stopped. Elapsed: #{format_stopwatch(@stopwatch_elapsed)}")
+          end
+
+          def stopwatch_lap
+            total = @stopwatch_elapsed
+            total += Time.now - @stopwatch_start if @stopwatch_start
+            @message_stream.add_message(role: :system, content: "Lap: #{format_stopwatch(total)}")
+          end
+
+          def stopwatch_reset
+            @stopwatch_start = nil
+            @stopwatch_elapsed = 0
+            @message_stream.add_message(role: :system, content: 'Stopwatch reset.')
+          end
+
+          def stopwatch_status
+            if @stopwatch_start
+              total = @stopwatch_elapsed + (Time.now - @stopwatch_start)
+              @message_stream.add_message(role: :system, content: "Stopwatch running: #{format_stopwatch(total)}")
+            elsif @stopwatch_elapsed.positive?
+              @message_stream.add_message(role: :system,
+                                          content: "Stopwatch stopped at: #{format_stopwatch(@stopwatch_elapsed)}")
+            else
+              @message_stream.add_message(role: :system, content: 'Stopwatch: 00:00.000 (not started)')
+            end
+          end
+
+          def format_stopwatch(seconds)
+            total_ms = (seconds * 1000).to_i
+            ms   = total_ms % 1000
+            secs = (total_ms / 1000) % 60
+            mins = total_ms / 60_000
+            format('%<mins>02d:%<secs>02d.%<ms>03d', mins: mins, secs: secs, ms: ms)
           end
         end
       end
