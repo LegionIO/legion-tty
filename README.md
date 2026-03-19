@@ -2,30 +2,36 @@
 
 Rich terminal UI for the LegionIO async cognition engine.
 
-**Version**: 0.4.8
+**Version**: 0.4.12
 
-Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
+Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell with 40 slash commands, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
 
 ## Features
 
 - **Onboarding wizard** - First-run setup with Kerberos identity detection, GitHub profile probing, environment scanning, and LLM provider selection
 - **Digital rain intro** - Matrix-style rain using discovered LEX extension names
-- **AI chat shell** - Streaming LLM chat with 27 slash commands, tab completion, markdown rendering, and tool panels
-- **Operational dashboard** - Service status, extension inventory, system info, recent activity (Ctrl+D or `/dashboard`)
-- **Extensions browser** - Browse installed LEX gems by category (core, agentic, service, AI, other) with detail view
-- **Config viewer/editor** - View and edit `~/.legionio/settings/*.json` with vault:// masking
+- **AI chat shell** - Streaming LLM chat with 40 slash commands, tab completion, markdown rendering, and tool panels
+- **Operational dashboard** - Service/LLM status, extension inventory, system info, panel navigation (Ctrl+D or `/dashboard`)
+- **Extensions browser** - Browse installed LEX gems by category with detail view and homepage opener ('o' key)
+- **Config viewer/editor** - View and edit `~/.legionio/settings/*.json` with vault:// masking and JSON validation
 - **Command palette** - Fuzzy-search overlay for all commands, screens, and sessions (Ctrl+K or `/palette`)
 - **Model picker** - Switch LLM providers interactively
-- **Session management** - Auto-save on quit, `/save`, `/load`, `/sessions`, session picker (Ctrl+S)
+- **Session management** - Auto-save on quit, `/save`, `/load`, `/sessions`, `/rename`, session picker (Ctrl+S)
 - **Token tracking** - Per-model pricing for 9 models across 8 providers via `/cost`
 - **Plan mode** - Bookmark messages without sending to LLM (`/plan`)
 - **Personality styles** - Switch between default, concise, detailed, friendly, technical (`/personality`)
 - **Theme selection** - Four built-in themes: purple (default), green, blue, amber (`/theme`)
-- **Conversation tools** - `/compact`, `/copy`, `/diff`, `/search`, `/stats`
+- **Conversation tools** - `/compact`, `/copy`, `/diff`, `/search`, `/grep`, `/stats`, `/undo`
+- **Message pinning** - Pin important messages (`/pin`), view pins (`/pins`), export bookmarks (`/bookmark`)
+- **Command aliases** - Create custom shortcuts for frequently used commands (`/alias`)
+- **Code snippets** - Save and load reusable text snippets (`/snippet`)
+- **Debug mode** - Toggle internal state display (`/debug`)
+- **Session context** - View active settings summary (`/context`)
+- **Toast notifications** - Transient status bar messages for save/load/export/theme actions
 - **Hotkey navigation** - Ctrl+D (dashboard), Ctrl+K (palette), Ctrl+S (sessions), Escape (back)
 - **Tab completion** - Type `/` and Tab to auto-complete slash commands
-- **Input history** - Up/down arrow to navigate previous inputs
-- **Progress panel** - Visual progress bars for long operations (extension scanning, gem ops)
+- **Input history** - Up/down arrow to navigate previous inputs, `/history` to view
+- **Progress panel** - Visual progress bars for long operations
 - **Animated spinner** - Status bar spinner during LLM thinking
 - **Daemon routing** - Routes through LegionIO daemon when available, falls back to direct
 - **Second-run flow** - Skips onboarding, re-scans environment, drops into chat
@@ -74,9 +80,9 @@ legion chat prompt "explain async cognition"
 | `/quit` | Exit (auto-saves session) |
 | `/clear` | Clear message history |
 | `/model <name>` | Switch LLM model at runtime |
-| `/session <name>` | Rename current session |
+| `/session <name>` | Set session name |
 | `/cost` | Show token usage and estimated cost |
-| `/export [md\|json]` | Export chat history to file |
+| `/export [md\|json\|html]` | Export chat history to file |
 | `/tools` | List discovered LEX extensions |
 | `/dashboard` | Toggle operational dashboard |
 | `/hotkeys` | Show registered hotkey bindings |
@@ -91,11 +97,24 @@ legion chat prompt "explain async cognition"
 | `/config` | View and edit settings files |
 | `/theme [name]` | Switch color theme (purple/green/blue/amber) |
 | `/search <text>` | Search message history |
+| `/grep <pattern>` | Regex search across messages |
 | `/compact [N]` | Keep last N message pairs, remove older |
 | `/copy` | Copy last assistant response to clipboard |
 | `/diff` | Show new messages since last session load |
 | `/stats` | Show conversation statistics |
 | `/personality [style]` | Switch personality (default/concise/detailed/friendly/technical) |
+| `/undo` | Remove last user+assistant message pair |
+| `/history` | Show input history |
+| `/pin [N]` | Pin a message (last assistant or by index) |
+| `/pins` | Show all pinned messages |
+| `/rename <name>` | Rename current session (moves saved file) |
+| `/context` | Show active session state summary |
+| `/alias [name] [cmd]` | Create or list command aliases |
+| `/snippet <action>` | Save/load/list/delete code snippets |
+| `/debug` | Toggle debug mode |
+| `/uptime` | Show session elapsed time |
+| `/bookmark` | Export pinned messages to file |
+| `/time` | Show current date and time |
 
 ## Hotkeys
 
@@ -120,16 +139,22 @@ legion-tty
 
   Screens/
     Onboarding           # First-run wizard (rain -> intro -> wizard -> reveal)
-    Chat                 # AI chat REPL with streaming + slash commands
-    Dashboard            # Operational status panels
-    Extensions           # LEX gem browser by category
-    Config               # Settings file viewer/editor
+    Chat                 # AI chat REPL with streaming + 40 slash commands
+      SessionCommands    # save/load/sessions/delete/rename
+      ExportCommands     # export/bookmark/html/json/markdown
+      MessageCommands    # compact/copy/diff/search/grep/undo/pin/pins
+      UiCommands         # help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time
+      ModelCommands      # model/system/personality switching
+      CustomCommands     # alias/snippet management
+    Dashboard            # Service/LLM status, panel navigation (j/k/1-5)
+    Extensions           # LEX gem browser by category with homepage opener
+    Config               # Settings file viewer/editor with JSON validation
 
   Components/
     DigitalRain          # Matrix-style falling characters
-    InputBar             # Prompt line with tab completion + thinking indicator
-    MessageStream        # Scrollable message history with markdown rendering
-    StatusBar            # Model, plan mode, thinking, tokens, cost, session
+    InputBar             # Prompt line with tab completion + input history
+    MessageStream        # Scrollable message history with markdown + timestamps
+    StatusBar            # Model, plan, debug, notifications, thinking, tokens, cost, session, scroll
     ToolPanel            # Expandable tool use panels
     MarkdownView         # TTY::Markdown rendering
     WizardPrompt         # TTY::Prompt wrappers
@@ -161,6 +186,7 @@ Identity and credentials are stored in `~/.legionio/settings/`:
 - `credentials.json` - LLM provider and API key (chmod 600)
 
 Sessions are stored in `~/.legionio/sessions/`.
+Snippets are stored in `~/.legionio/snippets/`.
 Exports go to `~/.legionio/exports/`.
 Boot logs go to `~/.legionio/logs/tty-boot.log`.
 
@@ -168,8 +194,8 @@ Boot logs go to `~/.legionio/logs/tty-boot.log`.
 
 ```bash
 bundle install
-bundle exec rspec       # 653 examples, 0 failures
-bundle exec rubocop     # 77 files, 0 offenses
+bundle exec rspec       # 836 examples, 0 failures
+bundle exec rubocop     # 92 files, 0 offenses
 ```
 
 ## License

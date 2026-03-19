@@ -4,11 +4,11 @@
 
 ## What is this?
 
-Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wizard with identity detection, AI chat shell with streaming and 27 slash commands, operational dashboard, extensions browser, config editor, command palette, model/session pickers, theme selection, personality styles, and session persistence using the tty-ruby gem ecosystem.
+Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wizard with identity detection, AI chat shell with streaming and 40 slash commands, operational dashboard with panel navigation, extensions browser, config editor, command palette, model/session pickers, theme selection, personality styles, snippets, aliases, debug mode, and session persistence using the tty-ruby gem ecosystem.
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.8
+**Version**: 0.4.12
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 
@@ -21,22 +21,29 @@ lib/legion/tty/
   hotkeys.rb              # Key binding registry (Ctrl+D, Ctrl+K, Ctrl+S, Ctrl+L, Escape)
   session_store.rb        # JSON session persistence (~/.legionio/sessions/)
   boot_logger.rb          # Boot sequence logging
-  theme.rb                # Purple palette (17 shades) + semantic colors
+  theme.rb                # 4 themes (purple/green/blue/amber) with 17-shade palettes + semantic colors
   version.rb
 
   screens/
     base.rb               # Abstract: activate, deactivate, render, handle_input, teardown
     onboarding.rb         # First-run: rain -> intro -> wizard -> reveal
-    chat.rb               # AI REPL: 27 slash commands, streaming, token tracking, plan mode, personalities
-    dashboard.rb          # Service status, extensions, system info panels
-    extensions.rb         # LEX gem browser: core/agentic/service/AI/other categories, detail view
-    config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking
+    chat.rb               # AI REPL: 40 slash commands, streaming, token tracking, plan mode, personalities
+    chat/                 # Command handler concern modules (extracted from chat.rb):
+      session_commands.rb #   save/load/sessions/delete/rename
+      export_commands.rb  #   export/bookmark/html/json/markdown
+      message_commands.rb #   compact/copy/diff/search/grep/undo/pin/pins
+      ui_commands.rb      #   help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time
+      model_commands.rb   #   model/system/personality switching
+      custom_commands.rb  #   alias/snippet management
+    dashboard.rb          # Service/LLM status, extensions, system info, panel navigation (j/k/1-5)
+    extensions.rb         # LEX gem browser: core/agentic/service/AI/other categories, detail view, 'o' opens homepage
+    config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking, JSON validation
 
   components/
     digital_rain.rb       # Matrix-style falling LEX names
-    input_bar.rb          # Prompt with tab completion for slash commands + thinking indicator
-    message_stream.rb     # Scrollable message history with markdown rendering
-    status_bar.rb         # Model | [PLAN] | thinking... | tokens | cost | session
+    input_bar.rb          # Prompt with tab completion for slash commands + input history
+    message_stream.rb     # Scrollable message history with markdown rendering + timestamps
+    status_bar.rb         # Model | [PLAN] | [DBG] | notifications | thinking... | tokens | cost | session | scroll
     tool_panel.rb         # Expandable tool use display
     markdown_view.rb      # TTY::Markdown wrapper
     wizard_prompt.rb      # TTY::Prompt wrapper
@@ -61,6 +68,7 @@ lib/legion/tty/
 - `try_settings_llm` is the single LLM path: `Legion::LLM.chat(provider:)`
 - If Legion::LLM unavailable, `@llm_chat = nil` -- chat works without LLM (commands still function)
 - `/model` switches model with rescue on `StandardError` to prevent crashes
+- Daemon routing: routes through LegionIO daemon when available, falls back to direct
 
 ## LegionIO Integration
 
@@ -75,13 +83,16 @@ lib/legion/tty/
 - TTY::Cursor, TTY::Screen, TTY::Box, TTY::Font, TTY::Markdown are `require`d at point of use
 - All file paths use `File.expand_path('~/.legionio/...')` for consistency
 - Screen navigation: push/pop stack with overlay support; Escape pops or dismisses overlay
+- Chat commands extracted into concern modules included via `include SessionCommands`, etc.
 
 ## Slash Commands
 
 ```
 /help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys
 /save /load /sessions /system /delete /plan /palette /extensions /config
-/theme /search /compact /copy /diff /stats /personality
+/theme /search /compact /copy /diff /stats /personality /undo /history
+/pin /pins /rename /context /alias /snippet /debug /uptime /bookmark
+/grep /time
 ```
 
 ## Hotkeys
@@ -99,8 +110,8 @@ lib/legion/tty/
 
 ```bash
 bundle install
-bundle exec rspec       # 653 examples, 0 failures
-bundle exec rubocop     # 77 files, 0 offenses
+bundle exec rspec       # 836 examples, 0 failures
+bundle exec rubocop     # 92 files, 0 offenses
 ```
 
 ## Pre-Push Pipeline
