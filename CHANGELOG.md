@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.12] - 2026-03-19
+
+### Added
+- `/grep <pattern>` command: regex search across message history (case-insensitive, with RegexpError handling)
+- `/time` command: display current date, time, and timezone
+
+### Changed
+- Refactored Chat screen into 6 concern modules (chat.rb 1220 -> 466 lines):
+  - `chat/session_commands.rb` — save/load/sessions/delete/rename
+  - `chat/export_commands.rb` — export/bookmark/html/json/markdown
+  - `chat/message_commands.rb` — compact/copy/diff/search/grep/undo/pin/pins
+  - `chat/ui_commands.rb` — help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time
+  - `chat/model_commands.rb` — model/system/personality switching
+  - `chat/custom_commands.rb` — alias/snippet management
+
 ## [0.4.11] - 2026-03-19
 
 ### Added

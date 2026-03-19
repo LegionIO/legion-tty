@@ -6,16 +6,29 @@ require_relative '../components/status_bar'
 require_relative '../components/input_bar'
 require_relative '../components/token_tracker'
 require_relative '../theme'
+require_relative 'chat/session_commands'
+require_relative 'chat/export_commands'
+require_relative 'chat/message_commands'
+require_relative 'chat/ui_commands'
+require_relative 'chat/model_commands'
+require_relative 'chat/custom_commands'
 
 module Legion
   module TTY
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
+        include SessionCommands
+        include ExportCommands
+        include MessageCommands
+        include UiCommands
+        include ModelCommands
+        include CustomCommands
+
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
-                            /theme /search /stats /personality /undo /history /pin /pins /rename
-                            /context /alias /snippet /debug /uptime /bookmark].freeze
+                            /theme /search /grep /stats /personality /undo /history /pin /pins /rename
+                            /context /alias /snippet /debug /uptime /time /bookmark].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -308,6 +321,7 @@ module Legion
           when '/config' then handle_config_screen
           when '/theme' then handle_theme(input)
           when '/search' then handle_search(input)
+          when '/grep' then handle_grep(input)
           when '/stats' then handle_stats
           when '/personality' then handle_personality(input)
           when '/undo' then handle_undo
@@ -320,214 +334,16 @@ module Legion
           when '/snippet' then handle_snippet(input)
           when '/debug' then handle_debug
           when '/uptime' then handle_uptime
+          when '/time' then handle_time
           when '/bookmark' then handle_bookmark
           else :handled
           end
         end
         # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
-        # rubocop:disable Metrics/MethodLength
-        def handle_help
-          @message_stream.add_message(
-            role: :system,
-            content: "Commands:\n  /help /quit /clear /model <name> /session <name> /cost\n  " \
-                     "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
-                     "/system <prompt> /delete <session> /plan /palette /extensions /config\n  " \
-                     "/theme [name] -- switch color theme (purple, green, blue, amber)\n  " \
-                     "/search <text> -- search message history\n  " \
-                     "/compact [n] -- keep last n message pairs (default 5)\n  " \
-                     "/copy -- copy last assistant message to clipboard\n  " \
-                     "/diff -- show new messages since session was loaded\n  " \
-                     "/stats -- show conversation statistics\n  " \
-                     "/personality [name] -- switch assistant personality\n  " \
-                     "/undo -- remove last user+assistant message pair\n  " \
-                     "/history -- show recent input history\n  " \
-                     "/pin [N] -- pin last assistant message (or message at index N)\n  " \
-                     "/pins -- show all pinned messages\n  " \
-                     "/rename <name> -- rename current session\n  " \
-                     "/context -- show active session context summary\n  " \
-                     "/alias [shortname /command] -- create or list command aliases\n  " \
-                     "/snippet save|load|list|delete <name> -- manage reusable text snippets\n  " \
-                     "/debug -- toggle debug mode (shows internal state)\n  " \
-                     "/uptime -- show how long this session has been active\n  " \
-                     "/bookmark -- export pinned messages to a markdown file\n\n" \
-                     'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
-          )
-          :handled
-        end
-        # rubocop:enable Metrics/MethodLength
-
-        def handle_clear
-          @message_stream.messages.clear
-          :handled
-        end
-
-        def handle_model(input)
-          name = input.split(nil, 2)[1]
-          if name
-            switch_model(name)
-          else
-            show_current_model
-          end
-          :handled
-        end
-
-        def switch_model(name)
-          unless @llm_chat
-            @message_stream.add_message(role: :system, content: 'No active LLM session.')
-            return
-          end
-
-          apply_model_switch(name)
-        rescue StandardError => e
-          @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
-        end
-
-        def apply_model_switch(name)
-          new_chat = try_provider_switch(name)
-          if new_chat
-            @llm_chat = new_chat
-            @status_bar.update(model: name)
-            @token_tracker.update_model(name)
-            @message_stream.add_message(role: :system, content: "Switched to provider: #{name}")
-          elsif @llm_chat.respond_to?(:with_model)
-            @llm_chat.with_model(name)
-            @status_bar.update(model: name)
-            @token_tracker.update_model(name)
-            @message_stream.add_message(role: :system, content: "Model switched to: #{name}")
-          else
-            @status_bar.update(model: name)
-            @message_stream.add_message(role: :system, content: "Model set to: #{name}")
-          end
-        end
-
-        def try_provider_switch(name)
-          return nil unless defined?(Legion::LLM)
-
-          providers = Legion::LLM.settings[:providers]
-          return nil unless providers.is_a?(Hash) && providers.key?(name.to_sym)
-
-          Legion::LLM.chat(provider: name)
-        rescue StandardError
-          nil
-        end
-
-        def open_model_picker
-          require_relative '../components/model_picker'
-          picker = Components::ModelPicker.new(
-            current_provider: safe_config[:provider],
-            current_model: @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : nil
-          )
-          selection = picker.select_with_prompt(output: @output)
-          return unless selection
-
-          switch_model(selection[:provider])
-        end
-
-        def show_current_model
-          model = @llm_chat.respond_to?(:model) ? @llm_chat.model : nil
-          provider = safe_config[:provider] || 'unknown'
-          info = model ? "#{model} (#{provider})" : provider
-          @message_stream.add_message(role: :system, content: "Current model: #{info}")
-        end
-
-        def handle_session(input)
-          name = input.split(nil, 2)[1]
-          if name
-            @session_name = name
-            @status_bar.update(session: name)
-          end
-          :handled
-        end
-
-        def handle_save(input)
-          name = input.split(nil, 2)[1] || @session_store.auto_session_name
-          @session_name = name
-          @session_store.save(name, messages: @message_stream.messages)
-          @status_bar.update(session: name)
-          @status_bar.notify(message: "Saved '#{name}'", level: :success, ttl: 3)
-          @message_stream.add_message(role: :system, content: "Session saved as '#{name}'.")
-          :handled
-        end
-
-        def handle_load(input)
-          name = input.split(nil, 2)[1]
-          unless name
-            @message_stream.add_message(role: :system, content: 'Usage: /load <session-name>')
-            return :handled
-          end
-          data = @session_store.load(name)
-          unless data
-            @message_stream.add_message(role: :system, content: "Session '#{name}' not found.")
-            return :handled
-          end
-          @message_stream.messages.replace(data[:messages])
-          @loaded_message_count = @message_stream.messages.size
-          @session_name = name
-          @status_bar.update(session: name)
-          @status_bar.notify(message: "Loaded '#{name}'", level: :info, ttl: 3)
-          @message_stream.add_message(role: :system,
-                                      content: "Session '#{name}' loaded (#{data[:messages].size} messages).")
-          :handled
-        end
-
-        def handle_sessions
-          sessions = @session_store.list
-          if sessions.empty?
-            @message_stream.add_message(role: :system, content: 'No saved sessions.')
-          else
-            lines = sessions.map { |s| "  #{s[:name]} - #{s[:message_count]} messages (#{s[:saved_at]})" }
-            @message_stream.add_message(role: :system, content: "Saved sessions:\n#{lines.join("\n")}")
-          end
-          :handled
-        end
-
-        def auto_save_session
-          return if @message_stream.messages.empty?
-
-          if @session_name == 'default'
-            @session_name = @session_store.auto_session_name(messages: @message_stream.messages)
-          end
-          @session_store.save(@session_name, messages: @message_stream.messages)
-        rescue StandardError
-          nil
-        end
-
         def handle_cost
           @message_stream.add_message(role: :system, content: @token_tracker.summary)
           :handled
-        end
-
-        def handle_export(input)
-          require 'fileutils'
-          path = build_export_path(input)
-          dispatch_export(path, input.split[1]&.downcase)
-          @status_bar.notify(message: 'Exported', level: :success, ttl: 3)
-          @message_stream.add_message(role: :system, content: "Exported to: #{path}")
-          :handled
-        rescue StandardError => e
-          @message_stream.add_message(role: :system, content: "Export failed: #{e.message}")
-          :handled
-        end
-
-        def build_export_path(input)
-          format = input.split[1]&.downcase
-          format = 'md' unless %w[json md html].include?(format)
-          exports_dir = File.expand_path('~/.legionio/exports')
-          FileUtils.mkdir_p(exports_dir)
-          timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
-          ext = { 'json' => 'json', 'md' => 'md', 'html' => 'html' }[format]
-          File.join(exports_dir, "chat-#{timestamp}.#{ext}")
-        end
-
-        def dispatch_export(path, format)
-          if format == 'json'
-            export_json(path)
-          elsif format == 'html'
-            export_html(path)
-          else
-            export_markdown(path)
-          end
         end
 
         # rubocop:disable Metrics/AbcSize
@@ -549,53 +365,6 @@ module Legion
 
         # rubocop:enable Metrics/AbcSize
 
-        def handle_dashboard
-          if @app.respond_to?(:toggle_dashboard)
-            @app.toggle_dashboard
-          else
-            @message_stream.add_message(role: :system, content: 'Dashboard not available.')
-          end
-          :handled
-        end
-
-        def handle_hotkeys
-          if @app.respond_to?(:hotkeys)
-            bindings = @app.hotkeys.list
-            lines = bindings.map { |b| "#{b[:key].inspect} -> #{b[:description]}" }
-            text = lines.empty? ? 'No hotkeys registered.' : lines.join("\n")
-            @message_stream.add_message(role: :system, content: "Hotkeys:\n#{text}")
-          else
-            @message_stream.add_message(role: :system, content: 'Hotkeys not available.')
-          end
-          :handled
-        end
-
-        def handle_system(input)
-          text = input.split(nil, 2)[1]
-          if text
-            if @llm_chat.respond_to?(:with_instructions)
-              @llm_chat.with_instructions(text)
-              @message_stream.add_message(role: :system, content: 'System prompt updated.')
-            else
-              @message_stream.add_message(role: :system, content: 'No active LLM session.')
-            end
-          else
-            @message_stream.add_message(role: :system, content: 'Usage: /system <prompt text>')
-          end
-          :handled
-        end
-
-        def handle_delete(input)
-          name = input.split(nil, 2)[1]
-          unless name
-            @message_stream.add_message(role: :system, content: 'Usage: /delete <session-name>')
-            return :handled
-          end
-          @session_store.delete(name)
-          @message_stream.add_message(role: :system, content: "Session '#{name}' deleted.")
-          :handled
-        end
-
         def handle_plan
           @plan_mode = !@plan_mode
           if @plan_mode
@@ -609,45 +378,12 @@ module Legion
           :handled
         end
 
-        def handle_palette
-          require_relative '../components/command_palette'
-          palette = Components::CommandPalette.new(session_store: @session_store)
-          selection = palette.select_with_prompt(output: @output)
-          return :handled unless selection
-
-          if selection.start_with?('/')
-            handle_slash_command(selection)
-          else
-            dispatch_screen_by_name(selection)
+        def handle_session(input)
+          name = input.split(nil, 2)[1]
+          if name
+            @session_name = name
+            @status_bar.update(session: name)
           end
-          :handled
-        end
-
-        def dispatch_screen_by_name(name)
-          case name
-          when 'dashboard' then handle_dashboard
-          when 'extensions' then handle_extensions_screen
-          when 'config' then handle_config_screen
-          end
-        end
-
-        def handle_extensions_screen
-          require_relative '../screens/extensions'
-          screen = Screens::Extensions.new(@app, output: @output)
-          @app.screen_manager.push(screen)
-          :handled
-        rescue LoadError
-          @message_stream.add_message(role: :system, content: 'Extensions screen not available.')
-          :handled
-        end
-
-        def handle_config_screen
-          require_relative '../screens/config'
-          screen = Screens::Config.new(@app, output: @output)
-          @app.screen_manager.push(screen)
-          :handled
-        rescue LoadError
-          @message_stream.add_message(role: :system, content: 'Config screen not available.')
           :handled
         end
 
@@ -669,162 +405,36 @@ module Legion
           :handled
         end
 
-        def handle_search(input)
-          query = input.split(nil, 2)[1]
-          unless query
-            @message_stream.add_message(role: :system, content: 'Usage: /search <text>')
-            return :handled
-          end
+        def debug_segment
+          return nil unless @debug_mode
 
-          results = search_messages(query)
-          if results.empty?
-            @message_stream.add_message(role: :system, content: "No messages matching '#{query}'.")
-          else
-            lines = results.map { |r| "  [#{r[:role]}] #{truncate_text(r[:content], 80)}" }
-            @message_stream.add_message(
-              role: :system,
-              content: "Found #{results.size} message(s) matching '#{query}':\n#{lines.join("\n")}"
-            )
-          end
-          :handled
+          "[DEBUG] msgs:#{@message_stream.messages.size} " \
+            "scroll:#{@message_stream.scroll_position&.dig(:current) || 0} " \
+            "plan:#{@plan_mode} " \
+            "personality:#{@personality || 'default'} " \
+            "aliases:#{@aliases.size} " \
+            "snippets:#{@snippets.size} " \
+            "pinned:#{@pinned_messages.size}"
         end
 
-        def handle_stats
-          @message_stream.add_message(role: :system, content: build_stats_lines.join("\n"))
-          :handled
+        def build_default_input_bar
+          cfg = safe_config
+          name = cfg[:name] || 'User'
+          Components::InputBar.new(name: name, completions: SLASH_COMMANDS)
         end
 
-        def build_stats_lines
-          msgs = @message_stream.messages
-          counts = count_by_role(msgs)
-          total_chars = msgs.sum { |m| m[:content].to_s.length }
-          lines = stats_header_lines(msgs, counts, total_chars)
-          lines << "  Tool calls: #{counts[:tool]}" if counts[:tool].positive?
-          lines
+        def terminal_width
+          require 'tty-screen'
+          ::TTY::Screen.width
+        rescue StandardError
+          80
         end
 
-        def count_by_role(msgs)
-          %i[user assistant system tool].to_h { |role| [role, msgs.count { |m| m[:role] == role }] }
-        end
-
-        def stats_header_lines(msgs, counts, total_chars)
-          [
-            "Messages: #{msgs.size} total",
-            "  User: #{counts[:user]}, Assistant: #{counts[:assistant]}, System: #{counts[:system]}",
-            "Characters: #{format_stat_number(total_chars)}",
-            "Session: #{@session_name}",
-            "Tokens: #{@token_tracker.summary}"
-          ]
-        end
-
-        def format_stat_number(num)
-          num.to_s.chars.reverse.each_slice(3).map(&:join).join(',').reverse
-        end
-
-        def handle_personality(input)
-          name = input.split(nil, 2)[1]
-          if name && PERSONALITIES.key?(name)
-            apply_personality(name)
-          elsif name
-            available = PERSONALITIES.keys.join(', ')
-            @message_stream.add_message(role: :system,
-                                        content: "Unknown personality '#{name}'. Available: #{available}")
-          else
-            current = @personality || 'default'
-            available = PERSONALITIES.keys.join(', ')
-            @message_stream.add_message(role: :system, content: "Current: #{current}\nAvailable: #{available}")
-          end
-          :handled
-        end
-
-        def apply_personality(name)
-          @personality = name
-          if @llm_chat.respond_to?(:with_instructions)
-            @llm_chat.with_instructions(PERSONALITIES[name])
-            @message_stream.add_message(role: :system, content: "Personality switched to: #{name}")
-          else
-            @message_stream.add_message(role: :system, content: "Personality set to: #{name} (no active LLM)")
-          end
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def handle_compact(input)
-          keep = (input.split(nil, 2)[1] || '5').to_i.clamp(1, 50)
-          msgs = @message_stream.messages
-          if msgs.size <= keep * 2
-            @message_stream.add_message(role: :system, content: 'Conversation is already compact.')
-            return :handled
-          end
-
-          system_msgs = msgs.select { |m| m[:role] == :system }
-          recent = msgs.reject { |m| m[:role] == :system }.last(keep * 2)
-          removed_count = msgs.size - system_msgs.size - recent.size
-          @message_stream.messages.replace(system_msgs + recent)
-          @message_stream.add_message(
-            role: :system,
-            content: "Compacted: removed #{removed_count} older messages, kept #{recent.size} recent."
-          )
-          :handled
-        end
-        # rubocop:enable Metrics/AbcSize
-
-        def handle_copy(_input)
-          last_assistant = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
-          unless last_assistant
-            @message_stream.add_message(role: :system, content: 'No assistant message to copy.')
-            return :handled
-          end
-
-          content = last_assistant[:content].to_s
-          copy_to_clipboard(content)
-          @message_stream.add_message(
-            role: :system,
-            content: "Copied #{content.length} characters to clipboard."
-          )
-          :handled
-        end
-
-        def copy_to_clipboard(text)
-          IO.popen('pbcopy', 'w') { |io| io.write(text) }
-        rescue Errno::ENOENT
-          begin
-            IO.popen('xclip -selection clipboard', 'w') { |io| io.write(text) }
-          rescue Errno::ENOENT
-            nil
-          end
-        end
-
-        def handle_diff(_input)
-          if @loaded_message_count.nil?
-            @message_stream.add_message(role: :system, content: 'No session was loaded. Nothing to diff against.')
-            return :handled
-          end
-
-          new_count = @message_stream.messages.size - @loaded_message_count
-          if new_count <= 0
-            @message_stream.add_message(role: :system, content: 'No new messages since session was loaded.')
-          else
-            new_msgs = @message_stream.messages.last(new_count)
-            lines = new_msgs.map { |m| "  + [#{m[:role]}] #{truncate_text(m[:content].to_s, 60)}" }
-            @message_stream.add_message(
-              role: :system,
-              content: "#{new_count} new message(s) since load:\n#{lines.join("\n")}"
-            )
-          end
-          :handled
-        end
-
-        def search_messages(query)
-          pattern = query.downcase
-          @message_stream.messages.select do |msg|
-            msg[:content].is_a?(::String) && msg[:content].downcase.include?(pattern)
-          end
-        end
-
-        def truncate_text(text, max_length)
-          return text if text.length <= max_length
-
-          "#{text[0...max_length]}..."
+        def terminal_height
+          require 'tty-screen'
+          ::TTY::Screen.height
+        rescue StandardError
+          24
         end
 
         def detect_provider
@@ -848,370 +458,6 @@ module Legion
             tokens: @token_tracker.total_input_tokens + @token_tracker.total_output_tokens,
             cost: @token_tracker.total_cost
           )
-        end
-
-        def export_markdown(path)
-          lines = ["# Chat Export\n", "_Exported: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}_\n\n---\n"]
-          @message_stream.messages.each do |msg|
-            role_label = msg[:role].to_s.capitalize
-            lines << "\n**#{role_label}**\n\n#{msg[:content]}\n"
-          end
-          File.write(path, lines.join)
-        end
-
-        def export_json(path)
-          require 'json'
-          data = {
-            exported_at: Time.now.iso8601,
-            token_summary: @token_tracker.summary,
-            messages: @message_stream.messages.map { |m| { role: m[:role].to_s, content: m[:content] } }
-          }
-          File.write(path, ::JSON.pretty_generate(data))
-        end
-
-        # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
-        def export_html(path)
-          lines = [
-            '<!DOCTYPE html><html><head>',
-            '<meta charset="utf-8">',
-            '<title>Chat Export</title>',
-            '<style>',
-            'body { font-family: system-ui; max-width: 800px; margin: 0 auto; ' \
-            'padding: 20px; background: #1e1b2e; color: #d0cce6; }',
-            '.msg { margin: 12px 0; padding: 8px 12px; border-radius: 8px; }',
-            '.user { background: #2a2640; }',
-            '.assistant { background: #1a1730; }',
-            '.system { background: #25223a; color: #8b85a8; font-style: italic; }',
-            '.role { font-weight: bold; color: #9d91e6; font-size: 0.85em; }',
-            '</style></head><body>',
-            '<h1>Chat Export</h1>',
-            "<p>Exported: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}</p>"
-          ]
-          @message_stream.messages.each do |msg|
-            role = msg[:role].to_s
-            content = escape_html(msg[:content].to_s).gsub("\n", '<br>')
-            lines << "<div class='msg #{role}'>"
-            lines << "<span class='role'>#{role.capitalize}</span>"
-            lines << "<p>#{content}</p>"
-            lines << '</div>'
-          end
-          lines << '</body></html>'
-          File.write(path, lines.join("\n"))
-        end
-        # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
-
-        def escape_html(text)
-          text.gsub('&', '&amp;').gsub('<', '&lt;').gsub('>', '&gt;').gsub('"', '&quot;')
-        end
-
-        def handle_undo
-          msgs = @message_stream.messages
-          last_user_idx = msgs.rindex { |m| m[:role] == :user }
-          unless last_user_idx
-            @message_stream.add_message(role: :system, content: 'Nothing to undo.')
-            return :handled
-          end
-
-          msgs.slice!(last_user_idx..)
-          :handled
-        end
-
-        def handle_history
-          entries = @input_bar.history
-          if entries.empty?
-            @message_stream.add_message(role: :system, content: 'No input history.')
-          else
-            recent = entries.last(20)
-            lines = recent.each_with_index.map { |entry, i| "  #{i + 1}. #{entry}" }
-            @message_stream.add_message(role: :system,
-                                        content: "Input history (last #{recent.size}):\n#{lines.join("\n")}")
-          end
-          :handled
-        end
-
-        def handle_pin(input)
-          idx_str = input.split(nil, 2)[1]
-          msg = if idx_str
-                  @message_stream.messages[idx_str.to_i]
-                else
-                  @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
-                end
-          unless msg
-            @message_stream.add_message(role: :system, content: 'No message to pin.')
-            return :handled
-          end
-
-          @pinned_messages << msg
-          preview = truncate_text(msg[:content].to_s, 60)
-          @message_stream.add_message(role: :system, content: "Pinned: #{preview}")
-          :handled
-        end
-
-        def handle_pins
-          if @pinned_messages.empty?
-            @message_stream.add_message(role: :system, content: 'No pinned messages.')
-          else
-            lines = @pinned_messages.each_with_index.map do |msg, i|
-              "  #{i + 1}. [#{msg[:role]}] #{truncate_text(msg[:content].to_s, 70)}"
-            end
-            @message_stream.add_message(role: :system,
-                                        content: "Pinned messages (#{@pinned_messages.size}):\n#{lines.join("\n")}")
-          end
-          :handled
-        end
-
-        def handle_rename(input)
-          name = input.split(nil, 2)[1]
-          unless name
-            @message_stream.add_message(role: :system, content: 'Usage: /rename <new-name>')
-            return :handled
-          end
-
-          old_name = @session_name
-          @session_store.delete(old_name) if old_name != 'default'
-          @session_name = name
-          @status_bar.update(session: name)
-          @session_store.save(name, messages: @message_stream.messages)
-          @message_stream.add_message(role: :system, content: "Session renamed to '#{name}'.")
-          :handled
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def handle_context
-          cfg = safe_config
-          model_info = @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : (cfg[:provider] || 'none')
-          sys_prompt = if @llm_chat.respond_to?(:instructions) && @llm_chat.instructions
-                         truncate_text(@llm_chat.instructions.to_s, 80)
-                       else
-                         'default'
-                       end
-          lines = [
-            'Session Context:',
-            "  Model/Provider : #{model_info}",
-            "  Personality    : #{@personality || 'default'}",
-            "  Plan mode      : #{@plan_mode ? 'on' : 'off'}",
-            "  System prompt  : #{sys_prompt}",
-            "  Session        : #{@session_name}",
-            "  Messages       : #{@message_stream.messages.size}",
-            "  Pinned         : #{@pinned_messages.size}",
-            "  Tokens         : #{@token_tracker.summary}"
-          ]
-          @message_stream.add_message(role: :system, content: lines.join("\n"))
-          :handled
-        end
-        # rubocop:enable Metrics/AbcSize
-
-        def handle_alias(input)
-          parts = input.split(nil, 3)
-          if parts.size < 2
-            if @aliases.empty?
-              @message_stream.add_message(role: :system, content: 'No aliases defined.')
-            else
-              lines = @aliases.map { |k, v| "  #{k} => #{v}" }
-              @message_stream.add_message(role: :system, content: "Aliases:\n#{lines.join("\n")}")
-            end
-            return :handled
-          end
-
-          shortname = parts[1]
-          expansion = parts[2]
-          unless expansion
-            @message_stream.add_message(role: :system, content: 'Usage: /alias <shortname> <command and args>')
-            return :handled
-          end
-
-          alias_key = shortname.start_with?('/') ? shortname : "/#{shortname}"
-          @aliases[alias_key] = expansion
-          @message_stream.add_message(role: :system, content: "Alias created: #{alias_key} => #{expansion}")
-          :handled
-        end
-
-        def handle_snippet(input)
-          parts = input.split(nil, 3)
-          subcommand = parts[1]
-          name = parts[2]
-
-          case subcommand
-          when 'save'
-            snippet_save(name)
-          when 'load'
-            snippet_load(name)
-          when 'list'
-            snippet_list
-          when 'delete'
-            snippet_delete(name)
-          else
-            @message_stream.add_message(
-              role: :system,
-              content: 'Usage: /snippet save|load|list|delete <name>'
-            )
-          end
-          :handled
-        end
-
-        def handle_debug
-          @debug_mode = !@debug_mode
-          if @debug_mode
-            @status_bar.update(debug_mode: true)
-            @message_stream.add_message(role: :system, content: 'Debug mode ON -- internal state shown below.')
-          else
-            @status_bar.update(debug_mode: false)
-            @message_stream.add_message(role: :system, content: 'Debug mode OFF.')
-          end
-          :handled
-        end
-
-        def handle_uptime
-          elapsed = Time.now - @session_start
-          hours   = (elapsed / 3600).to_i
-          minutes = ((elapsed % 3600) / 60).to_i
-          seconds = (elapsed % 60).to_i
-          @message_stream.add_message(role: :system, content: "Session uptime: #{hours}h #{minutes}m #{seconds}s")
-          :handled
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def handle_bookmark
-          require 'fileutils'
-          if @pinned_messages.empty?
-            @message_stream.add_message(role: :system, content: 'No pinned messages to export.')
-            return :handled
-          end
-
-          exports_dir = File.expand_path('~/.legionio/exports')
-          FileUtils.mkdir_p(exports_dir)
-          timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
-          path = File.join(exports_dir, "bookmarks-#{timestamp}.md")
-          lines = ["# Pinned Messages\n", "_Exported: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}_\n\n---\n"]
-          @pinned_messages.each_with_index do |msg, i|
-            role_label = msg[:role].to_s.capitalize
-            lines << "\n## Bookmark #{i + 1} (#{role_label})\n\n#{msg[:content]}\n"
-          end
-          File.write(path, lines.join)
-          @message_stream.add_message(role: :system, content: "Bookmarks exported to: #{path}")
-          :handled
-        rescue StandardError => e
-          @message_stream.add_message(role: :system, content: "Bookmark export failed: #{e.message}")
-          :handled
-        end
-
-        # rubocop:enable Metrics/AbcSize
-
-        def debug_segment
-          return nil unless @debug_mode
-
-          "[DEBUG] msgs:#{@message_stream.messages.size} " \
-            "scroll:#{@message_stream.scroll_position&.dig(:current) || 0} " \
-            "plan:#{@plan_mode} " \
-            "personality:#{@personality || 'default'} " \
-            "aliases:#{@aliases.size} " \
-            "snippets:#{@snippets.size} " \
-            "pinned:#{@pinned_messages.size}"
-        end
-
-        def snippet_dir
-          File.expand_path('~/.legionio/snippets')
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def snippet_save(name)
-          unless name
-            @message_stream.add_message(role: :system, content: 'Usage: /snippet save <name>')
-            return
-          end
-
-          last_assistant = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
-          unless last_assistant
-            @message_stream.add_message(role: :system, content: 'No assistant message to save as snippet.')
-            return
-          end
-
-          require 'fileutils'
-          FileUtils.mkdir_p(snippet_dir)
-          path = File.join(snippet_dir, "#{name}.txt")
-          File.write(path, last_assistant[:content].to_s)
-          @snippets[name] = last_assistant[:content].to_s
-          @message_stream.add_message(role: :system, content: "Snippet '#{name}' saved.")
-        end
-        # rubocop:enable Metrics/AbcSize
-
-        def snippet_load(name)
-          unless name
-            @message_stream.add_message(role: :system, content: 'Usage: /snippet load <name>')
-            return
-          end
-
-          content = @snippets[name]
-          if content.nil?
-            path = File.join(snippet_dir, "#{name}.txt")
-            content = File.read(path) if File.exist?(path)
-          end
-
-          unless content
-            @message_stream.add_message(role: :system, content: "Snippet '#{name}' not found.")
-            return
-          end
-
-          @snippets[name] = content
-          @message_stream.add_message(role: :user, content: content)
-          @message_stream.add_message(role: :system, content: "Snippet '#{name}' inserted.")
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def snippet_list
-          disk_snippets = Dir.glob(File.join(snippet_dir, '*.txt')).map { |f| File.basename(f, '.txt') }
-          all_names = (@snippets.keys + disk_snippets).uniq.sort
-
-          if all_names.empty?
-            @message_stream.add_message(role: :system, content: 'No snippets saved.')
-            return
-          end
-
-          lines = all_names.map do |sname|
-            content = @snippets[sname] || begin
-              path = File.join(snippet_dir, "#{sname}.txt")
-              File.exist?(path) ? File.read(path) : ''
-            end
-            "  #{sname}: #{truncate_text(content.to_s, 60)}"
-          end
-          @message_stream.add_message(role: :system, content: "Snippets (#{all_names.size}):\n#{lines.join("\n")}")
-        end
-        # rubocop:enable Metrics/AbcSize
-
-        def snippet_delete(name)
-          unless name
-            @message_stream.add_message(role: :system, content: 'Usage: /snippet delete <name>')
-            return
-          end
-
-          @snippets.delete(name)
-          path = File.join(snippet_dir, "#{name}.txt")
-          if File.exist?(path)
-            File.delete(path)
-            @message_stream.add_message(role: :system, content: "Snippet '#{name}' deleted.")
-          else
-            @message_stream.add_message(role: :system, content: "Snippet '#{name}' not found.")
-          end
-        end
-
-        def build_default_input_bar
-          cfg = safe_config
-          name = cfg[:name] || 'User'
-          Components::InputBar.new(name: name, completions: SLASH_COMMANDS)
-        end
-
-        def terminal_width
-          require 'tty-screen'
-          ::TTY::Screen.width
-        rescue StandardError
-          80
-        end
-
-        def terminal_height
-          require 'tty-screen'
-          ::TTY::Screen.height
-        rescue StandardError
-          24
         end
       end
       # rubocop:enable Metrics/ClassLength
