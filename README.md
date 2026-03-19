@@ -2,15 +2,15 @@
 
 Rich terminal UI for the LegionIO async cognition engine.
 
-**Version**: 0.4.12
+**Version**: 0.4.18
 
-Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell with 40 slash commands, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
+Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell with 60 slash commands, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
 
 ## Features
 
 - **Onboarding wizard** - First-run setup with Kerberos identity detection, GitHub profile probing, environment scanning, and LLM provider selection
 - **Digital rain intro** - Matrix-style rain using discovered LEX extension names
-- **AI chat shell** - Streaming LLM chat with 40 slash commands, tab completion, markdown rendering, and tool panels
+- **AI chat shell** - Streaming LLM chat with 60 slash commands, tab completion, markdown rendering, and tool panels
 - **Operational dashboard** - Service/LLM status, extension inventory, system info, panel navigation (Ctrl+D or `/dashboard`)
 - **Extensions browser** - Browse installed LEX gems by category with detail view and homepage opener ('o' key)
 - **Config viewer/editor** - View and edit `~/.legionio/settings/*.json` with vault:// masking and JSON validation
@@ -115,6 +115,25 @@ legion chat prompt "explain async cognition"
 | `/uptime` | Show session elapsed time |
 | `/bookmark` | Export pinned messages to file |
 | `/time` | Show current date and time |
+| `/autosave [N\|off]` | Toggle periodic auto-save with interval |
+| `/react <emoji>` | Add emoji reaction to a message |
+| `/macro <action>` | Record/stop/play/list/delete command macros |
+| `/tag <label>` | Tag a message with a label |
+| `/tags [label]` | Show tag statistics or filter by tag |
+| `/repeat` | Re-execute the last slash command |
+| `/count <pattern>` | Count messages matching a pattern |
+| `/template [name]` | List or use prompt templates |
+| `/fav [N]` | Favorite a message (persists to disk) |
+| `/favs` | Show all favorited messages |
+| `/log [N]` | View last N lines of boot log |
+| `/version` | Show version and platform info |
+| `/focus` | Toggle minimal UI (hide status bar) |
+| `/retry` | Resend last message to LLM |
+| `/merge <session>` | Merge another session into current |
+| `/sort [length\|role]` | Show messages sorted by length or role |
+| `/import <path>` | Import session from a JSON file |
+| `/mute` | Toggle system message display |
+| `/wc` | Show word count statistics |
 
 ## Hotkeys
 
@@ -139,7 +158,7 @@ legion-tty
 
   Screens/
     Onboarding           # First-run wizard (rain -> intro -> wizard -> reveal)
-    Chat                 # AI chat REPL with streaming + 40 slash commands
+    Chat                 # AI chat REPL with streaming + 60 slash commands
       SessionCommands    # save/load/sessions/delete/rename
       ExportCommands     # export/bookmark/html/json/markdown
       MessageCommands    # compact/copy/diff/search/grep/undo/pin/pins
@@ -194,8 +213,8 @@ Boot logs go to `~/.legionio/logs/tty-boot.log`.
 
 ```bash
 bundle install
-bundle exec rspec       # 836 examples, 0 failures
-bundle exec rubocop     # 92 files, 0 offenses
+bundle exec rspec       # 1143 examples, 0 failures
+bundle exec rubocop     # 106 files, 0 offenses
 ```
 
 ## License

@@ -4,11 +4,11 @@
 
 ## What is this?
 
-Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wizard with identity detection, AI chat shell with streaming and 40 slash commands, operational dashboard with panel navigation, extensions browser, config editor, command palette, model/session pickers, theme selection, personality styles, snippets, aliases, debug mode, and session persistence using the tty-ruby gem ecosystem.
+Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wizard with identity detection, AI chat shell with streaming and 60 slash commands, operational dashboard with panel navigation, extensions browser with category filter, config editor with backup, command palette, model/session pickers, theme selection, personality styles, snippets, aliases, macros, templates, favorites, debug mode, focus mode, and session persistence using the tty-ruby gem ecosystem.
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.12
+**Version**: 0.4.18
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 
@@ -27,17 +27,17 @@ lib/legion/tty/
   screens/
     base.rb               # Abstract: activate, deactivate, render, handle_input, teardown
     onboarding.rb         # First-run: rain -> intro -> wizard -> reveal
-    chat.rb               # AI REPL: 40 slash commands, streaming, token tracking, plan mode, personalities
+    chat.rb               # AI REPL: 60 slash commands, streaming, token tracking, plan/focus mode, personalities
     chat/                 # Command handler concern modules (extracted from chat.rb):
-      session_commands.rb #   save/load/sessions/delete/rename
+      session_commands.rb #   save/load/sessions/delete/rename/import/merge/autosave
       export_commands.rb  #   export/bookmark/html/json/markdown
-      message_commands.rb #   compact/copy/diff/search/grep/undo/pin/pins
-      ui_commands.rb      #   help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time
-      model_commands.rb   #   model/system/personality switching
-      custom_commands.rb  #   alias/snippet management
+      message_commands.rb #   compact/copy/diff/search/grep/undo/pin/pins/react/tag/fav/sort/count
+      ui_commands.rb      #   help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time/tips/welcome/focus/wc/log/version/mute
+      model_commands.rb   #   model/system/personality switching, retry
+      custom_commands.rb  #   alias/snippet/template/macro management
     dashboard.rb          # Service/LLM status, extensions, system info, panel navigation (j/k/1-5)
-    extensions.rb         # LEX gem browser: core/agentic/service/AI/other categories, detail view, 'o' opens homepage
-    config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking, JSON validation
+    extensions.rb         # LEX gem browser: category filter (f/c keys), detail view, 'o' opens homepage
+    config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking, JSON validation, 'b' backup
 
   components/
     digital_rain.rb       # Matrix-style falling LEX names
@@ -88,11 +88,12 @@ lib/legion/tty/
 ## Slash Commands
 
 ```
-/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys
-/save /load /sessions /system /delete /plan /palette /extensions /config
-/theme /search /compact /copy /diff /stats /personality /undo /history
-/pin /pins /rename /context /alias /snippet /debug /uptime /bookmark
-/grep /time
+/alias /autosave /bookmark /clear /compact /config /context /copy /cost /count
+/dashboard /debug /delete /diff /export /extensions /fav /favs /focus /grep
+/help /history /hotkeys /import /load /log /macro /merge /model /mute /palette
+/personality /pin /pins /plan /quit /react /rename /repeat /retry /save /search
+/session /sessions /snippet /sort /stats /system /tag /tags /template /theme
+/time /tips /tools /undo /uptime /version /wc /welcome
 ```
 
 ## Hotkeys
@@ -110,8 +111,8 @@ lib/legion/tty/
 
 ```bash
 bundle install
-bundle exec rspec       # 836 examples, 0 failures
-bundle exec rubocop     # 92 files, 0 offenses
+bundle exec rspec       # 1143 examples, 0 failures
+bundle exec rubocop     # 106 files, 0 offenses
 ```
 
 ## Pre-Push Pipeline
