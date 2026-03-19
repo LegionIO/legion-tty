@@ -4,11 +4,11 @@
 
 ## What is this?
 
-Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wizard with identity detection, AI chat shell with streaming and 19 slash commands, operational dashboard, extensions browser, config editor, command palette, model/session pickers, and session persistence using the tty-ruby gem ecosystem.
+Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wizard with identity detection, AI chat shell with streaming and 27 slash commands, operational dashboard, extensions browser, config editor, command palette, model/session pickers, theme selection, personality styles, and session persistence using the tty-ruby gem ecosystem.
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.1
+**Version**: 0.4.6
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 
@@ -27,7 +27,7 @@ lib/legion/tty/
   screens/
     base.rb               # Abstract: activate, deactivate, render, handle_input, teardown
     onboarding.rb         # First-run: rain -> intro -> wizard -> reveal
-    chat.rb               # AI REPL: 19 slash commands, streaming, token tracking, plan mode
+    chat.rb               # AI REPL: 27 slash commands, streaming, token tracking, plan mode, personalities
     dashboard.rb          # Service status, extensions, system info panels
     extensions.rb         # LEX gem browser: core/agentic/service/AI/other categories, detail view
     config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking
@@ -46,6 +46,7 @@ lib/legion/tty/
     session_picker.rb     # Session list and selection via TTY::Prompt
     table_view.rb         # TTY::Table wrapper for tabular data
     progress_panel.rb     # TTY::ProgressBar wrapper for long operations
+    notification.rb       # Transient notifications with TTL expiry and level-based icons
 
   background/
     scanner.rb            # Port probing, git repos, shell history, config detection
@@ -80,6 +81,7 @@ lib/legion/tty/
 ```
 /help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys
 /save /load /sessions /system /delete /plan /palette /extensions /config
+/theme /search /compact /copy /diff /stats /personality
 ```
 
 ## Hotkeys
@@ -97,8 +99,8 @@ lib/legion/tty/
 
 ```bash
 bundle install
-bundle exec rspec       # 598 examples, 0 failures
-bundle exec rubocop     # 68 files, 0 offenses
+bundle exec rspec       # 653 examples, 0 failures
+bundle exec rubocop     # 77 files, 0 offenses
 ```
 
 ## Pre-Push Pipeline

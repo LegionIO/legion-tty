@@ -2,7 +2,7 @@
 
 Rich terminal UI for the LegionIO async cognition engine.
 
-**Version**: 0.4.1
+**Version**: 0.4.6
 
 Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
 
@@ -10,7 +10,7 @@ Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with iden
 
 - **Onboarding wizard** - First-run setup with Kerberos identity detection, GitHub profile probing, environment scanning, and LLM provider selection
 - **Digital rain intro** - Matrix-style rain using discovered LEX extension names
-- **AI chat shell** - Streaming LLM chat with 19 slash commands, tab completion, markdown rendering, and tool panels
+- **AI chat shell** - Streaming LLM chat with 27 slash commands, tab completion, markdown rendering, and tool panels
 - **Operational dashboard** - Service status, extension inventory, system info, recent activity (Ctrl+D or `/dashboard`)
 - **Extensions browser** - Browse installed LEX gems by category (core, agentic, service, AI, other) with detail view
 - **Config viewer/editor** - View and edit `~/.legionio/settings/*.json` with vault:// masking
@@ -19,9 +19,15 @@ Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with iden
 - **Session management** - Auto-save on quit, `/save`, `/load`, `/sessions`, session picker (Ctrl+S)
 - **Token tracking** - Per-model pricing for 9 models across 8 providers via `/cost`
 - **Plan mode** - Bookmark messages without sending to LLM (`/plan`)
+- **Personality styles** - Switch between default, concise, detailed, friendly, technical (`/personality`)
+- **Theme selection** - Four built-in themes: purple (default), green, blue, amber (`/theme`)
+- **Conversation tools** - `/compact`, `/copy`, `/diff`, `/search`, `/stats`
 - **Hotkey navigation** - Ctrl+D (dashboard), Ctrl+K (palette), Ctrl+S (sessions), Escape (back)
 - **Tab completion** - Type `/` and Tab to auto-complete slash commands
+- **Input history** - Up/down arrow to navigate previous inputs
 - **Progress panel** - Visual progress bars for long operations (extension scanning, gem ops)
+- **Animated spinner** - Status bar spinner during LLM thinking
+- **Daemon routing** - Routes through LegionIO daemon when available, falls back to direct
 - **Second-run flow** - Skips onboarding, re-scans environment, drops into chat
 
 ## Installation
@@ -83,6 +89,13 @@ legion chat prompt "explain async cognition"
 | `/palette` | Open command palette (fuzzy search) |
 | `/extensions` | Browse installed LEX extensions |
 | `/config` | View and edit settings files |
+| `/theme [name]` | Switch color theme (purple/green/blue/amber) |
+| `/search <text>` | Search message history |
+| `/compact [N]` | Keep last N message pairs, remove older |
+| `/copy` | Copy last assistant response to clipboard |
+| `/diff` | Show new messages since last session load |
+| `/stats` | Show conversation statistics |
+| `/personality [style]` | Switch personality (default/concise/detailed/friendly/technical) |
 
 ## Hotkeys
 
@@ -126,6 +139,7 @@ legion-tty
     SessionPicker        # Session list and selection
     TableView            # TTY::Table wrapper
     ProgressPanel        # TTY::ProgressBar wrapper
+    Notification         # Transient notifications with TTL and levels
 
   Background/
     Scanner              # Service port probing, git repo discovery, shell history
@@ -154,8 +168,8 @@ Boot logs go to `~/.legionio/logs/tty-boot.log`.
 
 ```bash
 bundle install
-bundle exec rspec       # 598 examples, 0 failures
-bundle exec rubocop     # 68 files, 0 offenses
+bundle exec rspec       # 653 examples, 0 failures
+bundle exec rubocop     # 77 files, 0 offenses
 ```
 
 ## License
