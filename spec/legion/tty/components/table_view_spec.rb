@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tty-table'
 require 'legion/tty/components/table_view'
 
 RSpec.describe Legion::TTY::Components::TableView do

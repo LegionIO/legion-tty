@@ -92,20 +92,16 @@ module Legion
         end
 
         def send_to_llm(message)
-          unless @llm_chat
+          unless @llm_chat || daemon_available?
             @message_stream.append_streaming('LLM not configured. Use /help for commands.')
             return
           end
 
-          @status_bar.update(thinking: true)
-          render_screen
-          response = @llm_chat.ask(message) do |chunk|
-            @status_bar.update(thinking: false)
-            @message_stream.append_streaming(chunk.content) if chunk.content
-            render_screen
+          if daemon_available?
+            send_via_daemon(message)
+          else
+            send_via_direct(message)
           end
-          @status_bar.update(thinking: false)
-          track_response_tokens(response)
         rescue StandardError => e
           @status_bar.update(thinking: false)
           @message_stream.append_streaming("\n[Error: #{e.message}]")
@@ -140,6 +136,40 @@ module Legion
 
           prompt = build_system_prompt(cfg)
           @llm_chat.with_instructions(prompt) if @llm_chat.respond_to?(:with_instructions)
+        end
+
+        def send_via_daemon(message)
+          result = Legion::LLM.ask(message: message)
+
+          case result&.dig(:status)
+          when :done
+            @message_stream.append_streaming(result[:response])
+          when :error
+            err = result.dig(:error, :message) || 'Unknown error'
+            @message_stream.append_streaming("\n[Daemon error: #{err}]")
+          else
+            send_via_direct(message)
+          end
+        rescue StandardError
+          send_via_direct(message)
+        end
+
+        def send_via_direct(message)
+          return unless @llm_chat
+
+          @status_bar.update(thinking: true)
+          render_screen
+          response = @llm_chat.ask(message) do |chunk|
+            @status_bar.update(thinking: false)
+            @message_stream.append_streaming(chunk.content) if chunk.content
+            render_screen
+          end
+          @status_bar.update(thinking: false)
+          track_response_tokens(response)
+        end
+
+        def daemon_available?
+          !!(defined?(Legion::LLM::DaemonClient) && Legion::LLM::DaemonClient.available?)
         end
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
@@ -282,16 +312,50 @@ module Legion
             return
           end
 
-          if @llm_chat.respond_to?(:with_model)
+          apply_model_switch(name)
+        rescue StandardError => e
+          @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
+        end
+
+        def apply_model_switch(name)
+          new_chat = try_provider_switch(name)
+          if new_chat
+            @llm_chat = new_chat
+            @status_bar.update(model: name)
+            @token_tracker.update_model(name)
+            @message_stream.add_message(role: :system, content: "Switched to provider: #{name}")
+          elsif @llm_chat.respond_to?(:with_model)
             @llm_chat.with_model(name)
             @status_bar.update(model: name)
+            @token_tracker.update_model(name)
             @message_stream.add_message(role: :system, content: "Model switched to: #{name}")
           else
             @status_bar.update(model: name)
             @message_stream.add_message(role: :system, content: "Model set to: #{name}")
           end
-        rescue StandardError => e
-          @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
+        end
+
+        def try_provider_switch(name)
+          return nil unless defined?(Legion::LLM)
+
+          providers = Legion::LLM.settings[:providers]
+          return nil unless providers.is_a?(Hash) && providers.key?(name.to_sym)
+
+          Legion::LLM.chat(provider: name)
+        rescue StandardError
+          nil
+        end
+
+        def open_model_picker
+          require_relative '../components/model_picker'
+          picker = Components::ModelPicker.new(
+            current_provider: safe_config[:provider],
+            current_model: @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : nil
+          )
+          selection = picker.select_with_prompt(output: @output)
+          return unless selection
+
+          switch_model(selection[:provider])
         end
 
         def show_current_model

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.2] - 2026-03-19
+
+### Added
+- Multi-provider model switching: `/model <provider>` creates new Legion::LLM.chat instance
+- Model picker integration: `open_model_picker` for interactive provider/model selection
+- ToolPanel wiring in MessageStream: `add_tool_call`, `update_tool_call` methods
+- Tool call rendering in chat messages (`:tool` role with panel display)
+
+### Fixed
+- Flaky table_view_spec: added explicit `require 'tty-table'` to prevent test ordering failures
+
 ## [0.4.1] - 2026-03-19
 
 ### Added

@@ -29,6 +29,21 @@ module Legion
           @messages.last[:tool_panels] << panel
         end
 
+        def add_tool_call(name:, args: {}, status: :running)
+          require_relative 'tool_panel'
+          panel = ToolPanel.new(name: name, args: args, status: status)
+          @messages << { role: :tool, content: panel, tool_panel: true }
+        end
+
+        def update_tool_call(name:, status:, duration: nil, result: nil, error: nil)
+          tool_msg = @messages.reverse.find do |m|
+            m[:tool_panel] && m[:content].is_a?(ToolPanel) && m[:content].instance_variable_get(:@name) == name
+          end
+          return unless tool_msg
+
+          apply_tool_panel_update(tool_msg[:content], status: status, duration: duration, result: result, error: error)
+        end
+
         def scroll_up(lines = 1)
           @scroll_offset += lines
         end
@@ -60,6 +75,7 @@ module Legion
           when :user then user_lines(msg)
           when :assistant then assistant_lines(msg, width)
           when :system then system_lines(msg)
+          when :tool then tool_call_lines(msg, width)
           else []
           end
         end
@@ -85,8 +101,21 @@ module Legion
           msg[:content].split("\n").map { |l| "  #{Theme.c(:muted, l)}" }
         end
 
+        def tool_call_lines(msg, width)
+          return [] unless msg[:tool_panel] && msg[:content].respond_to?(:render)
+
+          msg[:content].render(width: width).split("\n")
+        end
+
         def panel_lines(msg, width)
           msg[:tool_panels].flat_map { |panel| panel.render(width: width).split("\n") }
+        end
+
+        def apply_tool_panel_update(panel, status:, duration:, result:, error:)
+          panel.instance_variable_set(:@status, status)
+          panel.instance_variable_set(:@duration, duration) if duration
+          panel.instance_variable_set(:@result, result) if result
+          panel.instance_variable_set(:@error, error) if error
         end
       end
     end
