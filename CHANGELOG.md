@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.11] - 2026-03-19
+
+### Added
+- Dashboard LLM status panel: shows provider, model, started/daemon status with green/red icons
+- Dashboard panel navigation: j/k/arrows to move between panels, 1-5 to jump, 'e' to open extensions
+- `/uptime` command: show current chat session elapsed time
+- `/bookmark` command: export all pinned messages to markdown file
+
 ## [0.4.10] - 2026-03-19
 
 ### Added

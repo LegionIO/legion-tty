@@ -158,7 +158,8 @@ RSpec.describe Legion::TTY::Screens::Chat do
     it 'includes all expected commands' do
       expected = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard /hotkeys
                     /save /load /sessions /system /delete /plan /palette /extensions /config /theme /search
-                    /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug]
+                    /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug
+                    /uptime /bookmark]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 
@@ -340,6 +341,82 @@ RSpec.describe Legion::TTY::Screens::Chat do
       allow(mock_input_bar).to receive(:read_line).and_return('any input', nil)
       overlay_screen.activate
       overlay_screen.run
+    end
+  end
+
+  describe '/uptime' do
+    it 'returns :handled' do
+      result = screen.handle_slash_command('/uptime')
+      expect(result).to eq(:handled)
+    end
+
+    it 'adds a system message with uptime format' do
+      screen.handle_slash_command('/uptime')
+      msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+      expect(msgs.last[:content]).to match(/Session uptime: \d+h \d+m \d+s/)
+    end
+
+    it 'reports elapsed time accurately' do
+      screen.instance_variable_set(:@session_start, Time.now - 3661)
+      screen.handle_slash_command('/uptime')
+      msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+      expect(msgs.last[:content]).to match(/1h 1m 1s/)
+    end
+  end
+
+  describe '/bookmark' do
+    it 'returns :handled when there are no pinned messages' do
+      result = screen.handle_slash_command('/bookmark')
+      expect(result).to eq(:handled)
+    end
+
+    it 'adds a system message when there are no pinned messages' do
+      screen.handle_slash_command('/bookmark')
+      msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+      expect(msgs.last[:content]).to eq('No pinned messages to export.')
+    end
+
+    it 'exports pinned messages to a file and returns :handled' do
+      screen.instance_variable_set(:@pinned_messages, [{ role: :assistant, content: 'Some pinned content' }])
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:write)
+      result = screen.handle_slash_command('/bookmark')
+      expect(result).to eq(:handled)
+    end
+
+    it 'includes export path in the system message when pinned messages exist' do
+      screen.instance_variable_set(:@pinned_messages, [{ role: :assistant, content: 'Pinned text here' }])
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:write)
+      screen.handle_slash_command('/bookmark')
+      msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+      expect(msgs.last[:content]).to include('bookmarks-')
+    end
+
+    it 'handles write errors gracefully' do
+      screen.instance_variable_set(:@pinned_messages, [{ role: :assistant, content: 'text' }])
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:write).and_raise(Errno::EACCES, 'permission denied')
+      result = screen.handle_slash_command('/bookmark')
+      expect(result).to eq(:handled)
+      msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+      expect(msgs.last[:content]).to include('Bookmark export failed:')
+    end
+  end
+
+  describe '/uptime in SLASH_COMMANDS' do
+    it 'includes /uptime' do
+      expect(described_class::SLASH_COMMANDS).to include('/uptime')
+    end
+
+    it 'includes /bookmark' do
+      expect(described_class::SLASH_COMMANDS).to include('/bookmark')
+    end
+  end
+
+  describe '#initialize session_start' do
+    it 'sets @session_start on initialization' do
+      expect(screen.instance_variable_get(:@session_start)).to be_a(Time)
     end
   end
 

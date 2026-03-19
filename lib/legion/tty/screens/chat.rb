@@ -15,7 +15,7 @@ module Legion
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /stats /personality /undo /history /pin /pins /rename
-                            /context /alias /snippet /debug].freeze
+                            /context /alias /snippet /debug /uptime /bookmark].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -27,6 +27,7 @@ module Legion
 
         attr_reader :message_stream, :status_bar
 
+        # rubocop:disable Metrics/AbcSize
         def initialize(app, output: $stdout, input_bar: nil)
           super(app)
           @output = output
@@ -43,7 +44,10 @@ module Legion
           @aliases = {}
           @snippets = {}
           @debug_mode = false
+          @session_start = Time.now
         end
+
+        # rubocop:enable Metrics/AbcSize
 
         def activate
           @running = true
@@ -315,6 +319,8 @@ module Legion
           when '/alias' then handle_alias(input)
           when '/snippet' then handle_snippet(input)
           when '/debug' then handle_debug
+          when '/uptime' then handle_uptime
+          when '/bookmark' then handle_bookmark
           else :handled
           end
         end
@@ -342,7 +348,9 @@ module Legion
                      "/context -- show active session context summary\n  " \
                      "/alias [shortname /command] -- create or list command aliases\n  " \
                      "/snippet save|load|list|delete <name> -- manage reusable text snippets\n  " \
-                     "/debug -- toggle debug mode (shows internal state)\n\n" \
+                     "/debug -- toggle debug mode (shows internal state)\n  " \
+                     "/uptime -- show how long this session has been active\n  " \
+                     "/bookmark -- export pinned messages to a markdown file\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
@@ -1052,6 +1060,42 @@ module Legion
           end
           :handled
         end
+
+        def handle_uptime
+          elapsed = Time.now - @session_start
+          hours   = (elapsed / 3600).to_i
+          minutes = ((elapsed % 3600) / 60).to_i
+          seconds = (elapsed % 60).to_i
+          @message_stream.add_message(role: :system, content: "Session uptime: #{hours}h #{minutes}m #{seconds}s")
+          :handled
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def handle_bookmark
+          require 'fileutils'
+          if @pinned_messages.empty?
+            @message_stream.add_message(role: :system, content: 'No pinned messages to export.')
+            return :handled
+          end
+
+          exports_dir = File.expand_path('~/.legionio/exports')
+          FileUtils.mkdir_p(exports_dir)
+          timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
+          path = File.join(exports_dir, "bookmarks-#{timestamp}.md")
+          lines = ["# Pinned Messages\n", "_Exported: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}_\n\n---\n"]
+          @pinned_messages.each_with_index do |msg, i|
+            role_label = msg[:role].to_s.capitalize
+            lines << "\n## Bookmark #{i + 1} (#{role_label})\n\n#{msg[:content]}\n"
+          end
+          File.write(path, lines.join)
+          @message_stream.add_message(role: :system, content: "Bookmarks exported to: #{path}")
+          :handled
+        rescue StandardError => e
+          @message_stream.add_message(role: :system, content: "Bookmark export failed: #{e.message}")
+          :handled
+        end
+
+        # rubocop:enable Metrics/AbcSize
 
         def debug_segment
           return nil unless @debug_mode

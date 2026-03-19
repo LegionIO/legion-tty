@@ -8,11 +8,14 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Dashboard < Base
+        PANELS = %i[services llm extensions system activity].freeze
+
         def initialize(app)
           super
           @last_refresh = nil
           @refresh_interval = 5
           @cached_data = {}
+          @selected_panel = 0
         end
 
         def activate
@@ -26,6 +29,7 @@ module Legion
           rows = []
           rows.concat(render_header(width))
           rows.concat(render_services_panel(width))
+          rows.concat(render_llm_panel(width))
           rows.concat(render_extensions_panel(width))
           rows.concat(render_system_panel(width))
           rows.concat(render_activity_panel(width, remaining_height(height, rows.size)))
@@ -36,6 +40,7 @@ module Legion
 
         # rubocop:enable Metrics/AbcSize
 
+        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength
         def handle_input(key)
           case key
           when 'r', :f5
@@ -43,15 +48,35 @@ module Legion
             :handled
           when 'q', :escape
             :pop_screen
+          when 'j', :down
+            @selected_panel = (@selected_panel + 1) % PANELS.size
+            :handled
+          when 'k', :up
+            @selected_panel = (@selected_panel - 1) % PANELS.size
+            :handled
+          when '1' then navigate_to_panel(0)
+          when '2' then navigate_to_panel(1)
+          when '3' then navigate_to_panel(2)
+          when '4' then navigate_to_panel(3)
+          when '5' then navigate_to_panel(4)
+          when 'e'
+            extensions_shortcut
           else
             :pass
           end
+        end
+
+        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/MethodLength
+
+        def selected_panel
+          PANELS[@selected_panel]
         end
 
         def refresh_data
           @last_refresh = Time.now
           @cached_data = {
             services: probe_services,
+            llm: llm_info,
             extensions: discover_extensions,
             system: system_info,
             activity: recent_activity
@@ -73,7 +98,8 @@ module Legion
 
         def render_services_panel(_width)
           services = @cached_data[:services] || {}
-          lines = [Theme.c(:accent, '  Services')]
+          prefix = panel_prefix(:services)
+          lines = [Theme.c(:accent, "#{prefix}Services")]
           services.each do |name, info|
             icon = info[:running] ? Theme.c(:success, "\u2713") : Theme.c(:error, "\u2717")
             port_str = Theme.c(:muted, ":#{info[:port]}")
@@ -83,10 +109,29 @@ module Legion
           lines
         end
 
+        # rubocop:disable Metrics/AbcSize
+        def render_llm_panel(_width)
+          llm = @cached_data[:llm] || {}
+          prefix = panel_prefix(:llm)
+          lines = [Theme.c(:accent, "#{prefix}LLM")]
+          started_icon = llm[:started] ? Theme.c(:success, "\u2713") : Theme.c(:error, "\u2717")
+          daemon_icon  = llm[:daemon]  ? Theme.c(:success, "\u2713") : Theme.c(:error, "\u2717")
+          lines << "    #{started_icon} Legion::LLM started"
+          lines << "    #{daemon_icon} Daemon available"
+          lines << "    Provider: #{Theme.c(:secondary, llm[:provider] || 'none')}"
+          lines << "    Model:    #{Theme.c(:secondary, llm[:model] || 'none')}" if llm[:model]
+          lines << ''
+          lines
+        end
+
+        # rubocop:enable Metrics/AbcSize
+
+        # rubocop:disable Metrics/AbcSize
         def render_extensions_panel(_width)
           extensions = @cached_data[:extensions] || []
           count = extensions.size
-          lines = [Theme.c(:accent, "  Extensions (#{count})")]
+          prefix = panel_prefix(:extensions)
+          lines = [Theme.c(:accent, "#{prefix}Extensions (#{count})")]
           if extensions.empty?
             lines << Theme.c(:muted, '    No lex-* gems found')
           else
@@ -100,10 +145,13 @@ module Legion
           lines
         end
 
+        # rubocop:enable Metrics/AbcSize
+
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
         def render_system_panel(_width)
           sys = @cached_data[:system] || {}
-          lines = [Theme.c(:accent, '  System')]
+          prefix = panel_prefix(:system)
+          lines = [Theme.c(:accent, "#{prefix}System")]
           lines << "    Ruby:     #{Theme.c(:secondary, sys[:ruby_version] || 'unknown')}"
           lines << "    OS:       #{Theme.c(:secondary, sys[:os] || 'unknown')}"
           lines << "    Host:     #{Theme.c(:secondary, sys[:hostname] || 'unknown')}"
@@ -117,7 +165,8 @@ module Legion
 
         def render_activity_panel(_width, max_lines)
           activity = @cached_data[:activity] || []
-          lines = [Theme.c(:accent, '  Recent Activity')]
+          prefix = panel_prefix(:activity)
+          lines = [Theme.c(:accent, "#{prefix}Recent Activity")]
           if activity.empty?
             lines << Theme.c(:muted, '    No recent activity')
           else
@@ -132,7 +181,8 @@ module Legion
 
         def render_help_bar(width)
           help = "  #{Theme.c(:muted, 'r')}=refresh  #{Theme.c(:muted, 'q')}=back  " \
-                 "#{Theme.c(:muted, 'Ctrl+D')}=dashboard  #{Theme.c(:muted, 'Ctrl+C')}=quit"
+                 "#{Theme.c(:muted, 'j/k')}=navigate  #{Theme.c(:muted, '1-5')}=jump  " \
+                 "#{Theme.c(:muted, 'e')}=extensions  #{Theme.c(:muted, 'Ctrl+C')}=quit"
           [Theme.c(:muted, '-' * width), help]
         end
 
@@ -147,6 +197,47 @@ module Legion
             rows.first(height)
           end
         end
+
+        def panel_prefix(panel_name)
+          PANELS[@selected_panel] == panel_name ? '>> ' : '  '
+        end
+
+        def navigate_to_panel(index)
+          @selected_panel = index
+          :handled
+        end
+
+        def extensions_shortcut
+          if PANELS[@selected_panel] == :extensions && @app.respond_to?(:screen_manager)
+            require_relative '../screens/extensions'
+            @app.screen_manager.push(Screens::Extensions.new(@app))
+            :handled
+          else
+            :pass
+          end
+        rescue LoadError, StandardError
+          :pass
+        end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        def llm_info
+          info = { provider: 'none', model: nil, started: false, daemon: false }
+          if defined?(Legion::LLM)
+            info[:started] = Legion::LLM.respond_to?(:started?) && Legion::LLM.started?
+            settings = Legion::LLM.respond_to?(:settings) ? Legion::LLM.settings : {}
+            info[:provider] = settings[:default_provider]&.to_s || 'none'
+            info[:model] = settings[:model]&.to_s
+          end
+          if defined?(Legion::LLM::DaemonClient)
+            info[:daemon] = Legion::LLM::DaemonClient.respond_to?(:available?) &&
+                            Legion::LLM::DaemonClient.available?
+          end
+          info
+        rescue StandardError
+          info
+        end
+
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def probe_services
           require 'socket'
