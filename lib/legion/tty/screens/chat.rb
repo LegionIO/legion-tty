@@ -12,8 +12,9 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
-        SLASH_COMMANDS = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
-                            /sessions /system /delete /plan /palette /extensions /config /theme /search].freeze
+        SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
+                            /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
+                            /theme /search].freeze
 
         attr_reader :message_stream, :status_bar
 
@@ -259,6 +260,9 @@ module Legion
           when '/quit' then :quit
           when '/help' then handle_help
           when '/clear' then handle_clear
+          when '/compact' then handle_compact(input)
+          when '/copy' then handle_copy(input)
+          when '/diff' then handle_diff(input)
           when '/model' then handle_model(input)
           when '/session' then handle_session(input)
           when '/cost' then handle_cost
@@ -289,7 +293,10 @@ module Legion
                      "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
                      "/system <prompt> /delete <session> /plan /palette /extensions /config\n  " \
                      "/theme [name] -- switch color theme (purple, green, blue, amber)\n  " \
-                     "/search <text> -- search message history\n\n" \
+                     "/search <text> -- search message history\n  " \
+                     "/compact [n] -- keep last n message pairs (default 5)\n  " \
+                     "/copy -- copy last assistant message to clipboard\n  " \
+                     "/diff -- show new messages since session was loaded\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
@@ -399,6 +406,7 @@ module Legion
             return :handled
           end
           @message_stream.messages.replace(data[:messages])
+          @loaded_message_count = @message_stream.messages.size
           @session_name = name
           @status_bar.update(session: name)
           @message_stream.add_message(role: :system,
@@ -606,6 +614,73 @@ module Legion
             @message_stream.add_message(
               role: :system,
               content: "Found #{results.size} message(s) matching '#{query}':\n#{lines.join("\n")}"
+            )
+          end
+          :handled
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def handle_compact(input)
+          keep = (input.split(nil, 2)[1] || '5').to_i.clamp(1, 50)
+          msgs = @message_stream.messages
+          if msgs.size <= keep * 2
+            @message_stream.add_message(role: :system, content: 'Conversation is already compact.')
+            return :handled
+          end
+
+          system_msgs = msgs.select { |m| m[:role] == :system }
+          recent = msgs.reject { |m| m[:role] == :system }.last(keep * 2)
+          removed_count = msgs.size - system_msgs.size - recent.size
+          @message_stream.messages.replace(system_msgs + recent)
+          @message_stream.add_message(
+            role: :system,
+            content: "Compacted: removed #{removed_count} older messages, kept #{recent.size} recent."
+          )
+          :handled
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        def handle_copy(_input)
+          last_assistant = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+          unless last_assistant
+            @message_stream.add_message(role: :system, content: 'No assistant message to copy.')
+            return :handled
+          end
+
+          content = last_assistant[:content].to_s
+          copy_to_clipboard(content)
+          @message_stream.add_message(
+            role: :system,
+            content: "Copied #{content.length} characters to clipboard."
+          )
+          :handled
+        end
+
+        def copy_to_clipboard(text)
+          IO.popen('pbcopy', 'w') { |io| io.write(text) }
+        rescue Errno::ENOENT
+          begin
+            IO.popen('xclip -selection clipboard', 'w') { |io| io.write(text) }
+          rescue Errno::ENOENT
+            nil
+          end
+        end
+
+        def handle_diff(_input)
+          if @loaded_message_count.nil?
+            @message_stream.add_message(role: :system, content: 'No session was loaded. Nothing to diff against.')
+            return :handled
+          end
+
+          new_count = @message_stream.messages.size - @loaded_message_count
+          if new_count <= 0
+            @message_stream.add_message(role: :system, content: 'No new messages since session was loaded.')
+          else
+            new_msgs = @message_stream.messages.last(new_count)
+            lines = new_msgs.map { |m| "  + [#{m[:role]}] #{truncate_text(m[:content].to_s, 60)}" }
+            @message_stream.add_message(
+              role: :system,
+              content: "#{new_count} new message(s) since load:\n#{lines.join("\n")}"
             )
           end
           :handled

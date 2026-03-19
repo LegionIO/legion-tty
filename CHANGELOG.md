@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.5] - 2026-03-19
+
+### Added
+- `/compact [N]` command: remove older messages, keep last N pairs (default 5)
+- `/copy` command: copy last assistant response to clipboard (macOS pbcopy, Linux xclip)
+- `/diff` command: show new messages since last session load
+- Session load tracking: `@loaded_message_count` for diff comparison
+
 ## [0.4.4] - 2026-03-19
 
 ### Added
