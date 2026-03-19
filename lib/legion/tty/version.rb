@@ -2,6 +2,6 @@
 
 module Legion
   module TTY
-    VERSION = '0.2.10'
+    VERSION = '0.3.1'
   end
 end

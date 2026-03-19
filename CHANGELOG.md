@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.10] - 2026-03-19
+## [0.3.1] - 2026-03-19
 
 ### Fixed
 - LLM boot order: follow Legion::Service init sequence (logging -> settings -> crypt -> resolve_secrets -> LLM merge -> start) instead of ad-hoc loading
