@@ -50,7 +50,11 @@ module Legion
                             /ask /define
                             /status /prefs
                             /stopwatch /ago
-                            /goto /inject].freeze
+                            /goto /inject
+                            /transform /concat
+                            /prefix /suffix
+                            /split /swap
+                            /timer /notify].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -97,6 +101,9 @@ module Legion
           @draft = nil
           @stopwatch_start = nil
           @stopwatch_elapsed = 0
+          @timer_thread = nil
+          @message_prefix = nil
+          @message_suffix = nil
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -167,7 +174,7 @@ module Legion
             @message_stream.add_message(role: :system, content: '(bookmarked)')
           else
             @message_stream.add_message(role: :assistant, content: '')
-            send_to_llm(input)
+            send_to_llm(apply_message_decorators(input))
           end
           @status_bar.update(message_count: @message_stream.messages.size)
           check_autosave
@@ -509,6 +516,14 @@ module Legion
           when '/ago' then handle_ago(input)
           when '/goto' then handle_goto(input)
           when '/inject' then handle_inject(input)
+          when '/transform' then handle_transform(input)
+          when '/concat' then handle_concat
+          when '/prefix' then handle_prefix(input)
+          when '/suffix' then handle_suffix(input)
+          when '/split' then handle_split(input)
+          when '/swap' then handle_swap(input)
+          when '/timer' then handle_timer(input)
+          when '/notify' then handle_notify(input)
           else :handled
           end
         end
@@ -643,6 +658,13 @@ module Legion
             tokens: @token_tracker.total_input_tokens + @token_tracker.total_output_tokens,
             cost: @token_tracker.total_cost
           )
+        end
+
+        def apply_message_decorators(message)
+          result = message
+          result = "#{@message_prefix}#{result}" if @message_prefix
+          result = "#{result}#{@message_suffix}" if @message_suffix
+          result
         end
       end
       # rubocop:enable Metrics/ClassLength

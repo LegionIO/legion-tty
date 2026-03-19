@@ -6,6 +6,7 @@ module Legion
       class Chat < Base
         module MessageCommands
           INJECT_VALID_ROLES = %w[user assistant system].freeze
+          TRANSFORM_OPS = %w[upcase downcase reverse strip squeeze].freeze
 
           private
 
@@ -677,6 +678,43 @@ module Legion
             :handled
           end
 
+          def handle_transform(input)
+            op = input.split(nil, 2)[1]
+            unless op && TRANSFORM_OPS.include?(op)
+              @message_stream.add_message(
+                role: :system,
+                content: "Usage: /transform <#{TRANSFORM_OPS.join('|')}>"
+              )
+              return :handled
+            end
+
+            msg = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+            unless msg
+              @message_stream.add_message(role: :system, content: 'No assistant message to transform.')
+              return :handled
+            end
+
+            msg[:content] = msg[:content].to_s.send(op)
+            @message_stream.add_message(role: :system, content: "Transformed last assistant message: #{op}.")
+            :handled
+          end
+
+          def handle_concat
+            assistant_msgs = @message_stream.messages.select { |m| m[:role] == :assistant }
+            if assistant_msgs.empty?
+              @message_stream.add_message(role: :system, content: 'No assistant messages to concatenate.')
+              return :handled
+            end
+
+            combined = assistant_msgs.map { |m| m[:content].to_s }.join("\n\n")
+            @message_stream.add_message(role: :system, content: combined)
+            @message_stream.add_message(
+              role: :system,
+              content: "Concatenated #{assistant_msgs.size} assistant message(s)."
+            )
+            :handled
+          end
+
           def handle_ago(input)
             n = (input.split(nil, 2)[1] || '1').to_i
             msgs = @message_stream.messages
@@ -697,6 +735,72 @@ module Legion
             )
             :handled
           end
+
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+          def handle_split(input)
+            parts = input.split(nil, 3)
+            n_str = parts[1]
+            pattern_str = parts[2]
+
+            unless n_str&.match?(/\A\d+\z/)
+              @message_stream.add_message(role: :system, content: 'Usage: /split <N> [pattern]')
+              return :handled
+            end
+
+            idx = n_str.to_i
+            msgs = @message_stream.messages
+            unless idx < msgs.size
+              @message_stream.add_message(role: :system,
+                                          content: "No message at index #{idx} (#{msgs.size} message(s)).")
+              return :handled
+            end
+
+            pattern = pattern_str || "\n\n"
+            original = msgs[idx]
+            segments = original[:content].to_s.split(pattern).reject(&:empty?)
+
+            if segments.size <= 1
+              @message_stream.add_message(role: :system, content: 'Message could not be split (no pattern found).')
+              return :handled
+            end
+
+            new_msgs = segments.map { |seg| { role: original[:role], content: seg } }
+            msgs.delete_at(idx)
+            msgs.insert(idx, *new_msgs)
+            @status_bar.update(message_count: msgs.size)
+            @message_stream.add_message(role: :system, content: "Split into #{new_msgs.size} messages.")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_swap(input)
+            parts = input.split(nil, 3)
+            a_str = parts[1]
+            b_str = parts[2]
+
+            unless a_str&.match?(/\A\d+\z/) && b_str&.match?(/\A\d+\z/)
+              @message_stream.add_message(role: :system, content: 'Usage: /swap <A> <B>')
+              return :handled
+            end
+
+            a = a_str.to_i
+            b = b_str.to_i
+            msgs = @message_stream.messages
+
+            if a >= msgs.size || b >= msgs.size
+              @message_stream.add_message(
+                role: :system,
+                content: "Index out of range (conversation has #{msgs.size} message(s))."
+              )
+              return :handled
+            end
+
+            msgs[a], msgs[b] = msgs[b], msgs[a]
+            @message_stream.add_message(role: :system, content: "Swapped messages #{a} and #{b}.")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize
         end
       end
     end

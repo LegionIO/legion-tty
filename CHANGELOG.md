@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.27] - 2026-03-19
+
+### Added
+- `/transform <op>` command: apply string transformations (upcase/downcase/reverse/strip/squeeze) to last assistant message
+- `/concat` command: concatenate all assistant messages into a single system message
+- `/split <N> [pattern]` command: split a message at index N by pattern (default: paragraph break)
+- `/swap <A> <B>` command: swap two messages by index
+- `/prefix [text|clear]` command: set/show/clear auto-prefix for outgoing messages
+- `/suffix [text|clear]` command: set/show/clear auto-suffix for outgoing messages
+- `/timer <seconds> [message] | cancel` command: countdown timer with background thread and status bar notification
+- `/notify <message>` command: send a manual toast notification to status bar
+- `apply_message_decorators` method: prepends prefix and appends suffix to user messages before LLM send
+
+### Changed
+- Total slash commands: 115
+- Total specs: 1817 examples, 150 files
+
 ## [0.4.26] - 2026-03-19
 
 ### Added

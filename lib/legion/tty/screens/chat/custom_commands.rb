@@ -408,6 +408,42 @@ module Legion
             :handled
           end
           # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+          def handle_prefix(input)
+            arg = input.split(nil, 2)[1]
+            if arg.nil?
+              if @message_prefix
+                @message_stream.add_message(role: :system, content: "Current prefix: \"#{@message_prefix}\"")
+              else
+                @message_stream.add_message(role: :system, content: 'No prefix set. Usage: /prefix <text>')
+              end
+            elsif arg == 'clear'
+              @message_prefix = nil
+              @message_stream.add_message(role: :system, content: 'Prefix cleared.')
+            else
+              @message_prefix = arg
+              @message_stream.add_message(role: :system, content: "Prefix set: \"#{@message_prefix}\"")
+            end
+            :handled
+          end
+
+          def handle_suffix(input)
+            arg = input.split(nil, 2)[1]
+            if arg.nil?
+              if @message_suffix
+                @message_stream.add_message(role: :system, content: "Current suffix: \"#{@message_suffix}\"")
+              else
+                @message_stream.add_message(role: :system, content: 'No suffix set. Usage: /suffix <text>')
+              end
+            elsif arg == 'clear'
+              @message_suffix = nil
+              @message_stream.add_message(role: :system, content: 'Suffix cleared.')
+            else
+              @message_suffix = arg
+              @message_stream.add_message(role: :system, content: "Suffix set: \"#{@message_suffix}\"")
+            end
+            :handled
+          end
         end
       end
     end

@@ -2,15 +2,15 @@
 
 Rich terminal UI for the LegionIO async cognition engine.
 
-**Version**: 0.4.25
+**Version**: 0.4.27
 
-Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell with 103 slash commands, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
+Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell with 115 slash commands, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
 
 ## Features
 
 - **Onboarding wizard** - First-run setup with Kerberos identity detection, GitHub profile probing, environment scanning, and LLM provider selection
 - **Digital rain intro** - Matrix-style rain using discovered LEX extension names
-- **AI chat shell** - Streaming LLM chat with 103 slash commands, tab completion, markdown rendering, and tool panels
+- **AI chat shell** - Streaming LLM chat with 115 slash commands, tab completion, markdown rendering, and tool panels
 - **Operational dashboard** - Service/LLM status, extension inventory, system info, panel navigation (Ctrl+D or `/dashboard`)
 - **Extensions browser** - Browse installed LEX gems by category with detail view and homepage opener ('o' key)
 - **Config viewer/editor** - View and edit `~/.legionio/settings/*.json` with vault:// masking and JSON validation
@@ -198,6 +198,18 @@ legion chat prompt "explain async cognition"
 | `/wc` | Show word count statistics per role |
 | `/welcome` | Redisplay the welcome message |
 | `/wrap [N\|off]` | Set custom word wrap width |
+| `/ago <N>` | Show what was said N messages ago |
+| `/concat` | Concatenate all assistant messages into one |
+| `/goto <N>` | Jump to specific message by index |
+| `/inject <role> <text>` | Inject a message with specific role |
+| `/notify <message>` | Send a toast notification to status bar |
+| `/prefix [text\|clear]` | Set/show/clear auto-prefix for outgoing messages |
+| `/split <N> [pattern]` | Split a message by pattern into multiple messages |
+| `/stopwatch [start\|stop\|lap\|reset]` | Built-in stopwatch with MM:SS.ms format |
+| `/suffix [text\|clear]` | Set/show/clear auto-suffix for outgoing messages |
+| `/swap <A> <B>` | Swap two messages by index |
+| `/timer <seconds> [message]` | Countdown timer with notification on expiry |
+| `/transform <op>` | Apply string transformation to last assistant message |
 
 ## Hotkeys
 
@@ -222,13 +234,13 @@ legion-tty
 
   Screens/
     Onboarding           # First-run wizard (rain -> intro -> wizard -> reveal)
-    Chat                 # AI chat REPL with streaming + 103 slash commands
+    Chat                 # AI chat REPL with streaming + 115 slash commands
       SessionCommands    # save/load/sessions/delete/rename/import/merge/autosave
       ExportCommands     # export/bookmark/html/json/markdown/yaml
-      MessageCommands    # compact/copy/diff/search/grep/undo/pin/pins/react/tag/fav/sort/count
-      UiCommands         # help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time/tips/welcome/focus/wc/log/version/mute + calc/rand/mark/freq/color/timestamps/top/bottom/head/tail/echo/env/speak/silent/wrap/number/truncate/about/commands/ask/define/status/prefs
+      MessageCommands    # compact/copy/diff/search/grep/undo/pin/pins/react/tag/fav/sort/count/transform/concat/split/swap
+      UiCommands         # help/clear/dashboard/hotkeys/palette/context/stats/debug/history/uptime/time/tips/welcome/focus/wc/log/version/mute + calc/rand/mark/freq/color/timestamps/top/bottom/head/tail/echo/env/speak/silent/wrap/number/truncate/about/commands/ask/define/status/prefs/timer/notify
       ModelCommands      # model/system/personality switching/retry/chain/info/scroll/summary/prompt/reset/replace/highlight/multiline/filter/annotate/annotations
-      CustomCommands     # alias/snippet/template/macro/draft/revise/tee/pipe/archive/archives/ls/pwd/rand/calc
+      CustomCommands     # alias/snippet/template/macro/draft/revise/tee/pipe/archive/archives/ls/pwd/prefix/suffix
     Dashboard            # Service/LLM status, panel navigation (j/k/1-5)
     Extensions           # LEX gem browser by category with homepage opener
     Config               # Settings file viewer/editor with JSON validation
@@ -277,8 +289,8 @@ Boot logs go to `~/.legionio/logs/tty-boot.log`.
 
 ```bash
 bundle install
-bundle exec rspec       # 1687 examples, 0 failures
-bundle exec rubocop     # 143 files, 0 offenses
+bundle exec rspec       # 1817 examples, 0 failures
+bundle exec rubocop     # 150 files, 0 offenses
 ```
 
 ## License

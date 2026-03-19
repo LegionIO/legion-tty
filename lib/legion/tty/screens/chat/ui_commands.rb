@@ -944,6 +944,78 @@ module Legion
             mins = total_ms / 60_000
             format('%<mins>02d:%<secs>02d.%<ms>03d', mins: mins, secs: secs, ms: ms)
           end
+
+          def handle_timer(input)
+            arg = input.split(nil, 2)[1]&.strip
+
+            return timer_status if arg.nil? || arg.empty?
+
+            return timer_cancel if arg == 'cancel'
+
+            seconds_str, *msg_parts = arg.split
+            unless seconds_str.match?(/\A\d+\z/)
+              @message_stream.add_message(role: :system, content: 'Usage: /timer <seconds> [message] | cancel')
+              return :handled
+            end
+
+            seconds = seconds_str.to_i
+            message = msg_parts.empty? ? 'Timer expired!' : msg_parts.join(' ')
+            start_timer(seconds, message)
+          end
+
+          def handle_notify(input)
+            text = input.split(nil, 2)[1]&.strip
+            unless text && !text.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /notify <message>')
+              return :handled
+            end
+
+            @status_bar.notify(message: text, level: :info, ttl: 5)
+            :handled
+          end
+
+          def timer_status
+            if @timer_thread&.alive?
+              remaining = @timer_end - Time.now
+              remaining = [remaining, 0].max.ceil
+              @message_stream.add_message(role: :system, content: "Timer running: #{remaining}s remaining.")
+            else
+              @message_stream.add_message(role: :system, content: 'No active timer.')
+            end
+            :handled
+          end
+
+          def timer_cancel
+            if @timer_thread&.alive?
+              @timer_thread.kill
+              @timer_thread = nil
+              @timer_end = nil
+              @message_stream.add_message(role: :system, content: 'Timer cancelled.')
+            else
+              @message_stream.add_message(role: :system, content: 'No active timer to cancel.')
+            end
+            :handled
+          end
+
+          def start_timer(seconds, message)
+            if @timer_thread&.alive?
+              @message_stream.add_message(role: :system,
+                                          content: 'A timer is already running. Use /timer cancel first.')
+              return :handled
+            end
+
+            @timer_end = Time.now + seconds
+            @message_stream.add_message(role: :system, content: "Timer set for #{seconds}s: #{message}")
+            @status_bar.notify(message: "Timer: #{seconds}s", level: :info, ttl: 3)
+            @timer_thread = Thread.new do
+              sleep(seconds)
+              @message_stream.add_message(role: :system, content: "Timer: #{message}")
+              @status_bar.notify(message: message, level: :info, ttl: 10)
+              @timer_thread = nil
+              @timer_end = nil
+            end
+            :handled
+          end
         end
       end
     end
