@@ -8,6 +8,8 @@ require 'fileutils'
 module Legion
   module TTY
     module DaemonClient
+      SUCCESS_CODES = [200, 201, 202].freeze
+
       class << self
         def configure(daemon_url: 'http://127.0.0.1:4567', cache_file: nil, timeout: 5)
           @daemon_url = daemon_url
@@ -73,15 +75,10 @@ module Legion
           return nil unless available?
 
           uri = URI("#{daemon_url}/api/llm/chat")
-          req = Net::HTTP::Post.new(uri)
-          req['Content-Type'] = 'application/json'
-          req.body = ::JSON.dump({ message: message, model: model, provider: provider })
+          payload = ::JSON.dump({ message: message, model: model, provider: provider })
+          response = post_json(uri, payload)
 
-          response = Net::HTTP.start(uri.hostname, uri.port, open_timeout: @timeout, read_timeout: @timeout) do |http|
-            http.request(req)
-          end
-
-          return nil unless [200, 201, 202].include?(response.code.to_i)
+          return nil unless response && SUCCESS_CODES.include?(response.code.to_i)
 
           ::JSON.parse(response.body, symbolize_names: true)
         rescue StandardError
@@ -99,6 +96,13 @@ module Legion
 
         def daemon_url
           @daemon_url || 'http://127.0.0.1:4567'
+        end
+
+        def post_json(uri, body)
+          req = Net::HTTP::Post.new(uri)
+          req['Content-Type'] = 'application/json'
+          req.body = body
+          Net::HTTP.start(uri.hostname, uri.port, open_timeout: @timeout, read_timeout: @timeout) { |h| h.request(req) }
         end
 
         def write_cache(data)

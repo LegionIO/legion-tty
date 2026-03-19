@@ -41,14 +41,15 @@ RSpec.describe Legion::TTY::DaemonClient do
   describe '.match_intent' do
     before do
       described_class.instance_variable_set(:@manifest, [
-        {
-          name: 'lex-tfe',
-          state: 'running',
-          known_intents: [
-            { intent: 'list tfe workspaces', tool_chain: ['lex-tfe.workspaces.list'], confidence: 0.92 }
-          ]
-        }
-      ])
+                                              {
+                                                name: 'lex-tfe',
+                                                state: 'running',
+                                                known_intents: [
+                                                  { intent: 'list tfe workspaces',
+                                                    tool_chain: ['lex-tfe.workspaces.list'], confidence: 0.92 }
+                                                ]
+                                              }
+                                            ])
     end
 
     it 'matches an exact intent' do
