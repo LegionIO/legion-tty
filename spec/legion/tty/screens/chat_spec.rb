@@ -159,7 +159,8 @@ RSpec.describe Legion::TTY::Screens::Chat do
       expected = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard /hotkeys
                     /save /load /sessions /system /delete /plan /palette /extensions /config /theme /search /grep
                     /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug
-                    /uptime /time /bookmark /welcome /tips /wc /import /mute /autosave /react /macro /tag /tags]
+                    /uptime /time /bookmark /welcome /tips /wc /import /mute /autosave /react /macro /tag /tags
+                    /repeat /count]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 

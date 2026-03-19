@@ -389,4 +389,99 @@ RSpec.describe Legion::TTY::Screens::Config do
       end
     end
   end
+
+  describe '#backup_config' do
+    it 'creates a .bak file alongside the original' do
+      screen.activate
+      screen.send(:backup_config, config_file)
+      expect(File.exist?("#{config_file}.bak")).to be(true)
+    end
+
+    it 'copies the original content to the .bak file' do
+      screen.activate
+      screen.send(:backup_config, config_file)
+      original = File.read(config_file)
+      backup = File.read("#{config_file}.bak")
+      expect(backup).to eq(original)
+    end
+
+    it 'does nothing when file does not exist' do
+      expect { screen.send(:backup_config, '/nonexistent/path/missing.json') }.not_to raise_error
+    end
+  end
+
+  describe '#save_current_file creates a backup' do
+    before do
+      screen.activate
+      screen.send(:open_file)
+    end
+
+    it 'creates a .bak file before overwriting' do
+      screen.instance_variable_get(:@file_data)['key'] = 'updated'
+      screen.send(:save_current_file)
+      expect(File.exist?("#{config_file}.bak")).to be(true)
+    end
+
+    it 'backup contains original content' do
+      original_content = File.read(config_file)
+      screen.instance_variable_get(:@file_data)['key'] = 'updated'
+      screen.send(:save_current_file)
+      backup = File.read("#{config_file}.bak")
+      expect(backup).to eq(original_content)
+    end
+  end
+
+  describe '#backup_current_file (b key)' do
+    before do
+      screen.activate
+      screen.send(:open_file)
+    end
+
+    it 'creates a .bak file' do
+      screen.send(:backup_current_file)
+      expect(File.exist?("#{config_file}.bak")).to be(true)
+    end
+
+    it 'sets @backup_notice' do
+      screen.send(:backup_current_file)
+      notice = screen.instance_variable_get(:@backup_notice)
+      expect(notice).to include('.bak')
+    end
+
+    it 'does nothing when no file selected' do
+      screen.instance_variable_set(:@files, [])
+      expect { screen.send(:backup_current_file) }.not_to raise_error
+    end
+  end
+
+  describe "handle_input 'b' in file view mode" do
+    before do
+      screen.activate
+      screen.send(:open_file)
+    end
+
+    it "returns :handled for 'b'" do
+      expect(screen.handle_input('b')).to eq(:handled)
+    end
+
+    it "creates a backup when 'b' is pressed" do
+      screen.handle_input('b')
+      expect(File.exist?("#{config_file}.bak")).to be(true)
+    end
+  end
+
+  describe 'render hint bar' do
+    before { screen.activate }
+
+    it 'shows Enter=view hint in file list mode' do
+      result = screen.render(80, 24)
+      expect(result.join("\n")).to include('Enter=view')
+    end
+
+    it 'shows b=backup hint in file view mode' do
+      screen.send(:open_file)
+      result = screen.render(80, 24)
+      expect(result.join("\n")).to include('b=backup')
+    end
+  end
 end

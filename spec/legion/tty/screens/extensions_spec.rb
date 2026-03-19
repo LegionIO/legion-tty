@@ -441,4 +441,122 @@ RSpec.describe Legion::TTY::Screens::Extensions do
       expect(joined).to include('legion-transport')
     end
   end
+
+  describe 'filter feature' do
+    before do
+      allow(Gem::Specification).to receive(:select)
+        .and_return([mock_spec_node, mock_spec, mock_spec_claude, mock_spec_agentic, mock_spec_other])
+      screen.activate
+    end
+
+    describe '#initialize' do
+      it 'starts with @filter set to nil' do
+        expect(screen.instance_variable_get(:@filter)).to be_nil
+      end
+    end
+
+    describe "'f' key cycles filter" do
+      it 'returns :handled' do
+        expect(screen.handle_input('f')).to eq(:handled)
+      end
+
+      it 'advances @filter from nil to Core' do
+        screen.handle_input('f')
+        expect(screen.instance_variable_get(:@filter)).to eq('Core')
+      end
+
+      it 'cycles through all categories and wraps back to nil' do
+        categories = Legion::TTY::Screens::Extensions::CATEGORIES
+        categories.size.times { screen.handle_input('f') }
+        expect(screen.instance_variable_get(:@filter)).to be_nil
+      end
+
+      it 'resets @selected to 0 when cycling' do
+        screen.instance_variable_set(:@selected, 2)
+        screen.handle_input('f')
+        expect(screen.instance_variable_get(:@selected)).to eq(0)
+      end
+    end
+
+    describe "'c' key clears filter" do
+      before do
+        screen.instance_variable_set(:@filter, 'Core')
+        screen.instance_variable_set(:@selected, 1)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_input('c')).to eq(:handled)
+      end
+
+      it 'resets @filter to nil' do
+        screen.handle_input('c')
+        expect(screen.instance_variable_get(:@filter)).to be_nil
+      end
+
+      it 'resets @selected to 0' do
+        screen.handle_input('c')
+        expect(screen.instance_variable_get(:@selected)).to eq(0)
+      end
+    end
+
+    describe '#current_gems' do
+      it 'returns all gems when filter is nil' do
+        gems = screen.send(:current_gems)
+        expect(gems.size).to eq(5)
+      end
+
+      it 'returns only Core gems when filter is Core' do
+        screen.instance_variable_set(:@filter, 'Core')
+        gems = screen.send(:current_gems)
+        expect(gems.all? { |g| g[:category] == 'Core' }).to be(true)
+      end
+
+      it 'returns only AI gems when filter is AI' do
+        screen.instance_variable_set(:@filter, 'AI')
+        gems = screen.send(:current_gems)
+        expect(gems.all? { |g| g[:category] == 'AI' }).to be(true)
+      end
+
+      it 'returns empty array when filter matches no gems' do
+        screen.instance_variable_set(:@filter, 'Service')
+        # mock_spec (lex-http) is Service; the others are not
+        gems = screen.send(:current_gems)
+        expect(gems.map { |g| g[:category] }.uniq).to eq(['Service'])
+      end
+    end
+
+    describe 'render with active filter' do
+      it 'shows filter label in output' do
+        screen.instance_variable_set(:@filter, 'AI')
+        result = screen.render(80, 24)
+        joined = result.join("\n")
+        expect(joined).to include('filter: AI')
+      end
+
+      it 'shows only filtered gems in list' do
+        screen.instance_variable_set(:@filter, 'Core')
+        result = screen.render(80, 24)
+        joined = result.join("\n")
+        expect(joined).to include('lex-node')
+        expect(joined).not_to include('lex-http')
+      end
+
+      it 'shows f=filter and c=clear in hint bar' do
+        result = screen.render(80, 24)
+        joined = result.join("\n")
+        expect(joined).to include('f=filter')
+        expect(joined).to include('c=clear')
+      end
+    end
+
+    describe ':down clamped to current_gems size' do
+      it 'does not exceed filtered list size' do
+        screen.instance_variable_set(:@filter, 'Core')
+        screen.instance_variable_set(:@selected, 0)
+        10.times { screen.handle_input(:down) }
+        filtered_max = screen.send(:current_gems).size - 1
+        expect(screen.instance_variable_get(:@selected)).to eq(filtered_max)
+      end
+    end
+  end
 end

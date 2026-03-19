@@ -226,6 +226,28 @@ module Legion
             :handled
           end
 
+          def handle_count(input)
+            query = input.split(nil, 2)[1]
+            unless query
+              @message_stream.add_message(role: :system, content: 'Usage: /count <pattern>')
+              return :handled
+            end
+
+            results = search_messages(query)
+            if results.empty?
+              @message_stream.add_message(role: :system, content: "0 messages matching '#{query}'.")
+            else
+              breakdown = results.group_by { |m| m[:role] }
+                                 .map { |role, msgs| "#{role}: #{msgs.size}" }
+                                 .join(', ')
+              @message_stream.add_message(
+                role: :system,
+                content: "#{results.size} message(s) matching '#{query}' (#{breakdown})."
+              )
+            end
+            :handled
+          end
+
           def search_messages(query)
             pattern = query.downcase
             @message_stream.messages.select do |msg|

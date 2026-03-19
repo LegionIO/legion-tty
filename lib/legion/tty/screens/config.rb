@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'json'
 require_relative 'base'
 require_relative '../theme'
@@ -41,7 +42,8 @@ module Legion
                    else
                      file_list_lines(height - 4)
                    end
-          lines += ['', Theme.c(:muted, '  Enter=view  e=edit  q=back')]
+          hint = @viewing_file ? '  Enter=edit  b=backup  q=back' : '  Enter=view  e=edit  q=back'
+          lines += ['', Theme.c(:muted, hint)]
           pad_lines(lines, height)
         end
 
@@ -79,6 +81,9 @@ module Legion
                           :handled
           when 'e', :enter then edit_selected_key
                                 :handled
+          when 'b'
+            backup_current_file
+            :handled
           when 'q', :escape
             @viewing_file = false
             @selected_key = 0
@@ -130,10 +135,25 @@ module Legion
           false
         end
 
+        def backup_config(path)
+          return unless File.exist?(path)
+
+          FileUtils.cp(path, "#{path}.bak")
+        end
+
+        def backup_current_file
+          return unless @files[@selected_file]
+
+          path = @files[@selected_file][:path]
+          backup_config(path)
+          @backup_notice = "Backed up to #{File.basename(path)}.bak"
+        end
+
         def save_current_file
           return unless @files[@selected_file]
 
           path = @files[@selected_file][:path]
+          backup_config(path)
           File.write(path, ::JSON.pretty_generate(@file_data))
         end
 

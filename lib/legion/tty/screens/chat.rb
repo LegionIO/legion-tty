@@ -29,7 +29,7 @@ module Legion
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
-                            /wc /import /mute /autosave /react /macro /tag /tags].freeze
+                            /wc /import /mute /autosave /react /macro /tag /tags /repeat /count].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -66,6 +66,7 @@ module Legion
           @last_autosave = Time.now
           @recording_macro = nil
           @macro_buffer = []
+          @last_command = nil
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -123,6 +124,7 @@ module Legion
           end
 
           result = dispatch_slash(cmd, input)
+          @last_command = input if cmd != '/repeat'
           record_macro_step(input, cmd, result)
           result
         end
@@ -375,10 +377,21 @@ module Legion
           when '/macro' then handle_macro(input)
           when '/tag' then handle_tag(input)
           when '/tags' then handle_tags(input)
+          when '/repeat' then handle_repeat
+          when '/count' then handle_count(input)
           else :handled
           end
         end
         # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+
+        def handle_repeat
+          unless @last_command
+            @message_stream.add_message(role: :system, content: 'No previous command to repeat.')
+            return :handled
+          end
+
+          dispatch_slash(@last_command.split.first, @last_command)
+        end
 
         def handle_cost
           @message_stream.add_message(role: :system, content: @token_tracker.summary)

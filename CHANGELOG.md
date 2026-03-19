@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.16] - 2026-03-19
+
+### Added
+- Extensions screen category filter: 'f' cycles through Core/AI/Service/Agentic/Other, 'c' clears
+- Config screen backup: 'b' creates .bak copy, auto-backup before edits
+- `/repeat` command: re-execute the last slash command
+- `/count <pattern>` command: count messages matching a pattern with per-role breakdown
+
 ## [0.4.15] - 2026-03-19
 
 ### Added
