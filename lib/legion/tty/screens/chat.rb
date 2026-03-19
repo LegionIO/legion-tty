@@ -458,13 +458,16 @@ module Legion
         def handle_export(input)
           require 'fileutils'
           format = input.split[1]&.downcase
-          format = 'md' unless %w[json md].include?(format)
+          format = 'md' unless %w[json md html].include?(format)
           exports_dir = File.expand_path('~/.legionio/exports')
           FileUtils.mkdir_p(exports_dir)
           timestamp = Time.now.strftime('%Y%m%d-%H%M%S')
-          path = File.join(exports_dir, "chat-#{timestamp}.#{format == 'json' ? 'json' : 'md'}")
+          ext = { 'json' => 'json', 'md' => 'md', 'html' => 'html' }[format]
+          path = File.join(exports_dir, "chat-#{timestamp}.#{ext}")
           if format == 'json'
             export_json(path)
+          elsif format == 'html'
+            export_html(path)
           else
             export_markdown(path)
           end
@@ -813,6 +816,41 @@ module Legion
             messages: @message_stream.messages.map { |m| { role: m[:role].to_s, content: m[:content] } }
           }
           File.write(path, ::JSON.pretty_generate(data))
+        end
+
+        # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+        def export_html(path)
+          lines = [
+            '<!DOCTYPE html><html><head>',
+            '<meta charset="utf-8">',
+            '<title>Chat Export</title>',
+            '<style>',
+            'body { font-family: system-ui; max-width: 800px; margin: 0 auto; ' \
+            'padding: 20px; background: #1e1b2e; color: #d0cce6; }',
+            '.msg { margin: 12px 0; padding: 8px 12px; border-radius: 8px; }',
+            '.user { background: #2a2640; }',
+            '.assistant { background: #1a1730; }',
+            '.system { background: #25223a; color: #8b85a8; font-style: italic; }',
+            '.role { font-weight: bold; color: #9d91e6; font-size: 0.85em; }',
+            '</style></head><body>',
+            '<h1>Chat Export</h1>',
+            "<p>Exported: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}</p>"
+          ]
+          @message_stream.messages.each do |msg|
+            role = msg[:role].to_s
+            content = escape_html(msg[:content].to_s).gsub("\n", '<br>')
+            lines << "<div class='msg #{role}'>"
+            lines << "<span class='role'>#{role.capitalize}</span>"
+            lines << "<p>#{content}</p>"
+            lines << '</div>'
+          end
+          lines << '</body></html>'
+          File.write(path, lines.join("\n"))
+        end
+        # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
+
+        def escape_html(text)
+          text.gsub('&', '&amp;').gsub('<', '&lt;').gsub('>', '&gt;').gsub('"', '&quot;')
         end
 
         def build_default_input_bar

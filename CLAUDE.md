@@ -8,7 +8,7 @@ Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wi
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.6
+**Version**: 0.4.8
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 

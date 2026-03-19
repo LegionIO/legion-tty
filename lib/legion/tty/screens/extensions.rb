@@ -42,10 +42,11 @@ module Legion
                    else
                      list_lines(height - 4)
                    end
-          lines += ['', Theme.c(:muted, '  Enter=detail  q=back')]
+          lines += ['', Theme.c(:muted, '  Enter=detail  o=open  q=back')]
           pad_lines(lines, height)
         end
 
+        # rubocop:disable Metrics/MethodLength
         def handle_input(key)
           case key
           when :up
@@ -56,6 +57,9 @@ module Legion
             :handled
           when :enter
             @detail = !@detail
+            :handled
+          when 'o'
+            open_homepage
             :handled
           when 'q', :escape
             if @detail
@@ -68,6 +72,7 @@ module Legion
             :pass
           end
         end
+        # rubocop:enable Metrics/MethodLength
 
         private
 
@@ -125,6 +130,29 @@ module Legion
             '',
             "  #{Theme.c(:muted, gem_entry[:homepage] || 'no homepage')}"
           ]
+        end
+
+        def open_homepage
+          entry = current_gem
+          return unless entry && entry[:homepage]
+
+          system_open(entry[:homepage])
+        rescue StandardError
+          nil
+        end
+
+        def system_open(url)
+          case RUBY_PLATFORM
+          when /darwin/ then system('open', url)
+          when /linux/ then system('xdg-open', url)
+          when /mingw|mswin/ then system('start', url)
+          end
+        end
+
+        def current_gem
+          return nil if @gems.empty?
+
+          @gems[@selected]
         end
 
         def pad_lines(lines, height)

@@ -2,7 +2,7 @@
 
 Rich terminal UI for the LegionIO async cognition engine.
 
-**Version**: 0.4.6
+**Version**: 0.4.8
 
 Think Claude Code meets Codex CLI, but for LegionIO: onboarding wizard with identity detection, streaming AI chat shell, operational dashboard, extensions browser, config editor, and session persistence - all rendered with the [tty-ruby](https://ttytoolkit.org/) gem ecosystem.
 

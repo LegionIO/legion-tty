@@ -100,7 +100,7 @@ module Legion
           @viewing_file = true
         end
 
-        def edit_selected_key # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        def edit_selected_key # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
           keys = @file_data.keys
           return unless keys[@selected_key]
 
@@ -115,9 +115,19 @@ module Legion
           return if new_val.nil? || new_val == '********'
 
           @file_data[key] = new_val
+          return unless validate_config(@file_data)
+
           save_current_file
         rescue ::TTY::Reader::InputInterrupt, Interrupt
           nil
+        end
+
+        def validate_config(data)
+          ::JSON.generate(data)
+          true
+        rescue StandardError => e
+          @messages = ["Invalid JSON: #{e.message}"]
+          false
         end
 
         def save_current_file

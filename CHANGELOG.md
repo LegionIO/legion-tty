@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.8] - 2026-03-19
+
+### Added
+- `/export html` format: dark-theme HTML export with XSS-safe content escaping
+- Extension homepage opener: press 'o' in extensions browser to open gem homepage in browser
+- Config JSON validation: validates data before saving to prevent corrupt config files
+
 ## [0.4.7] - 2026-03-19
 
 ### Added
