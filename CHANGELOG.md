@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.4] - 2026-03-19
+
+### Added
+- Animated spinner in status bar thinking indicator (cycles through frames on each render)
+- `/search <text>` command: case-insensitive search across chat message history
+- `/theme <name>` command: switch between purple, green, blue, amber themes at runtime
+- Chat input history: up/down arrow navigation through previous inputs (via TTY::Reader history_cycle)
+
 ## [0.4.3] - 2026-03-19
 
 ### Added

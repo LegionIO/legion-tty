@@ -13,7 +13,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
-                            /sessions /system /delete /plan /palette /extensions /config /theme].freeze
+                            /sessions /system /delete /plan /palette /extensions /config /theme /search].freeze
 
         attr_reader :message_stream, :status_bar
 
@@ -276,6 +276,7 @@ module Legion
           when '/extensions' then handle_extensions_screen
           when '/config' then handle_config_screen
           when '/theme' then handle_theme(input)
+          when '/search' then handle_search(input)
           else :handled
           end
         end
@@ -287,7 +288,8 @@ module Legion
             content: "Commands:\n  /help /quit /clear /model <name> /session <name> /cost\n  " \
                      "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
                      "/system <prompt> /delete <session> /plan /palette /extensions /config\n  " \
-                     "/theme [name] -- switch color theme (purple, green, blue, amber)\n\n" \
+                     "/theme [name] -- switch color theme (purple, green, blue, amber)\n  " \
+                     "/search <text> -- search message history\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
@@ -587,6 +589,39 @@ module Legion
             @message_stream.add_message(role: :system, content: "Current theme: #{current}\nAvailable: #{available}")
           end
           :handled
+        end
+
+        def handle_search(input)
+          query = input.split(nil, 2)[1]
+          unless query
+            @message_stream.add_message(role: :system, content: 'Usage: /search <text>')
+            return :handled
+          end
+
+          results = search_messages(query)
+          if results.empty?
+            @message_stream.add_message(role: :system, content: "No messages matching '#{query}'.")
+          else
+            lines = results.map { |r| "  [#{r[:role]}] #{truncate_text(r[:content], 80)}" }
+            @message_stream.add_message(
+              role: :system,
+              content: "Found #{results.size} message(s) matching '#{query}':\n#{lines.join("\n")}"
+            )
+          end
+          :handled
+        end
+
+        def search_messages(query)
+          pattern = query.downcase
+          @message_stream.messages.select do |msg|
+            msg[:content].is_a?(::String) && msg[:content].downcase.include?(pattern)
+          end
+        end
+
+        def truncate_text(text, max_length)
+          return text if text.length <= max_length
+
+          "#{text[0...max_length]}..."
         end
 
         def detect_provider

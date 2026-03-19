@@ -26,6 +26,8 @@ module Legion
           end
         end
 
+        SPINNER_FRAMES = %w[| / - \\].freeze
+
         private
 
         def build_segments
@@ -52,7 +54,9 @@ module Legion
         def thinking_segment
           return nil unless @state[:thinking]
 
-          Theme.c(:warning, 'thinking...')
+          @spinner_index = ((@spinner_index || 0) + 1) % SPINNER_FRAMES.size
+          frame = SPINNER_FRAMES[@spinner_index]
+          Theme.c(:warning, "#{frame} thinking...")
         end
 
         def tokens_segment
