@@ -37,6 +37,12 @@ module Legion
 
           CALC_SAFE_PATTERN = %r{\A[\d\s+\-*/.()%]*\z}
           CALC_MATH_PATTERN = %r{\A[\d\s+\-*/.()%]*(Math\.\w+\([\d\s+\-*/.()%,]*\)[\d\s+\-*/.()%]*)*\z}
+          FREQ_STOP_WORDS = %w[
+            the a an is are was were be been have has had do does did will would could should
+            may might can shall to of in for on with at by from it this that i you we they
+            he she my your our their and or but not no if then so as
+          ].freeze
+          FREQ_ROW_FMT = '  %<rank>2d. %-<word>20s %<count>5d  %<pct>5.1f%%'
 
           private
 
@@ -636,6 +642,70 @@ module Legion
               @message_stream.add_message(role: :system, content: 'Silent mode OFF -- assistant responses visible.')
             end
             :handled
+          end
+
+          def handle_color(input)
+            arg = input.split(nil, 2)[1]&.strip
+            new_state = case arg
+                        when 'on'  then true
+                        when 'off' then false
+                        else            !@message_stream.colorize
+                        end
+            @message_stream.colorize = new_state
+            state_label = new_state ? 'ON' : 'OFF'
+            @message_stream.add_message(role: :system, content: "Color output #{state_label}.")
+            :handled
+          end
+
+          def handle_timestamps(input)
+            arg = input.split(nil, 2)[1]&.strip
+            new_state = case arg
+                        when 'on'  then true
+                        when 'off' then false
+                        else            !@message_stream.show_timestamps
+                        end
+            @message_stream.show_timestamps = new_state
+            state_label = new_state ? 'ON' : 'OFF'
+            @message_stream.add_message(role: :system, content: "Timestamps #{state_label}.")
+            :handled
+          end
+
+          def handle_top
+            @message_stream.scroll_up(@message_stream.messages.size * 5)
+            :handled
+          end
+
+          def handle_bottom
+            @message_stream.scroll_down(@message_stream.scroll_offset)
+            :handled
+          end
+
+          def handle_freq
+            words = collect_freq_words
+            if words.empty?
+              @message_stream.add_message(role: :system, content: 'No words to analyse.')
+              return :handled
+            end
+
+            top = words.tally.sort_by { |_, c| -c }.first(20)
+            header = '    #  word                 count      %'
+            lines = format_freq_lines(top, words.size)
+            @message_stream.add_message(role: :system,
+                                        content: "Word frequency (top #{top.size}):\n#{header}\n#{lines.join("\n")}")
+            :handled
+          end
+
+          def collect_freq_words
+            @message_stream.messages
+                           .flat_map { |m| m[:content].to_s.downcase.scan(/[a-z']+/) }
+                           .reject { |w| FREQ_STOP_WORDS.include?(w) || w.length < 2 }
+          end
+
+          def format_freq_lines(top, total)
+            top.map.with_index(1) do |(word, count), rank|
+              pct = (count.to_f / total * 100).round(1)
+              format(FREQ_ROW_FMT, rank: rank, word: word, count: count, pct: pct)
+            end
           end
         end
       end

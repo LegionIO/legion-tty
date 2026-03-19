@@ -560,6 +560,101 @@ module Legion
             @message_stream.add_message(role: :system, content: "Truncated to last #{n} messages.")
             :handled
           end
+
+          def handle_mark(input)
+            label = input.split(nil, 2)[1]
+            return list_markers if label.nil?
+
+            msg = { role: :system, content: "--- #{label} ---", marker: label }
+            @message_stream.messages << msg
+            @status_bar.update(message_count: @message_stream.messages.size)
+            :handled
+          end
+
+          def list_markers
+            markers = @message_stream.messages.each_with_index.select { |m, _| m[:marker] }
+            if markers.empty?
+              @message_stream.add_message(role: :system, content: 'No markers set.')
+            else
+              lines = markers.map { |m, i| "  [#{i}] #{m[:content]}" }
+              @message_stream.add_message(role: :system, content: "Markers:\n#{lines.join("\n")}")
+            end
+            :handled
+          end
+
+          def handle_head(input)
+            n = (input.split(nil, 2)[1] || '5').to_i.clamp(1, 500)
+            msgs = @message_stream.messages.first(n)
+            if msgs.empty?
+              @message_stream.add_message(role: :system, content: 'No messages.')
+              return :handled
+            end
+
+            lines = msgs.map { |m| "  [#{m[:role]}] #{truncate_text(m[:content].to_s, 80)}" }
+            @message_stream.add_message(role: :system, content: "First #{msgs.size} message(s):\n#{lines.join("\n")}")
+            :handled
+          end
+
+          def handle_tail(input)
+            n = (input.split(nil, 2)[1] || '5').to_i.clamp(1, 500)
+            msgs = @message_stream.messages.last(n)
+            if msgs.empty?
+              @message_stream.add_message(role: :system, content: 'No messages.')
+              return :handled
+            end
+
+            lines = msgs.map { |m| "  [#{m[:role]}] #{truncate_text(m[:content].to_s, 80)}" }
+            @message_stream.add_message(role: :system, content: "Last #{msgs.size} message(s):\n#{lines.join("\n")}")
+            :handled
+          end
+
+          def handle_draft(input)
+            arg = input.split(nil, 2)[1]
+            case arg
+            when nil
+              content = @draft ? "Draft: #{@draft}" : 'No draft saved.'
+              @message_stream.add_message(role: :system, content: content)
+            when 'clear'
+              @draft = nil
+              @message_stream.add_message(role: :system, content: 'Draft cleared.')
+            when 'send'
+              return draft_send
+            else
+              @draft = arg
+              @message_stream.add_message(role: :system, content: "Draft saved: #{@draft}")
+            end
+            :handled
+          end
+
+          def draft_send
+            unless @draft
+              @message_stream.add_message(role: :system, content: 'No draft to send.')
+              return :handled
+            end
+
+            text = @draft
+            @draft = nil
+            handle_user_message(text)
+            :handled
+          end
+
+          def handle_revise(input)
+            new_content = input.split(nil, 2)[1]
+            unless new_content
+              @message_stream.add_message(role: :system, content: 'Usage: /revise <new content>')
+              return :handled
+            end
+
+            msg = @message_stream.messages.reverse.find { |m| m[:role] == :user }
+            unless msg
+              @message_stream.add_message(role: :system, content: 'No user message to revise.')
+              return :handled
+            end
+
+            msg[:content] = new_content
+            @message_stream.add_message(role: :system, content: "Revised: #{new_content}")
+            :handled
+          end
         end
       end
     end

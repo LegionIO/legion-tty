@@ -171,7 +171,10 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /echo /env
                     /ls /pwd
                     /wrap /number
-                    /speak /silent]
+                    /speak /silent
+                    /color /timestamps
+                    /top /bottom /head /tail
+                    /draft /revise /freq /mark]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 

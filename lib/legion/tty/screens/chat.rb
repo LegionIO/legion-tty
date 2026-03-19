@@ -41,7 +41,11 @@ module Legion
                             /echo /env
                             /ls /pwd
                             /wrap /number
-                            /speak /silent].freeze
+                            /speak /silent
+                            /color /timestamps
+                            /top /bottom /head /tail
+                            /draft /revise
+                            /mark /freq].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -85,6 +89,7 @@ module Legion
           @multiline_mode = false
           @speak_mode = false
           @silent_mode = false
+          @draft = nil
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -477,6 +482,16 @@ module Legion
           when '/number' then handle_number(input)
           when '/speak' then handle_speak(input)
           when '/silent' then handle_silent
+          when '/color' then handle_color(input)
+          when '/timestamps' then handle_timestamps(input)
+          when '/top' then handle_top
+          when '/bottom' then handle_bottom
+          when '/head' then handle_head(input)
+          when '/tail' then handle_tail(input)
+          when '/draft' then handle_draft(input)
+          when '/revise' then handle_revise(input)
+          when '/mark' then handle_mark(input)
+          when '/freq' then handle_freq
           else :handled
           end
         end

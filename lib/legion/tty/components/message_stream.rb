@@ -9,7 +9,8 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class MessageStream
         attr_reader :messages, :scroll_offset
-        attr_accessor :mute_system, :silent_mode, :highlights, :filter, :truncate_limit, :wrap_width, :show_numbers
+        attr_accessor :mute_system, :silent_mode, :highlights, :filter, :truncate_limit, :wrap_width, :show_numbers,
+                      :colorize, :show_timestamps
 
         HIGHLIGHT_COLOR = "\e[1;33m"
         HIGHLIGHT_RESET = "\e[0m"
@@ -22,6 +23,8 @@ module Legion
           @highlights = []
           @wrap_width = nil
           @show_numbers = false
+          @colorize = true
+          @show_timestamps = true
         end
 
         def add_message(role:, content:)
@@ -70,6 +73,7 @@ module Legion
           start_idx = [total - height - @scroll_offset, 0].max
           start_idx = [start_idx, total].min
           result = all_lines[start_idx, height] || []
+          result = result.map { |l| strip_ansi(l) } unless @colorize
           @last_visible_count = result.size
           result
         end
@@ -128,13 +132,16 @@ module Legion
         end
 
         def user_lines(msg, _width)
-          ts = format_timestamp(msg[:timestamp])
-          header = "#{Theme.c(:accent, 'You')} #{Theme.c(:muted, ts)}"
           content = apply_highlights(msg[:content].to_s)
-          lines = ['', "#{header}: #{content}"]
+          lines = ['', "#{user_header(msg[:timestamp])}: #{content}"]
           lines << reaction_line(msg) if msg[:reactions]&.any?
           lines.concat(annotation_lines(msg)) if msg[:annotations]&.any?
           lines
+        end
+
+        def user_header(timestamp)
+          ts = @show_timestamps ? format_timestamp(timestamp) : ''
+          ts.empty? ? Theme.c(:accent, 'You') : "#{Theme.c(:accent, 'You')} #{Theme.c(:muted, ts)}"
         end
 
         def format_timestamp(time)
@@ -208,6 +215,10 @@ module Legion
           panel.instance_variable_set(:@duration, duration) if duration
           panel.instance_variable_set(:@result, result) if result
           panel.instance_variable_set(:@error, error) if error
+        end
+
+        def strip_ansi(text)
+          text.gsub(/\e\[[0-9;]*m/, '')
         end
       end
       # rubocop:enable Metrics/ClassLength

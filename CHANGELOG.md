@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.24] - 2026-03-19
+
+### Added
+- `/mark <label>` command: insert named markers/bookmarks in conversation, list all markers
+- `/freq` command: word frequency analysis with top 20 words (excludes stop words)
+- `/draft <text>` command: save text to draft buffer, show/clear/send draft
+- `/revise <text>` command: replace content of last user message
+- `/color [on|off]` command: toggle colorized output (strip ANSI codes when off)
+- `/timestamps [on|off]` command: toggle timestamp display on messages
+- `/top` command: scroll to top of message history
+- `/bottom` command: scroll to bottom of message history
+- `/head [N]` command: peek at first N messages (default 5)
+- `/tail [N]` command: peek at last N messages (default 5)
+
 ## [0.4.23] - 2026-03-19
 
 ### Added
