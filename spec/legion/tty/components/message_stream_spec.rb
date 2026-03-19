@@ -162,5 +162,22 @@ RSpec.describe Legion::TTY::Components::MessageStream do
       joined = result.join("\n")
       expect(joined).to include('tool output')
     end
+
+    it 'renders assistant message with markdown content without error' do
+      stream.add_message(role: :assistant, content: '**bold** and _italic_ text')
+      expect { stream.render(width: 80, height: 20) }.not_to raise_error
+      result = stream.render(width: 80, height: 20)
+      expect(result).to be_an(Array)
+    end
+  end
+
+  describe '#render_markdown (via assistant rendering)' do
+    it 'falls back to plain text if MarkdownView raises' do
+      stream.add_message(role: :assistant, content: 'plain text fallback')
+      allow(Legion::TTY::Components::MarkdownView).to receive(:render).and_raise(StandardError, 'render failed')
+      result = stream.render(width: 80, height: 20)
+      joined = result.join("\n")
+      expect(joined).to include('plain text fallback')
+    end
   end
 end

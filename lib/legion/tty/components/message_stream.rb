@@ -52,13 +52,13 @@ module Legion
         end
 
         def render_message(msg, width)
-          role_lines(msg) + panel_lines(msg, width)
+          role_lines(msg, width) + panel_lines(msg, width)
         end
 
-        def role_lines(msg)
+        def role_lines(msg, width)
           case msg[:role]
           when :user then user_lines(msg)
-          when :assistant then assistant_lines(msg)
+          when :assistant then assistant_lines(msg, width)
           when :system then system_lines(msg)
           else []
           end
@@ -69,8 +69,16 @@ module Legion
           ['', "#{prefix}: #{msg[:content]}"]
         end
 
-        def assistant_lines(msg)
-          ['', *msg[:content].split("\n")]
+        def assistant_lines(msg, width)
+          rendered = render_markdown(msg[:content], width)
+          ['', *rendered.split("\n")]
+        end
+
+        def render_markdown(text, width)
+          require_relative 'markdown_view'
+          MarkdownView.render(text, width: width)
+        rescue StandardError
+          text
         end
 
         def system_lines(msg)
