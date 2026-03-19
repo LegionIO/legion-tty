@@ -6,8 +6,11 @@ module Legion
   module TTY
     module Components
       class InputBar
-        def initialize(name: 'User', reader: nil)
+        attr_reader :completions
+
+        def initialize(name: 'User', reader: nil, completions: [])
           @name = name
+          @completions = completions
           @reader = reader || build_default_reader
           @thinking = false
         end
@@ -32,13 +35,46 @@ module Legion
           @thinking
         end
 
+        def complete(partial)
+          return [] if partial.nil? || partial.empty?
+
+          @completions.select { |c| c.start_with?(partial) }.sort
+        end
+
         private
 
         def build_default_reader
           require 'tty-reader'
-          ::TTY::Reader.new
+          reader = ::TTY::Reader.new
+          register_tab_completion(reader)
+          reader
         rescue LoadError
           nil
+        end
+
+        def register_tab_completion(reader)
+          return if @completions.empty?
+
+          @tab_matches = []
+          @tab_index = 0
+
+          reader.on(:keypress) do |event|
+            handle_tab(event) if event.value == "\t"
+          end
+        end
+
+        def handle_tab(event)
+          line = event.line.text.to_s
+          matches = complete(line)
+          return if matches.empty?
+
+          if matches.size == 1
+            event.line.replace(matches.first)
+          else
+            @tab_matches = matches unless @tab_matches == matches
+            event.line.replace(@tab_matches[@tab_index % @tab_matches.size])
+            @tab_index += 1
+          end
         end
       end
     end

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.1] - 2026-03-19
+
+### Added
+- Progress panel component wrapping tty-progressbar for long operations
+- Tab completion for slash commands (type `/` + Tab to cycle through matches)
+- InputBar now accepts `completions:` parameter for configurable auto-complete
+
+### Changed
+- README.md updated to reflect 0.4.x features, hotkeys, architecture
+- CLAUDE.md updated to reflect current version, components, LLM integration notes
+
 ## [0.4.0] - 2026-03-19
 
 ### Fixed

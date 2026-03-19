@@ -551,7 +551,7 @@ module Legion
         def build_default_input_bar
           cfg = safe_config
           name = cfg[:name] || 'User'
-          Components::InputBar.new(name: name)
+          Components::InputBar.new(name: name, completions: SLASH_COMMANDS)
         end
 
         def terminal_width
