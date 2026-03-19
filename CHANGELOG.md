@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.10] - 2026-03-19
+
+### Added
+- `/context` command: display active session state summary (model, personality, plan mode, system prompt, session, message count, pinned count, token usage)
+- `/alias` command: create short aliases for frequently used slash commands; aliases expand and re-dispatch transparently
+- `/snippet save|load|list|delete <name>` command: save last assistant message as a named snippet, insert snippets as user messages, persist to `~/.legionio/snippets/`
+- `/debug` command: toggle debug mode; adds `[DEBUG]` line to render output showing msgs/scroll/plan/personality/aliases/snippets/pinned counts; StatusBar shows `[DBG]` indicator
+
 ## [0.4.9] - 2026-03-19
 
 ### Added

@@ -14,7 +14,8 @@ module Legion
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
-                            /theme /search /stats /personality /undo /history /pin /pins /rename].freeze
+                            /theme /search /stats /personality /undo /history /pin /pins /rename
+                            /context /alias /snippet /debug].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -39,6 +40,9 @@ module Legion
           @session_name = 'default'
           @plan_mode = false
           @pinned_messages = []
+          @aliases = {}
+          @snippets = {}
+          @debug_mode = false
         end
 
         def activate
@@ -85,7 +89,12 @@ module Legion
           return nil unless input.start_with?('/')
 
           cmd = input.split.first
-          return nil unless SLASH_COMMANDS.include?(cmd)
+          unless SLASH_COMMANDS.include?(cmd)
+            expanded = @aliases[cmd]
+            return nil unless expanded
+
+            return handle_slash_command("#{expanded} #{input.split(nil, 2)[1]}".strip)
+          end
 
           dispatch_slash(cmd, input)
         end
@@ -120,10 +129,14 @@ module Legion
         def render(width, height)
           bar_line = @status_bar.render(width: width)
           divider = Theme.c(:muted, '-' * width)
-          stream_height = [height - 2, 1].max
+          dbg = debug_segment
+          extra_rows = dbg ? 1 : 0
+          stream_height = [height - 2 - extra_rows, 1].max
           stream_lines = @message_stream.render(width: width, height: stream_height)
           @status_bar.update(scroll: @message_stream.scroll_position)
-          stream_lines + [divider, bar_line]
+          lines = stream_lines + [divider, bar_line]
+          lines << dbg if dbg
+          lines
         end
 
         def handle_input(key)
@@ -264,7 +277,7 @@ module Legion
           nil
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         def dispatch_slash(cmd, input)
           case cmd
           when '/quit' then :quit
@@ -298,11 +311,16 @@ module Legion
           when '/pin' then handle_pin(input)
           when '/pins' then handle_pins
           when '/rename' then handle_rename(input)
+          when '/context' then handle_context
+          when '/alias' then handle_alias(input)
+          when '/snippet' then handle_snippet(input)
+          when '/debug' then handle_debug
           else :handled
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
+        # rubocop:disable Metrics/MethodLength
         def handle_help
           @message_stream.add_message(
             role: :system,
@@ -320,11 +338,16 @@ module Legion
                      "/history -- show recent input history\n  " \
                      "/pin [N] -- pin last assistant message (or message at index N)\n  " \
                      "/pins -- show all pinned messages\n  " \
-                     "/rename <name> -- rename current session\n\n" \
+                     "/rename <name> -- rename current session\n  " \
+                     "/context -- show active session context summary\n  " \
+                     "/alias [shortname /command] -- create or list command aliases\n  " \
+                     "/snippet save|load|list|delete <name> -- manage reusable text snippets\n  " \
+                     "/debug -- toggle debug mode (shows internal state)\n\n" \
                      'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           )
           :handled
         end
+        # rubocop:enable Metrics/MethodLength
 
         def handle_clear
           @message_stream.messages.clear
@@ -943,6 +966,188 @@ module Legion
           @session_store.save(name, messages: @message_stream.messages)
           @message_stream.add_message(role: :system, content: "Session renamed to '#{name}'.")
           :handled
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def handle_context
+          cfg = safe_config
+          model_info = @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : (cfg[:provider] || 'none')
+          sys_prompt = if @llm_chat.respond_to?(:instructions) && @llm_chat.instructions
+                         truncate_text(@llm_chat.instructions.to_s, 80)
+                       else
+                         'default'
+                       end
+          lines = [
+            'Session Context:',
+            "  Model/Provider : #{model_info}",
+            "  Personality    : #{@personality || 'default'}",
+            "  Plan mode      : #{@plan_mode ? 'on' : 'off'}",
+            "  System prompt  : #{sys_prompt}",
+            "  Session        : #{@session_name}",
+            "  Messages       : #{@message_stream.messages.size}",
+            "  Pinned         : #{@pinned_messages.size}",
+            "  Tokens         : #{@token_tracker.summary}"
+          ]
+          @message_stream.add_message(role: :system, content: lines.join("\n"))
+          :handled
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        def handle_alias(input)
+          parts = input.split(nil, 3)
+          if parts.size < 2
+            if @aliases.empty?
+              @message_stream.add_message(role: :system, content: 'No aliases defined.')
+            else
+              lines = @aliases.map { |k, v| "  #{k} => #{v}" }
+              @message_stream.add_message(role: :system, content: "Aliases:\n#{lines.join("\n")}")
+            end
+            return :handled
+          end
+
+          shortname = parts[1]
+          expansion = parts[2]
+          unless expansion
+            @message_stream.add_message(role: :system, content: 'Usage: /alias <shortname> <command and args>')
+            return :handled
+          end
+
+          alias_key = shortname.start_with?('/') ? shortname : "/#{shortname}"
+          @aliases[alias_key] = expansion
+          @message_stream.add_message(role: :system, content: "Alias created: #{alias_key} => #{expansion}")
+          :handled
+        end
+
+        def handle_snippet(input)
+          parts = input.split(nil, 3)
+          subcommand = parts[1]
+          name = parts[2]
+
+          case subcommand
+          when 'save'
+            snippet_save(name)
+          when 'load'
+            snippet_load(name)
+          when 'list'
+            snippet_list
+          when 'delete'
+            snippet_delete(name)
+          else
+            @message_stream.add_message(
+              role: :system,
+              content: 'Usage: /snippet save|load|list|delete <name>'
+            )
+          end
+          :handled
+        end
+
+        def handle_debug
+          @debug_mode = !@debug_mode
+          if @debug_mode
+            @status_bar.update(debug_mode: true)
+            @message_stream.add_message(role: :system, content: 'Debug mode ON -- internal state shown below.')
+          else
+            @status_bar.update(debug_mode: false)
+            @message_stream.add_message(role: :system, content: 'Debug mode OFF.')
+          end
+          :handled
+        end
+
+        def debug_segment
+          return nil unless @debug_mode
+
+          "[DEBUG] msgs:#{@message_stream.messages.size} " \
+            "scroll:#{@message_stream.scroll_position&.dig(:current) || 0} " \
+            "plan:#{@plan_mode} " \
+            "personality:#{@personality || 'default'} " \
+            "aliases:#{@aliases.size} " \
+            "snippets:#{@snippets.size} " \
+            "pinned:#{@pinned_messages.size}"
+        end
+
+        def snippet_dir
+          File.expand_path('~/.legionio/snippets')
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def snippet_save(name)
+          unless name
+            @message_stream.add_message(role: :system, content: 'Usage: /snippet save <name>')
+            return
+          end
+
+          last_assistant = @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+          unless last_assistant
+            @message_stream.add_message(role: :system, content: 'No assistant message to save as snippet.')
+            return
+          end
+
+          require 'fileutils'
+          FileUtils.mkdir_p(snippet_dir)
+          path = File.join(snippet_dir, "#{name}.txt")
+          File.write(path, last_assistant[:content].to_s)
+          @snippets[name] = last_assistant[:content].to_s
+          @message_stream.add_message(role: :system, content: "Snippet '#{name}' saved.")
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        def snippet_load(name)
+          unless name
+            @message_stream.add_message(role: :system, content: 'Usage: /snippet load <name>')
+            return
+          end
+
+          content = @snippets[name]
+          if content.nil?
+            path = File.join(snippet_dir, "#{name}.txt")
+            content = File.read(path) if File.exist?(path)
+          end
+
+          unless content
+            @message_stream.add_message(role: :system, content: "Snippet '#{name}' not found.")
+            return
+          end
+
+          @snippets[name] = content
+          @message_stream.add_message(role: :user, content: content)
+          @message_stream.add_message(role: :system, content: "Snippet '#{name}' inserted.")
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def snippet_list
+          disk_snippets = Dir.glob(File.join(snippet_dir, '*.txt')).map { |f| File.basename(f, '.txt') }
+          all_names = (@snippets.keys + disk_snippets).uniq.sort
+
+          if all_names.empty?
+            @message_stream.add_message(role: :system, content: 'No snippets saved.')
+            return
+          end
+
+          lines = all_names.map do |sname|
+            content = @snippets[sname] || begin
+              path = File.join(snippet_dir, "#{sname}.txt")
+              File.exist?(path) ? File.read(path) : ''
+            end
+            "  #{sname}: #{truncate_text(content.to_s, 60)}"
+          end
+          @message_stream.add_message(role: :system, content: "Snippets (#{all_names.size}):\n#{lines.join("\n")}")
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        def snippet_delete(name)
+          unless name
+            @message_stream.add_message(role: :system, content: 'Usage: /snippet delete <name>')
+            return
+          end
+
+          @snippets.delete(name)
+          path = File.join(snippet_dir, "#{name}.txt")
+          if File.exist?(path)
+            File.delete(path)
+            @message_stream.add_message(role: :system, content: "Snippet '#{name}' deleted.")
+          else
+            @message_stream.add_message(role: :system, content: "Snippet '#{name}' not found.")
+          end
         end
 
         def build_default_input_bar

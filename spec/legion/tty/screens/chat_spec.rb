@@ -158,7 +158,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
     it 'includes all expected commands' do
       expected = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard /hotkeys
                     /save /load /sessions /system /delete /plan /palette /extensions /config /theme /search
-                    /stats /personality /undo /history /pin /pins /rename]
+                    /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 

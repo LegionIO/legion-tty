@@ -8,7 +8,8 @@ module Legion
     module Components
       class StatusBar
         def initialize
-          @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false, plan_mode: false }
+          @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false, plan_mode: false,
+                     debug_mode: false }
           @notifications = []
         end
 
@@ -40,6 +41,7 @@ module Legion
           [
             model_segment,
             plan_segment,
+            debug_segment,
             thinking_segment,
             notification_segment,
             tokens_segment,
@@ -57,6 +59,12 @@ module Legion
           return nil unless @state[:plan_mode]
 
           Theme.c(:warning, '[PLAN]')
+        end
+
+        def debug_segment
+          return nil unless @state[:debug_mode]
+
+          Theme.c(:muted, '[DBG]')
         end
 
         def thinking_segment
