@@ -132,7 +132,7 @@ module Legion
 
       private
 
-      def boot_legion_subsystems # rubocop:disable Metrics/MethodLength
+      def boot_legion_subsystems
         # Follow the same init order as Legion::Service:
         # 1. logging  2. settings  3. crypt  4. resolve secrets  5. LLM merge
         require 'legion/logging'

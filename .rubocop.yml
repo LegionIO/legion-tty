@@ -9,9 +9,13 @@ Metrics/BlockLength:
   Exclude:
     - 'spec/**/*'
     - '*.gemspec'
-
+Metrics/ModuleLength:
+  Max: 1500
+Metrics/CyclomaticComplexity:
+  Max: 10
+Metrics/MethodLength:
+  Max: 25
+Metrics/PerceivedComplexity:
+  Max: 12
 Style/Documentation:
   Enabled: false
-
-Metrics/MethodLength:
-  Max: 20

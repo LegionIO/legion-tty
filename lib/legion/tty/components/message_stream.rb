@@ -9,7 +9,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class MessageStream
         attr_reader :messages, :scroll_offset
-        attr_accessor :mute_system, :highlights, :filter
+        attr_accessor :mute_system, :highlights, :filter, :truncate_limit
 
         HIGHLIGHT_COLOR = "\e[1;33m"
         HIGHLIGHT_RESET = "\e[0m"
@@ -130,12 +130,20 @@ module Legion
         end
 
         def assistant_lines(msg, width)
-          rendered = render_markdown(msg[:content], width)
+          content = display_content(msg[:content])
+          rendered = render_markdown(content, width)
           rendered = apply_highlights(rendered)
           lines = ['', *rendered.split("\n")]
           lines << reaction_line(msg) if msg[:reactions]&.any?
           lines.concat(annotation_lines(msg)) if msg[:annotations]&.any?
           lines
+        end
+
+        def display_content(content)
+          return content unless @truncate_limit
+          return content if content.to_s.length <= @truncate_limit
+
+          "#{content[0...@truncate_limit]}... [truncated]"
         end
 
         def reaction_line(msg)

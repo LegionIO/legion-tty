@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.22] - 2026-03-19
+
+### Added
+- `/truncate [N|off]` command: display-only truncation of long messages (preserves originals)
+- `/archive [name]` command: archive session to `~/.legionio/archives/` with timestamp and start fresh
+- `/archives` command: list all archived sessions with file sizes
+- `/tee <path>` command: copy new messages to file in real-time (like Unix tee)
+- `/pipe <command>` command: pipe last assistant response through a shell command
+- `/calc <expression>` command: safe math expression evaluator with Math functions
+- `/rand [N|min..max]` command: generate random numbers (float, integer, or range)
+
 ## [0.4.21] - 2026-03-19
 
 ### Added

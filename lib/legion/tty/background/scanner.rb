@@ -93,7 +93,6 @@ module Legion
           false
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def collect_repos(base, depth = 0)
           return [] unless File.directory?(base)
           return [build_repo_entry(base)] if File.directory?(File.join(base, '.git'))
@@ -110,7 +109,6 @@ module Legion
         rescue StandardError
           []
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def build_repo_entry(path)
           { path: path, name: File.basename(path), remote: git_remote(path),

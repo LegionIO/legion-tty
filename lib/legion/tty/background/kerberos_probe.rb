@@ -62,7 +62,6 @@ module Legion
           query_ldap(username: username, host: dc_host, base_dn: base_dn)
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity
         def discover_dc(realm)
           domain = realm.downcase
           srv_name = "_ldap._tcp.#{domain}"
@@ -74,7 +73,6 @@ module Legion
           @log&.log('kerberos', "SRV lookup failed: #{e.message}")
           nil
         end
-        # rubocop:enable Metrics/CyclomaticComplexity
 
         def realm_to_base_dn(realm)
           realm.downcase.split('.').map { |part| "DC=#{part}" }.join(',')
@@ -149,7 +147,7 @@ module Legion
           }.compact
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+        # rubocop:disable Metrics/AbcSize
         def calculate_tenure(when_created)
           return nil unless when_created&.length&.>=(8)
 
@@ -184,7 +182,7 @@ module Legion
 
           { years: years, months: months, days: days }
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def days_in_month(month, year)
           Time.new(year, month, -1).day

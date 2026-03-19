@@ -9,7 +9,7 @@ module Legion
           @current_model = current_model
         end
 
-        def available_models # rubocop:disable Metrics/CyclomaticComplexity
+        def available_models
           return [] unless defined?(Legion::LLM) && Legion::LLM.respond_to?(:settings)
 
           providers = Legion::LLM.settings[:providers]

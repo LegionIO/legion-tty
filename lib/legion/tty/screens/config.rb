@@ -105,7 +105,7 @@ module Legion
           @viewing_file = true
         end
 
-        def edit_selected_key # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        def edit_selected_key # rubocop:disable Metrics/AbcSize
           keys = @file_data.keys
           return unless keys[@selected_key]
 

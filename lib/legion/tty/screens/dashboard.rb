@@ -40,7 +40,7 @@ module Legion
 
         # rubocop:enable Metrics/AbcSize
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength
+        # rubocop:disable Metrics/CyclomaticComplexity
         def handle_input(key)
           case key
           when 'r', :f5
@@ -66,7 +66,7 @@ module Legion
           end
         end
 
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/MethodLength
+        # rubocop:enable Metrics/CyclomaticComplexity
 
         def selected_panel
           PANELS[@selected_panel]
@@ -147,7 +147,7 @@ module Legion
 
         # rubocop:enable Metrics/AbcSize
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:disable Metrics/AbcSize
         def render_system_panel(_width)
           sys = @cached_data[:system] || {}
           prefix = panel_prefix(:system)
@@ -161,7 +161,7 @@ module Legion
           lines
         end
 
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def render_activity_panel(_width, max_lines)
           activity = @cached_data[:activity] || []
@@ -219,7 +219,7 @@ module Legion
           :pass
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable Metrics/AbcSize
         def llm_info
           info = { provider: 'none', model: nil, started: false, daemon: false }
           if defined?(Legion::LLM)
@@ -237,7 +237,7 @@ module Legion
           info
         end
 
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def probe_services
           require 'socket'

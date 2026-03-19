@@ -34,7 +34,10 @@ module Legion
                             /focus /retry /merge /sort
                             /chain /info /scroll /summary
                             /prompt /reset /replace /highlight /multiline
-                            /annotate /annotations /filter].freeze
+                            /annotate /annotations /filter /truncate
+                            /tee /pipe
+                            /archive /archives
+                            /calc /rand].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -141,6 +144,7 @@ module Legion
         def handle_user_message(input)
           @last_user_input = input
           @message_stream.add_message(role: :user, content: input)
+          tee_message("[user] #{input}") if @tee_path
           if @plan_mode
             @message_stream.add_message(role: :system, content: '(bookmarked)')
           else
@@ -437,6 +441,13 @@ module Legion
           when '/annotate' then handle_annotate(input)
           when '/annotations' then handle_annotations(input)
           when '/filter' then handle_filter(input)
+          when '/truncate' then handle_truncate(input)
+          when '/tee' then handle_tee(input)
+          when '/pipe' then handle_pipe(input)
+          when '/archive' then handle_archive(input)
+          when '/archives' then handle_archives
+          when '/calc' then handle_calc(input)
+          when '/rand' then handle_rand(input)
           else :handled
           end
         end

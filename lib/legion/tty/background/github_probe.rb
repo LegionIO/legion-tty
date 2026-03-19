@@ -39,7 +39,7 @@ module Legion
         end
         # rubocop:enable Metrics/AbcSize
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable Metrics/AbcSize
         def run_async(queue, remotes: [], quick_profile: nil)
           Thread.new do
             @log&.log('github', "probing with #{remotes.size} remotes: #{remotes.first(5).inspect}")
@@ -59,7 +59,7 @@ module Legion
             queue.push({ type: :github_error, error: e.message })
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:enable Metrics/AbcSize
 
         private
 
@@ -282,7 +282,6 @@ module Legion
 
         # --- Token resolution ---
 
-        # rubocop:disable Metrics/CyclomaticComplexity
         def resolve_token
           env_token = ENV.fetch('GITHUB_TOKEN', nil) ||
                       ENV.fetch('GH_TOKEN', nil) ||
@@ -301,9 +300,7 @@ module Legion
           @log&.log('github', 'no token found (no env var, no gh CLI)')
           nil
         end
-        # rubocop:enable Metrics/CyclomaticComplexity
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def token_from_gh_cli
           gh_path = `which gh 2>/dev/null`.strip
           return nil if gh_path.empty?
@@ -322,8 +319,6 @@ module Legion
           @log&.log('github', "gh CLI error: #{e.message}")
           nil
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
         # --- HTTP ---
 
         def api_get(path)

@@ -547,6 +547,19 @@ module Legion
                       end
             @message_stream.add_message(role: :system, content: content)
           end
+
+          def handle_truncate(input)
+            n = (input.split(nil, 2)[1] || '10').to_i.clamp(1, 500)
+            msgs = @message_stream.messages
+            if msgs.size <= n
+              @message_stream.add_message(role: :system, content: "Already #{msgs.size} messages (<=#{n}).")
+              return :handled
+            end
+
+            @message_stream.messages.replace(msgs.last(n))
+            @message_stream.add_message(role: :system, content: "Truncated to last #{n} messages.")
+            :handled
+          end
         end
       end
     end

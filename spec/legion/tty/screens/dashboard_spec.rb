@@ -7,6 +7,11 @@ RSpec.describe Legion::TTY::Screens::Dashboard do
   let(:app) { double('app') }
   subject(:dashboard) { described_class.new(app) }
 
+  before do
+    allow(dashboard).to receive(:port_open?).and_return(false)
+    allow(dashboard).to receive(:format_memory).and_return('10.0 MB')
+  end
+
   describe 'PANELS constant' do
     it 'contains 5 panel symbols' do
       expect(described_class::PANELS.size).to eq(5)

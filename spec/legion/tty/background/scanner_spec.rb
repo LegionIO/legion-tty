@@ -10,6 +10,10 @@ RSpec.describe Legion::TTY::Background::Scanner do
 
   after { FileUtils.remove_entry(tmpdir) }
 
+  before do
+    allow(scanner).to receive(:port_open?).and_return(false)
+  end
+
   describe '#initialize' do
     it 'accepts base_dirs' do
       expect(scanner).to be_a(described_class)
@@ -51,6 +55,8 @@ RSpec.describe Legion::TTY::Background::Scanner do
   end
 
   describe '#scan_git_repos' do
+    before { allow(scanner).to receive(:`).and_return('') }
+
     it 'returns an array' do
       result = scanner.scan_git_repos
       expect(result).to be_an(Array)
@@ -100,6 +106,10 @@ RSpec.describe Legion::TTY::Background::Scanner do
   end
 
   describe '#scan_all' do
+    before do
+      allow(scanner).to receive(:`).and_return('')
+    end
+
     it 'returns a hash with combined results' do
       result = scanner.scan_all
       expect(result).to be_a(Hash)
@@ -118,6 +128,8 @@ RSpec.describe Legion::TTY::Background::Scanner do
   end
 
   describe '#scan_dotfiles' do
+    before { allow(scanner).to receive(:`).and_return('') }
+
     it 'returns a hash with git, jfrog, and terraform keys' do
       result = scanner.scan_dotfiles
       expect(result).to be_a(Hash)
@@ -189,6 +201,8 @@ RSpec.describe Legion::TTY::Background::Scanner do
   end
 
   describe '#run_async' do
+    before { allow(scanner).to receive(:`).and_return('') }
+
     it 'returns a Thread' do
       queue = Queue.new
       thread = scanner.run_async(queue)
@@ -199,7 +213,7 @@ RSpec.describe Legion::TTY::Background::Scanner do
     it 'pushes a scan_complete event to the queue' do
       queue = Queue.new
       thread = scanner.run_async(queue)
-      thread.join(10)
+      thread.join(5)
       event = queue.pop(true)
       expect(event[:type]).to eq(:scan_complete)
       expect(event[:data]).to be_a(Hash)

@@ -31,6 +31,12 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#run_wizard' do
+    before do
+      allow(screen).to receive(:sleep)
+      allow(screen).to receive(:typed_output)
+      screen.instance_variable_get(:@llm_queue).push({ type: :llm_probe_complete, data: { providers: [] } })
+    end
+
     it 'returns a hash with name' do
       result = screen.run_wizard
       expect(result[:name]).to eq('Matt')
@@ -63,6 +69,10 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#build_summary' do
+    before do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+    end
+
     it 'includes the user name' do
       summary = screen.build_summary(name: 'Matt', scan_data: nil, github_data: nil)
       expect(summary).to include('Matt')
@@ -93,6 +103,12 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#activate' do
+    before do
+      allow(screen).to receive(:sleep)
+      allow(screen).to receive(:typed_output)
+      screen.instance_variable_get(:@llm_queue).push({ type: :llm_probe_complete, data: { providers: [] } })
+    end
+
     it 'returns a config hash with name and provider' do
       allow(screen).to receive(:run_rain)
       allow(screen).to receive(:run_intro)
@@ -280,6 +296,10 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#build_summary with vault results' do
+    before do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+    end
+
     it 'includes vault section when vault_results are present' do
       screen.instance_variable_set(:@vault_results, {
                                      primary: { token: 'tok1', policies: ['default'] }

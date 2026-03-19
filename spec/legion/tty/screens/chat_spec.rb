@@ -164,7 +164,10 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /focus /retry /merge /sort
                     /chain /info /scroll /summary
                     /prompt /reset /replace /highlight /multiline
-                    /annotate /annotations /filter]
+                    /annotate /annotations /filter /truncate
+                    /tee /pipe
+                    /archive /archives
+                    /calc /rand]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 

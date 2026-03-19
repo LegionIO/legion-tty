@@ -195,7 +195,7 @@ module Legion
           end
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:disable Metrics/AbcSize
         def run_gaia_awakening
           typed_output('Scanning for active cognition threads...')
           sleep 1.2
@@ -225,7 +225,7 @@ module Legion
 
           @output.puts
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:enable Metrics/AbcSize
 
         def collect_background_results
           @log.log('collect', 'waiting for scanner results (10s timeout)')
@@ -438,7 +438,7 @@ module Legion
           end
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable Metrics/AbcSize
         def run_intro_with_github
           gh = @github_quick
           name = gh[:name] || gh[:username]
@@ -462,7 +462,7 @@ module Legion
 
           @output.puts
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def collect_kerberos_identity
           @log.log('kerberos', 'collecting identity (2s timeout)')
@@ -475,7 +475,7 @@ module Legion
           end
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:disable Metrics/AbcSize
         def run_intro_with_identity
           id = @kerberos_identity
           typed_output("I see you, #{id[:first_name]}.")
@@ -505,7 +505,7 @@ module Legion
           @output.puts
           @output.puts
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:enable Metrics/AbcSize
 
         def ask_for_name
           if @kerberos_identity
@@ -515,7 +515,7 @@ module Legion
           end
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:disable Metrics/AbcSize
         def identity_summary_lines
           return [] unless @kerberos_identity
 
@@ -529,7 +529,7 @@ module Legion
           lines << "  Email: #{id[:email]}" if id[:email]
           lines
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def scan_summary_lines(scan_data)
           return [] unless scan_data.is_a?(Hash)
@@ -622,7 +622,7 @@ module Legion
           ['', "Terraform: #{dotfiles_tf[:hosts].join(', ')}"]
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def github_summary_lines(github_data)
           return [] unless github_data.is_a?(Hash)
 
@@ -655,9 +655,9 @@ module Legion
 
           lines
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
         def format_tenure(tenure)
           return tenure.to_s unless tenure.is_a?(Hash)
 
@@ -670,7 +670,7 @@ module Legion
           parts << "#{d} day#{'s' if d != 1}" if d&.positive?
           parts.join(', ')
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
         def typed_output(text, delay: TYPED_DELAY)
           text.chars.each do |char|

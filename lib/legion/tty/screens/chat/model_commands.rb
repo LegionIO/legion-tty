@@ -4,7 +4,6 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
-        # rubocop:disable Metrics/ModuleLength
         module ModelCommands
           private
 
@@ -134,7 +133,6 @@ module Legion
             :handled
           end
         end
-        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

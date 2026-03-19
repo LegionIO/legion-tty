@@ -30,9 +30,13 @@ module Legion
             'NAV     : /dashboard /extensions /config /palette /hotkeys',
             'DISPLAY : /theme /plan /debug /context /time /uptime',
             'TOOLS   : /tools /export /bookmark /pin /pins /alias /snippet /history',
+            'UTILS   : /calc /rand',
             '',
             'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
           ].freeze
+
+          CALC_SAFE_PATTERN = %r{\A[\d\s+\-*/.()%]*\z}
+          CALC_MATH_PATTERN = %r{\A[\d\s+\-*/.()%]*(Math\.\w+\([\d\s+\-*/.()%,]*\)[\d\s+\-*/.()%]*)*\z}
 
           private
 
@@ -313,6 +317,26 @@ module Legion
             :handled
           end
 
+          def handle_truncate(input)
+            arg = input.split(nil, 2)[1]&.strip
+            if arg.nil?
+              status = @message_stream.truncate_limit ? "#{@message_stream.truncate_limit} chars" : 'off'
+              @message_stream.add_message(role: :system, content: "Truncation: #{status}")
+            elsif arg == 'off'
+              @message_stream.truncate_limit = nil
+              @message_stream.add_message(role: :system, content: 'Truncation disabled.')
+            else
+              limit = arg.to_i
+              if limit.positive?
+                @message_stream.truncate_limit = limit
+                @message_stream.add_message(role: :system, content: "Truncation set to #{limit} chars.")
+              else
+                @message_stream.add_message(role: :system, content: 'Usage: /truncate [N|off]')
+              end
+            end
+            :handled
+          end
+
           def handle_multiline
             @multiline_mode = !@multiline_mode
             if @multiline_mode
@@ -402,6 +426,55 @@ module Legion
             @message_stream.add_message(role: :system, content: "Highlight added: '#{pattern}'")
           end
 
+          def handle_calc(input)
+            expr = input.split(nil, 2)[1]&.strip
+            unless expr
+              @message_stream.add_message(role: :system, content: 'Usage: /calc <expression>')
+              return :handled
+            end
+
+            unless safe_calc_expr?(expr)
+              @message_stream.add_message(role: :system, content: "Unsafe expression blocked: #{expr}")
+              return :handled
+            end
+
+            result = binding.send(:eval, expr)
+            @message_stream.add_message(role: :system, content: "= #{result}")
+            :handled
+          rescue SyntaxError, ZeroDivisionError, Math::DomainError => e
+            @message_stream.add_message(role: :system, content: "Error: #{e.message}")
+            :handled
+          end
+
+          def handle_rand(input)
+            arg = input.split(nil, 2)[1]&.strip
+            result = parse_rand_arg(arg)
+            if result == :invalid
+              @message_stream.add_message(role: :system, content: 'Usage: /rand [N|min..max]')
+              return :handled
+            end
+
+            @message_stream.add_message(role: :system, content: "Random: #{result}")
+            :handled
+          end
+
+          def parse_rand_arg(arg)
+            if arg.nil? || arg.empty?
+              rand
+            elsif arg.match?(/\A\d+\.\.\d+\z/)
+              parts = arg.split('..').map(&:to_i)
+              rand(parts[0]..parts[1])
+            elsif arg.match?(/\A\d+\z/)
+              rand(arg.to_i)
+            else
+              :invalid
+            end
+          end
+
+          def safe_calc_expr?(expr)
+            CALC_SAFE_PATTERN.match?(expr) || CALC_MATH_PATTERN.match?(expr)
+          end
+
           # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
           def handle_summary
             msgs = @message_stream.messages
@@ -436,6 +509,38 @@ module Legion
             :handled
           end
           # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+          def handle_pipe(input)
+            cmd = input.split(nil, 2)[1]
+            unless cmd
+              @message_stream.add_message(role: :system, content: 'Usage: /pipe <shell command>')
+              return :handled
+            end
+
+            last_msg = @message_stream.messages.select { |m| m[:role] == :assistant }.last
+            unless last_msg
+              @message_stream.add_message(role: :system, content: 'No assistant message to pipe.')
+              return :handled
+            end
+
+            output = pipe_through_command(cmd, last_msg[:content].to_s)
+            @message_stream.add_message(role: :system, content: "pipe | #{cmd}:\n#{output}")
+            :handled
+          rescue StandardError => e
+            @message_stream.add_message(role: :system, content: "Pipe error: #{e.message}")
+            :handled
+          end
+
+          def pipe_through_command(cmd, content)
+            result = IO.popen(cmd, 'r+') do |io|
+              io.write(content)
+              io.close_write
+              io.read
+            end
+            result.to_s.chomp
+          rescue StandardError => e
+            raise "command failed: #{e.message}"
+          end
         end
       end
     end

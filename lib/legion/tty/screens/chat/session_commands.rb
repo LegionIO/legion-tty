@@ -4,7 +4,6 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
-        # rubocop:disable Metrics/ModuleLength
         module SessionCommands
           private
 
@@ -233,6 +232,34 @@ module Legion
             :handled
           end
 
+          def handle_archive(input)
+            name = input.split(nil, 2)[1] || "#{@session_name}-#{Time.now.strftime('%Y%m%d-%H%M%S')}"
+            archive_dir = File.expand_path('~/.legionio/archives')
+            FileUtils.mkdir_p(archive_dir)
+            path = File.join(archive_dir, "#{name}.json")
+            data = { name: name, messages: @message_stream.messages, archived_at: Time.now.iso8601 }
+            File.write(path, ::JSON.generate(data))
+            @message_stream.messages.clear
+            @message_stream.add_message(role: :system, content: "Session archived as: #{name}")
+            @status_bar.notify(message: "Archived: #{name}", level: :success, ttl: 3)
+            :handled
+          end
+
+          def handle_archives
+            archive_dir = File.expand_path('~/.legionio/archives')
+            files = Dir.glob(File.join(archive_dir, '*.json'))
+            if files.empty?
+              @message_stream.add_message(role: :system, content: 'No archives found.')
+            else
+              lines = files.sort.map do |f|
+                size = File.size(f)
+                "  #{File.basename(f, '.json')} (#{size} bytes)"
+              end
+              @message_stream.add_message(role: :system, content: "Archives:\n#{lines.join("\n")}")
+            end
+            :handled
+          end
+
           def handle_merge(input)
             name = input.split(nil, 2)[1]
             unless name
@@ -256,7 +283,6 @@ module Legion
             :handled
           end
         end
-        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

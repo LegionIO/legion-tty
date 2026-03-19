@@ -4,7 +4,6 @@ module Legion
   module TTY
     module Screens
       class Chat < Base
-        # rubocop:disable Metrics/ModuleLength
         module CustomCommands
           TEMPLATES = {
             'explain' => 'Explain the following concept in simple terms: ',
@@ -19,7 +18,6 @@ module Legion
 
           private
 
-          # rubocop:disable Metrics/MethodLength
           def handle_template(input)
             name = input.split(nil, 2)[1]
             unless name
@@ -47,7 +45,6 @@ module Legion
             )
             :handled
           end
-          # rubocop:enable Metrics/MethodLength
 
           def handle_alias(input)
             parts = input.split(nil, 3)
@@ -263,7 +260,6 @@ module Legion
           end
           # rubocop:enable Metrics/AbcSize
 
-          # rubocop:disable Metrics/MethodLength
           def handle_macro(input)
             parts = input.split(nil, 3)
             subcommand = parts[1]
@@ -288,7 +284,6 @@ module Legion
             end
             :handled
           end
-          # rubocop:enable Metrics/MethodLength
 
           def macro_record(name)
             unless name
@@ -378,7 +373,7 @@ module Legion
             end
           end
 
-          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
           def handle_chain(input)
             args = input.split(nil, 2)[1]
             unless args
@@ -412,9 +407,8 @@ module Legion
             )
             :handled
           end
-          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
         end
-        # rubocop:enable Metrics/ModuleLength
       end
     end
   end

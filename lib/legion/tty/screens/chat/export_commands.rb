@@ -132,6 +132,35 @@ module Legion
             :handled
           end
           # rubocop:enable Metrics/AbcSize
+
+          def handle_tee(input)
+            arg = input.split(nil, 2)[1]
+            if arg.nil?
+              status = @tee_path ? "Tee active: #{@tee_path}" : 'Tee inactive.'
+              @message_stream.add_message(role: :system, content: status)
+              return :handled
+            end
+
+            if arg.strip == 'off'
+              @tee_path = nil
+              @message_stream.add_message(role: :system, content: 'Tee stopped.')
+            else
+              @tee_path = File.expand_path(arg.strip)
+              @message_stream.add_message(role: :system, content: "Tee started: #{@tee_path}")
+            end
+            :handled
+          rescue StandardError => e
+            @message_stream.add_message(role: :system, content: "Tee error: #{e.message}")
+            :handled
+          end
+
+          def tee_message(line)
+            return unless @tee_path
+
+            File.open(@tee_path, 'a') { |f| f.puts(line) }
+          rescue StandardError
+            nil
+          end
         end
       end
     end

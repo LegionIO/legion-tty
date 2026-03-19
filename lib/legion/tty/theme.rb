@@ -2,7 +2,6 @@
 
 module Legion
   module TTY
-    # rubocop:disable Metrics/ModuleLength
     module Theme
       # rubocop:disable Naming/VariableNumber
       THEMES = {
@@ -125,6 +124,5 @@ module Legion
         end
       end
     end
-    # rubocop:enable Metrics/ModuleLength
   end
 end

@@ -105,7 +105,11 @@ RSpec.describe Legion::TTY::SessionStore do
 
     it 'sorts by saved_at descending (most recent first)' do
       store.save('old', messages: [])
-      sleep 1.1
+      # Backdate the 'old' session file instead of sleeping
+      old_path = File.join(tmpdir, 'old.json')
+      data = JSON.parse(File.read(old_path))
+      data['saved_at'] = (Time.now - 60).iso8601
+      File.write(old_path, JSON.generate(data))
       store.save('new', messages: [])
       list = store.list
       expect(list.first[:name]).to eq('new')
