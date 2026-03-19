@@ -101,6 +101,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:collect_bootstrap_result)
       allow(screen).to receive(:run_cache_awakening)
       allow(screen).to receive(:run_gaia_awakening)
+      allow(screen).to receive(:run_extension_detection)
       allow(screen).to receive(:run_reveal).and_return(true)
       result = screen.activate
       expect(result).to include(:name, :provider)
@@ -113,6 +114,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:collect_background_results).and_return([nil, nil])
       allow(screen).to receive(:run_cache_awakening)
       allow(screen).to receive(:run_gaia_awakening)
+      allow(screen).to receive(:run_extension_detection)
       allow(screen).to receive(:run_reveal).and_return(true)
       expect(screen).not_to receive(:run_rain)
       screen.activate
@@ -511,6 +513,95 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       screen.instance_variable_set(:@bootstrap_queue, queue)
       expect(screen).to receive(:typed_output).with('Configuration loaded.')
       screen.send(:collect_bootstrap_result)
+    end
+  end
+
+  describe '#run_extension_detection' do
+    before do
+      allow(screen).to receive(:typed_output)
+      allow(screen).to receive(:sleep)
+    end
+
+    it 'skips when lex-detect gem is not available' do
+      allow(screen).to receive(:detect_gem_available?).and_return(false)
+      expect(screen).not_to receive(:typed_output)
+      screen.send(:run_extension_detection)
+    end
+
+    it 'skips when detect queue returns no results' do
+      allow(screen).to receive(:detect_gem_available?).and_return(true)
+      queue = Queue.new
+      queue.push({ type: :detect_complete, data: [] })
+      screen.instance_variable_set(:@detect_queue, queue)
+      expect(screen).not_to receive(:typed_output)
+      screen.send(:run_extension_detection)
+    end
+
+    it 'displays hooking into lines for each detection' do
+      allow(screen).to receive(:detect_gem_available?).and_return(true)
+      queue = Queue.new
+      queue.push({
+                   type: :detect_complete,
+                   data: [
+                     { name: 'Claude', extensions: ['lex-claude'], installed: { 'lex-claude' => true } },
+                     { name: 'Slack', extensions: ['lex-slack'], installed: { 'lex-slack' => true } }
+                   ]
+                 })
+      screen.instance_variable_set(:@detect_queue, queue)
+      expect(screen).to receive(:typed_output).with('  hooking into Claude...')
+      expect(screen).to receive(:typed_output).with('  hooking into Slack...')
+      expect(screen).to receive(:typed_output).with('All connections established.')
+      screen.send(:run_extension_detection)
+    end
+
+    it 'offers to install missing extensions' do
+      detect_mod = Module.new do
+        def self.install_missing!
+          { installed: ['lex-slack'], failed: [] }
+        end
+      end
+      stub_const('Legion::Extensions::Detect', detect_mod)
+
+      allow(screen).to receive(:detect_gem_available?).and_return(true)
+      queue = Queue.new
+      queue.push({
+                   type: :detect_complete,
+                   data: [
+                     { name: 'Slack', extensions: ['lex-slack'], installed: { 'lex-slack' => false } }
+                   ]
+                 })
+      screen.instance_variable_set(:@detect_queue, queue)
+      allow(mock_wizard).to receive(:confirm).with('Install them now?').and_return(true)
+      expect(screen).to receive(:typed_output).with('Extensions installed. Neural pathways expanded.')
+      screen.send(:run_extension_detection)
+    end
+
+    it 'shows count of new connections when some are missing' do
+      allow(screen).to receive(:detect_gem_available?).and_return(true)
+      queue = Queue.new
+      queue.push({
+                   type: :detect_complete,
+                   data: [
+                     { name: 'Slack', extensions: ['lex-slack'], installed: { 'lex-slack' => false } },
+                     { name: 'Todoist', extensions: ['lex-todoist'], installed: { 'lex-todoist' => false } }
+                   ]
+                 })
+      screen.instance_variable_set(:@detect_queue, queue)
+      allow(mock_wizard).to receive(:confirm).with('Install them now?').and_return(false)
+      expect(screen).to receive(:typed_output).with('2 new connections available.')
+      screen.send(:run_extension_detection)
+    end
+  end
+
+  describe '#detect_gem_available?' do
+    it 'returns false when lex-detect is not installed' do
+      allow(screen).to receive(:require).with('legion/extensions/detect').and_raise(LoadError)
+      expect(screen.send(:detect_gem_available?)).to be(false)
+    end
+
+    it 'returns true when lex-detect is installed' do
+      allow(screen).to receive(:require).with('legion/extensions/detect').and_return(true)
+      expect(screen.send(:detect_gem_available?)).to be(true)
     end
   end
 end

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.8] - 2026-03-18
+
+### Added
+- Extension detection in onboarding: background scan via lex-detect during digital rain
+- "hooking into X..." typed output for each discovered service
+- Offers to install missing extensions when uninstalled gems are detected
+- Graceful skip when lex-detect gem is not installed
+- 7 new specs for extension detection and gem availability (381 total)
+
 ## [0.2.7] - 2026-03-18
 
 ### Added

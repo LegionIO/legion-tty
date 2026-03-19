@@ -22,12 +22,7 @@ module Legion
           @wizard = wizard || Components::WizardPrompt.new
           @output = output
           @skip_rain = skip_rain
-          @scan_queue = Queue.new
-          @github_queue = Queue.new
-          @github_quick_queue = Queue.new
-          @kerberos_queue = Queue.new
-          @llm_queue = Queue.new
-          @bootstrap_queue = Queue.new
+          initialize_queues
           @kerberos_identity = nil
           @github_quick = nil
           @vault_results = nil
@@ -48,6 +43,7 @@ module Legion
           scan_data, github_data = collect_background_results
           run_cache_awakening(scan_data)
           run_gaia_awakening
+          run_extension_detection
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
           @log.log('onboarding', 'activate complete')
           build_onboarding_result(config, scan_data, github_data)
@@ -146,6 +142,20 @@ module Legion
           @llm_probe.run_async(@llm_queue)
           @bootstrap_probe = Background::BootstrapConfig.new(logger: @log)
           @bootstrap_probe.run_async(@bootstrap_queue)
+          start_detect_probe
+        end
+
+        def start_detect_probe
+          return unless detect_gem_available?
+
+          @log.log('detect', 'launching environment scan')
+          Thread.new do
+            results = Legion::Extensions::Detect.scan
+            @detect_queue.push({ type: :detect_complete, data: results })
+          rescue StandardError => e
+            @log.log('detect', "ERROR: #{e.message}")
+            @detect_queue.push({ type: :detect_error, error: e.message })
+          end
         end
 
         def run_cache_awakening(scan_data)
@@ -267,6 +277,63 @@ module Legion
         # rubocop:enable Metrics/AbcSize
 
         private
+
+        def initialize_queues
+          @scan_queue = Queue.new
+          @github_queue = Queue.new
+          @github_quick_queue = Queue.new
+          @kerberos_queue = Queue.new
+          @llm_queue = Queue.new
+          @bootstrap_queue = Queue.new
+          @detect_queue = Queue.new
+        end
+
+        def run_extension_detection
+          return unless detect_gem_available?
+
+          result = drain_with_timeout(@detect_queue, timeout: 3)
+          results = result&.dig(:data) || []
+          return if results.empty?
+
+          @log.log('detect', "detected #{results.size} services")
+          display_detected_extensions(results)
+          offer_missing_extensions(results)
+          @output.puts
+        end
+
+        def display_detected_extensions(results)
+          results.each do |detection|
+            sleep 0.4
+            typed_output("  hooking into #{detection[:name]}...")
+            @output.puts
+          end
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def offer_missing_extensions(results)
+          missing = results.select { |r| r[:installed].values.any?(false) }
+          if missing.any?
+            missing_gems = missing.flat_map { |r| r[:extensions].reject { |e| r[:installed][e] } }.uniq
+            @output.puts
+            typed_output("#{missing_gems.size} new connection#{'s' if missing_gems.size != 1} available.")
+            @output.puts
+            if @wizard.confirm('Install them now?')
+              Legion::Extensions::Detect.install_missing!
+              typed_output('Extensions installed. Neural pathways expanded.')
+            end
+          else
+            typed_output('All connections established.')
+          end
+        end
+        # rubocop:enable Metrics/AbcSize
+
+        def detect_gem_available?
+          require 'legion/extensions/detect'
+          true
+        rescue LoadError
+          @log.log('detect', 'lex-detect gem not available, skipping')
+          false
+        end
 
         def collect_bootstrap_result
           result = drain_with_timeout(@bootstrap_queue, timeout: 5)
