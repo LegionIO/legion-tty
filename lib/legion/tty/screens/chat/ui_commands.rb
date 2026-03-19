@@ -277,6 +277,32 @@ module Legion
           def format_stat_number(num)
             num.to_s.chars.reverse.each_slice(3).map(&:join).join(',').reverse
           end
+
+          def handle_log(input)
+            n = (input.split(nil, 2)[1] || '20').to_i.clamp(1, 500)
+            log_path = File.expand_path('~/.legionio/logs/tty-boot.log')
+            unless File.exist?(log_path)
+              @message_stream.add_message(role: :system, content: 'No boot log found.')
+              return :handled
+            end
+
+            lines = File.readlines(log_path, chomp: true).last(n)
+            @message_stream.add_message(
+              role: :system,
+              content: "Boot log (last #{lines.size} lines):\n#{lines.join("\n")}"
+            )
+            :handled
+          end
+
+          def handle_version
+            ruby_ver = RUBY_VERSION
+            platform = RUBY_PLATFORM
+            @message_stream.add_message(
+              role: :system,
+              content: "legion-tty v#{Legion::TTY::VERSION}\nRuby: #{ruby_ver}\nPlatform: #{platform}"
+            )
+            :handled
+          end
         end
         # rubocop:enable Metrics/ModuleLength
       end

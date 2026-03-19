@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.17] - 2026-03-19
+
+### Added
+- `/template` command: 8 predefined prompt templates (explain, review, summarize, refactor, test, debug, translate, compare)
+- `/fav` and `/favs` commands: persistent favorites saved to `~/.legionio/favorites.json`
+- `/log [N]` command: view last N lines of boot log (default 20)
+- `/version` command: show legion-tty version, Ruby version, and platform
+
 ## [0.4.16] - 2026-03-19
 
 ### Added

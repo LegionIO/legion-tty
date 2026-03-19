@@ -6,7 +6,48 @@ module Legion
       class Chat < Base
         # rubocop:disable Metrics/ModuleLength
         module CustomCommands
+          TEMPLATES = {
+            'explain' => 'Explain the following concept in simple terms: ',
+            'review' => "Review this code for bugs, security issues, and improvements:\n```\n",
+            'summarize' => "Summarize the following text in 3 bullet points:\n",
+            'refactor' => "Refactor this code for readability and performance:\n```\n",
+            'test' => "Write unit tests for this code:\n```\n",
+            'debug' => "Help me debug this error:\n",
+            'translate' => 'Translate the following to ',
+            'compare' => "Compare and contrast the following:\n"
+          }.freeze
+
           private
+
+          # rubocop:disable Metrics/MethodLength
+          def handle_template(input)
+            name = input.split(nil, 2)[1]
+            unless name
+              lines = TEMPLATES.map { |k, v| "  #{k}: #{v[0, 60]}" }
+              @message_stream.add_message(
+                role: :system,
+                content: "Available templates (#{TEMPLATES.size}):\n#{lines.join("\n")}\n\nUsage: /template <name>"
+              )
+              return :handled
+            end
+
+            template = TEMPLATES[name]
+            unless template
+              available = TEMPLATES.keys.join(', ')
+              @message_stream.add_message(
+                role: :system,
+                content: "Template '#{name}' not found. Available: #{available}"
+              )
+              return :handled
+            end
+
+            @message_stream.add_message(
+              role: :system,
+              content: "Template '#{name}':\n#{template}"
+            )
+            :handled
+          end
+          # rubocop:enable Metrics/MethodLength
 
           def handle_alias(input)
             parts = input.split(nil, 3)

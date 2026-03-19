@@ -29,7 +29,8 @@ module Legion
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
-                            /wc /import /mute /autosave /react /macro /tag /tags /repeat /count].freeze
+                            /wc /import /mute /autosave /react /macro /tag /tags /repeat /count
+                            /template /fav /favs /log /version].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -379,6 +380,11 @@ module Legion
           when '/tags' then handle_tags(input)
           when '/repeat' then handle_repeat
           when '/count' then handle_count(input)
+          when '/template' then handle_template(input)
+          when '/fav' then handle_fav(input)
+          when '/favs' then handle_favs
+          when '/log' then handle_log(input)
+          when '/version' then handle_version
           else :handled
           end
         end

@@ -298,6 +298,72 @@ module Legion
               )
             end
           end
+
+          def favorites_file
+            File.expand_path('~/.legionio/favorites.json')
+          end
+
+          def load_favorites
+            return [] unless File.exist?(favorites_file)
+
+            raw = File.read(favorites_file)
+            parsed = ::JSON.parse(raw, symbolize_names: true)
+            parsed.is_a?(Array) ? parsed : []
+          rescue StandardError
+            []
+          end
+
+          def save_favorites(favs)
+            require 'fileutils'
+            FileUtils.mkdir_p(File.dirname(favorites_file))
+            File.write(favorites_file, ::JSON.generate(favs))
+          end
+
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+          def handle_fav(input)
+            idx_str = input.split(nil, 2)[1]
+            msg = if idx_str
+                    @message_stream.messages[idx_str.to_i]
+                  else
+                    @message_stream.messages.reverse.find { |m| m[:role] == :assistant }
+                  end
+            unless msg
+              @message_stream.add_message(role: :system, content: 'No message to favorite.')
+              return :handled
+            end
+
+            @favorites ||= []
+            entry = {
+              role: msg[:role],
+              content: msg[:content].to_s,
+              saved_at: Time.now.iso8601,
+              session: @session_name
+            }
+            @favorites << entry
+            save_favorites(load_favorites + [entry])
+            preview = truncate_text(msg[:content].to_s, 60)
+            @message_stream.add_message(role: :system, content: "Favorited: #{preview}")
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+          def handle_favs
+            all_favs = load_favorites
+            if all_favs.empty?
+              @message_stream.add_message(role: :system, content: 'No favorites saved.')
+              return :handled
+            end
+
+            lines = all_favs.each_with_index.map do |fav, i|
+              saved = fav[:saved_at] || ''
+              "  #{i + 1}. [#{fav[:role]}] #{truncate_text(fav[:content].to_s, 60)} (#{saved})"
+            end
+            @message_stream.add_message(
+              role: :system,
+              content: "Favorites (#{all_favs.size}):\n#{lines.join("\n")}"
+            )
+            :handled
+          end
         end
         # rubocop:enable Metrics/ModuleLength
       end

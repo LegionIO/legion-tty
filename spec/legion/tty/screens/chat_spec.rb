@@ -160,7 +160,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /save /load /sessions /system /delete /plan /palette /extensions /config /theme /search /grep
                     /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug
                     /uptime /time /bookmark /welcome /tips /wc /import /mute /autosave /react /macro /tag /tags
-                    /repeat /count]
+                    /repeat /count /template /fav /favs /log /version]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 
