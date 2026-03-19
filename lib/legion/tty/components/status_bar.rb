@@ -7,7 +7,7 @@ module Legion
     module Components
       class StatusBar
         def initialize
-          @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false }
+          @state = { model: nil, tokens: 0, cost: 0.0, session: 'default', thinking: false, plan_mode: false }
         end
 
         def update(**fields)
@@ -31,6 +31,7 @@ module Legion
         def build_segments
           [
             model_segment,
+            plan_segment,
             thinking_segment,
             tokens_segment,
             cost_segment,
@@ -40,6 +41,12 @@ module Legion
 
         def model_segment
           Theme.c(:accent, @state[:model]) if @state[:model]
+        end
+
+        def plan_segment
+          return nil unless @state[:plan_mode]
+
+          Theme.c(:warning, '[PLAN]')
         end
 
         def thinking_segment

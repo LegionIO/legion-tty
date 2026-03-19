@@ -13,7 +13,7 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
         SLASH_COMMANDS = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
-                            /sessions].freeze
+                            /sessions /system /delete /plan].freeze
 
         attr_reader :message_stream, :status_bar
 
@@ -28,6 +28,7 @@ module Legion
           @token_tracker = Components::TokenTracker.new(provider: detect_provider)
           @session_store = SessionStore.new
           @session_name = 'default'
+          @plan_mode = false
         end
 
         def activate
@@ -81,8 +82,12 @@ module Legion
 
         def handle_user_message(input)
           @message_stream.add_message(role: :user, content: input)
-          @message_stream.add_message(role: :assistant, content: '')
-          send_to_llm(input)
+          if @plan_mode
+            @message_stream.add_message(role: :system, content: '(bookmarked)')
+          else
+            @message_stream.add_message(role: :assistant, content: '')
+            send_to_llm(input)
+          end
           render_screen
         end
 
@@ -234,6 +239,9 @@ module Legion
           when '/sessions' then handle_sessions
           when '/dashboard' then handle_dashboard
           when '/hotkeys' then handle_hotkeys
+          when '/system' then handle_system(input)
+          when '/delete' then handle_delete(input)
+          when '/plan' then handle_plan
           else :handled
           end
         end
@@ -242,8 +250,9 @@ module Legion
         def handle_help
           @message_stream.add_message(
             role: :system,
-            content: "Commands: /help /quit /clear /model <name> /session <name> /cost\n  " \
-                     '/export [md|json] /tools /dashboard /hotkeys /save /load /sessions'
+            content: "Commands:\n  /help /quit /clear /model <name> /session <name> /cost\n  " \
+                     "/export [md|json] /tools /dashboard /hotkeys /save /load /sessions\n  " \
+                     '/system <prompt> /delete <session> /plan'
           )
           :handled
         end
@@ -408,6 +417,45 @@ module Legion
             @message_stream.add_message(role: :system, content: "Hotkeys:\n#{text}")
           else
             @message_stream.add_message(role: :system, content: 'Hotkeys not available.')
+          end
+          :handled
+        end
+
+        def handle_system(input)
+          text = input.split(nil, 2)[1]
+          if text
+            if @llm_chat&.respond_to?(:with_instructions)
+              @llm_chat.with_instructions(text)
+              @message_stream.add_message(role: :system, content: 'System prompt updated.')
+            else
+              @message_stream.add_message(role: :system, content: 'No active LLM session.')
+            end
+          else
+            @message_stream.add_message(role: :system, content: 'Usage: /system <prompt text>')
+          end
+          :handled
+        end
+
+        def handle_delete(input)
+          name = input.split(nil, 2)[1]
+          unless name
+            @message_stream.add_message(role: :system, content: 'Usage: /delete <session-name>')
+            return :handled
+          end
+          @session_store.delete(name)
+          @message_stream.add_message(role: :system, content: "Session '#{name}' deleted.")
+          :handled
+        end
+
+        def handle_plan
+          @plan_mode = !@plan_mode
+          if @plan_mode
+            @status_bar.update(plan_mode: true)
+            @message_stream.add_message(role: :system,
+                                        content: 'Plan mode ON -- messages are bookmarked, not sent to LLM.')
+          else
+            @status_bar.update(plan_mode: false)
+            @message_stream.add_message(role: :system, content: 'Plan mode OFF -- messages sent to LLM.')
           end
           :handled
         end

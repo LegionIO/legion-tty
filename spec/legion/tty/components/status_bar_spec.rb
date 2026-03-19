@@ -58,6 +58,20 @@ RSpec.describe Legion::TTY::Components::StatusBar do
     end
   end
 
+  describe 'plan_mode indicator' do
+    it 'shows [PLAN] when plan_mode is true' do
+      bar.update(plan_mode: true)
+      result = bar.render(width: 120)
+      expect(result).to include('[PLAN]')
+    end
+
+    it 'omits [PLAN] when plan_mode is false' do
+      bar.update(plan_mode: false)
+      result = bar.render(width: 120)
+      expect(result).not_to include('[PLAN]')
+    end
+  end
+
   describe 'thinking indicator' do
     it 'includes thinking text when thinking is true' do
       bar.update(thinking: true)

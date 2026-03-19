@@ -156,8 +156,89 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
 
     it 'includes all expected commands' do
-      expected = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load /sessions]
+      expected = %w[/help /quit /clear /model /session /cost /export /tools /dashboard /hotkeys /save /load
+                    /sessions /system /delete /plan]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
+    end
+
+    describe '/system' do
+      it 'calls with_instructions and confirms when llm_chat supports it' do
+        llm = double('llm_chat')
+        allow(llm).to receive(:respond_to?).with(:with_instructions).and_return(true)
+        allow(llm).to receive(:with_instructions)
+        screen.instance_variable_set(:@llm_chat, llm)
+        result = screen.handle_slash_command('/system hello world')
+        expect(result).to eq(:handled)
+        expect(llm).to have_received(:with_instructions).with('hello world')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('System prompt updated.')
+      end
+
+      it 'shows usage when no argument given' do
+        result = screen.handle_slash_command('/system')
+        expect(result).to eq(:handled)
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Usage: /system <prompt text>')
+      end
+
+      it 'shows error when llm_chat is nil' do
+        screen.instance_variable_set(:@llm_chat, nil)
+        result = screen.handle_slash_command('/system hello')
+        expect(result).to eq(:handled)
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('No active LLM session.')
+      end
+    end
+
+    describe '/delete' do
+      it 'calls session_store.delete with the given name' do
+        session_store = instance_double(Legion::TTY::SessionStore, delete: nil)
+        screen.instance_variable_set(:@session_store, session_store)
+        result = screen.handle_slash_command('/delete mysession')
+        expect(result).to eq(:handled)
+        expect(session_store).to have_received(:delete).with('mysession')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('mysession')
+      end
+
+      it 'shows usage when no argument given' do
+        result = screen.handle_slash_command('/delete')
+        expect(result).to eq(:handled)
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Usage: /delete <session-name>')
+      end
+    end
+
+    describe '/plan' do
+      it 'toggles plan_mode on' do
+        result = screen.handle_slash_command('/plan')
+        expect(result).to eq(:handled)
+        expect(screen.instance_variable_get(:@plan_mode)).to be true
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Plan mode ON')
+      end
+
+      it 'toggles plan_mode off when called twice' do
+        screen.handle_slash_command('/plan')
+        screen.handle_slash_command('/plan')
+        expect(screen.instance_variable_get(:@plan_mode)).to be false
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Plan mode OFF')
+      end
+    end
+  end
+
+  describe '#handle_user_message in plan_mode' do
+    before { screen.activate }
+
+    it 'bookmarks the message instead of sending to LLM when plan_mode is on' do
+      screen.instance_variable_set(:@plan_mode, true)
+      allow(screen).to receive(:send_to_llm)
+      allow(screen).to receive(:render_screen)
+      screen.handle_user_message('do something')
+      expect(screen).not_to have_received(:send_to_llm)
+      system_msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+      expect(system_msgs.last[:content]).to eq('(bookmarked)')
     end
   end
 
