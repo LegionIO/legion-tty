@@ -97,6 +97,103 @@ module Legion
             :handled
           end
 
+          def handle_prompt(input)
+            parts = input.split(nil, 3)
+            subcommand = parts[1]
+            name = parts[2]
+
+            case subcommand
+            when 'save'
+              prompt_save(name)
+            when 'load'
+              prompt_load(name)
+            when 'list'
+              prompt_list
+            when 'delete'
+              prompt_delete(name)
+            else
+              @message_stream.add_message(
+                role: :system,
+                content: 'Usage: /prompt save|load|list|delete <name>'
+              )
+            end
+            :handled
+          end
+
+          def prompt_dir
+            File.expand_path('~/.legionio/prompts')
+          end
+
+          def prompt_save(name)
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /prompt save <name>')
+              return
+            end
+
+            current = @llm_chat.respond_to?(:instructions) ? @llm_chat.instructions.to_s : ''
+            if current.empty?
+              @message_stream.add_message(role: :system, content: 'No system prompt is currently set.')
+              return
+            end
+
+            require 'fileutils'
+            FileUtils.mkdir_p(prompt_dir)
+            path = File.join(prompt_dir, "#{name}.txt")
+            File.write(path, current)
+            @message_stream.add_message(role: :system, content: "Prompt '#{name}' saved.")
+          end
+
+          def prompt_load(name)
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /prompt load <name>')
+              return
+            end
+
+            path = File.join(prompt_dir, "#{name}.txt")
+            unless File.exist?(path)
+              @message_stream.add_message(role: :system, content: "Prompt '#{name}' not found.")
+              return
+            end
+
+            content = File.read(path)
+            @llm_chat.with_instructions(content) if @llm_chat.respond_to?(:with_instructions)
+            @message_stream.add_message(role: :system, content: "Prompt '#{name}' loaded as system prompt.")
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def prompt_list
+            disk_prompts = Dir.glob(File.join(prompt_dir, '*.txt')).map { |f| File.basename(f, '.txt') }.sort
+
+            if disk_prompts.empty?
+              @message_stream.add_message(role: :system, content: 'No prompts saved.')
+              return
+            end
+
+            lines = disk_prompts.map do |pname|
+              path = File.join(prompt_dir, "#{pname}.txt")
+              preview = File.exist?(path) ? truncate_text(File.read(path), 60) : ''
+              "  #{pname}: #{preview}"
+            end
+            @message_stream.add_message(role: :system,
+                                        content: "Prompts (#{disk_prompts.size}):\n#{lines.join("\n")}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def prompt_delete(name)
+            unless name
+              @message_stream.add_message(role: :system, content: 'Usage: /prompt delete <name>')
+              return
+            end
+
+            path = File.join(prompt_dir, "#{name}.txt")
+            if File.exist?(path)
+              File.delete(path)
+              @message_stream.add_message(role: :system, content: "Prompt '#{name}' deleted.")
+            else
+              @message_stream.add_message(role: :system, content: "Prompt '#{name}' not found.")
+            end
+          end
+
           def snippet_dir
             File.expand_path('~/.legionio/snippets')
           end

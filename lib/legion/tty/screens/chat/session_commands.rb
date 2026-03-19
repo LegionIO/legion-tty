@@ -211,6 +211,28 @@ module Legion
           end
           # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
+          def handle_reset
+            @message_stream.messages.clear
+            @plan_mode = false
+            @focus_mode = false
+            @debug_mode = false
+            @muted_system = false
+            @pinned_messages = []
+            @aliases = {}
+            @macros = {}
+            @recording_macro = nil
+            @macro_buffer = []
+            @session_name = 'default'
+            @status_bar.update(session: 'default', plan_mode: false, debug_mode: false)
+            cfg = safe_config
+            @message_stream.add_message(
+              role: :system,
+              content: "Welcome#{", #{cfg[:name]}" if cfg[:name]}. Type /help for commands."
+            )
+            @status_bar.notify(message: 'Session reset', level: :info, ttl: 3)
+            :handled
+          end
+
           def handle_merge(input)
             name = input.split(nil, 2)[1]
             unless name

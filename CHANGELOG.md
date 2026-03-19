@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.20] - 2026-03-19
+
+### Added
+- `/prompt save|load|list|delete` command: persist and reuse custom system prompts
+- `/reset` command: reset session to clean state (clears messages, modes, aliases, macros)
+- `/replace old >>> new` command: find and replace text across all messages
+- `/highlight` command: highlight text patterns in message rendering with ANSI color
+
 ## [0.4.19] - 2026-03-19
 
 ### Added

@@ -351,6 +351,45 @@ module Legion
           end
           # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
+          def handle_highlight(input)
+            arg = input.split(nil, 2)[1]
+            @highlights ||= []
+
+            unless arg
+              @message_stream.add_message(role: :system, content: 'Usage: /highlight <pattern> | clear | list')
+              return :handled
+            end
+
+            case arg.strip
+            when 'clear' then highlight_clear
+            when 'list'  then highlight_list
+            else              highlight_add(arg.strip)
+            end
+            :handled
+          end
+
+          def highlight_clear
+            @highlights = []
+            @message_stream.highlights = @highlights
+            @message_stream.add_message(role: :system, content: 'Highlights cleared.')
+          end
+
+          def highlight_list
+            if @highlights.empty?
+              @message_stream.add_message(role: :system, content: 'No active highlights.')
+            else
+              lines = @highlights.each_with_index.map { |p, i| "  #{i + 1}. #{p}" }
+              @message_stream.add_message(role: :system,
+                                          content: "Active highlights (#{@highlights.size}):\n#{lines.join("\n")}")
+            end
+          end
+
+          def highlight_add(pattern)
+            @highlights << pattern
+            @message_stream.highlights = @highlights
+            @message_stream.add_message(role: :system, content: "Highlight added: '#{pattern}'")
+          end
+
           # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
           def handle_summary
             msgs = @message_stream.messages

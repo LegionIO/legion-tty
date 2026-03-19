@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'English'
 require_relative '../theme'
 
 module Legion
@@ -8,12 +9,16 @@ module Legion
       # rubocop:disable Metrics/ClassLength
       class MessageStream
         attr_reader :messages, :scroll_offset
-        attr_accessor :mute_system
+        attr_accessor :mute_system, :highlights
+
+        HIGHLIGHT_COLOR = "\e[1;33m"
+        HIGHLIGHT_RESET = "\e[0m"
 
         def initialize
           @messages = []
           @scroll_offset = 0
           @mute_system = false
+          @highlights = []
         end
 
         def add_message(role:, content:)
@@ -96,7 +101,8 @@ module Legion
         def user_lines(msg, _width)
           ts = format_timestamp(msg[:timestamp])
           header = "#{Theme.c(:accent, 'You')} #{Theme.c(:muted, ts)}"
-          lines = ['', "#{header}: #{msg[:content]}"]
+          content = apply_highlights(msg[:content].to_s)
+          lines = ['', "#{header}: #{content}"]
           lines << reaction_line(msg) if msg[:reactions]&.any?
           lines
         end
@@ -109,6 +115,7 @@ module Legion
 
         def assistant_lines(msg, width)
           rendered = render_markdown(msg[:content], width)
+          rendered = apply_highlights(rendered)
           lines = ['', *rendered.split("\n")]
           lines << reaction_line(msg) if msg[:reactions]&.any?
           lines
@@ -138,6 +145,16 @@ module Legion
 
         def panel_lines(msg, width)
           msg[:tool_panels].flat_map { |panel| panel.render(width: width).split("\n") }
+        end
+
+        def apply_highlights(text)
+          return text if @highlights.nil? || @highlights.empty?
+
+          @highlights.reduce(text) do |result, pattern|
+            result.gsub(pattern) { "#{HIGHLIGHT_COLOR}#{$LAST_MATCH_INFO}#{HIGHLIGHT_RESET}" }
+          end
+        rescue StandardError
+          text
         end
 
         def apply_tool_panel_update(panel, status:, duration:, result:, error:)

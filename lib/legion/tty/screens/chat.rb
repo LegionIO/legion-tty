@@ -32,7 +32,8 @@ module Legion
                             /wc /import /mute /autosave /react /macro /tag /tags /repeat /count
                             /template /fav /favs /log /version
                             /focus /retry /merge /sort
-                            /chain /info /scroll /summary].freeze
+                            /chain /info /scroll /summary
+                            /prompt /reset /replace /highlight].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -72,6 +73,7 @@ module Legion
           @last_command = nil
           @focus_mode = false
           @last_user_input = nil
+          @highlights = []
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -410,6 +412,10 @@ module Legion
           when '/info' then handle_info
           when '/scroll' then handle_scroll(input)
           when '/summary' then handle_summary
+          when '/prompt' then handle_prompt(input)
+          when '/reset' then handle_reset
+          when '/replace' then handle_replace(input)
+          when '/highlight' then handle_highlight(input)
           else :handled
           end
         end

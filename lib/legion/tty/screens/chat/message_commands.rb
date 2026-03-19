@@ -248,6 +248,41 @@ module Legion
             :handled
           end
 
+          def handle_replace(input)
+            args = input.split(nil, 2)[1]
+            unless args&.include?(' >>> ')
+              @message_stream.add_message(role: :system, content: 'Usage: /replace old >>> new')
+              return :handled
+            end
+
+            parts = args.split(' >>> ', 2)
+            count = apply_replace(parts[0], parts[1] || '')
+            report_replace_result(count, parts[0], parts[1] || '')
+            :handled
+          end
+
+          def apply_replace(old_text, new_text)
+            count = 0
+            @message_stream.messages.each do |msg|
+              next unless msg[:content].is_a?(::String) && msg[:content].include?(old_text)
+
+              count += msg[:content].scan(old_text).size
+              msg[:content] = msg[:content].gsub(old_text, new_text)
+            end
+            count
+          end
+
+          def report_replace_result(count, old_text, new_text)
+            if count.zero?
+              @message_stream.add_message(role: :system, content: "No occurrences of '#{old_text}' found.")
+            else
+              @message_stream.add_message(
+                role: :system,
+                content: "Replaced #{count} occurrence#{'s' unless count == 1} of '#{old_text}' with '#{new_text}'."
+              )
+            end
+          end
+
           def search_messages(query)
             pattern = query.downcase
             @message_stream.messages.select do |msg|
