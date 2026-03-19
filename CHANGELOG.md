@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.10] - 2026-03-19
+
+### Fixed
+- LLM boot order: follow Legion::Service init sequence (logging -> settings -> crypt -> resolve_secrets -> LLM merge -> start) instead of ad-hoc loading
+- TTY shell now correctly discovers LLM providers configured in ~/.legionio/settings/llm.json
+
+### Added
+- `boot_legion_subsystems` method mirrors Service.rb initialization order
+- `settings_search_path` helper matching Service default config search paths
+
 ## [0.2.9] - 2026-03-18
 
 ### Fixed

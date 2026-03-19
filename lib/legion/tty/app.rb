@@ -93,6 +93,7 @@ module Legion
       end
 
       def setup_llm
+        boot_legion_subsystems
         @llm_chat = try_settings_llm || try_credentials_llm
       rescue StandardError
         @llm_chat = nil
@@ -140,9 +141,48 @@ module Legion
 
       private
 
-      def try_settings_llm
-        require 'legion/llm'
+      def boot_legion_subsystems # rubocop:disable Metrics/MethodLength
+        # Follow the same init order as Legion::Service:
+        # 1. logging  2. settings  3. crypt  4. resolve secrets  5. LLM merge
+        require 'legion/logging'
+        Legion::Logging.setup(log_level: 'error', level: 'error', trace: false)
+
         require 'legion/settings'
+        unless Legion::Settings.instance_variable_get(:@loader)
+          config_dir = settings_search_path
+          Legion::Settings.load(config_dir: config_dir)
+        end
+
+        begin
+          require 'legion/crypt'
+          Legion::Crypt.start unless Legion::Crypt.instance_variable_get(:@started)
+          Legion::Settings.resolve_secrets! if Legion::Settings.respond_to?(:resolve_secrets!)
+        rescue LoadError, StandardError
+          nil
+        end
+
+        begin
+          require 'legion/llm'
+          Legion::Settings.merge_settings(:llm, Legion::LLM::Settings.default)
+        rescue LoadError
+          nil
+        end
+      rescue LoadError
+        nil
+      end
+
+      def settings_search_path
+        [
+          '/etc/legionio',
+          File.expand_path('~/.legionio/settings'),
+          File.expand_path('~/legionio'),
+          './settings'
+        ].find { |p| Dir.exist?(p) } || @config_dir
+      end
+
+      def try_settings_llm
+        return nil unless defined?(Legion::LLM)
+
         Legion::LLM.start unless Legion::LLM.started?
         return nil unless Legion::LLM.started?
 
@@ -150,7 +190,7 @@ module Legion
         return nil unless provider
 
         Legion::LLM.chat(provider: provider)
-      rescue LoadError, StandardError
+      rescue StandardError
         nil
       end
 
@@ -248,14 +288,13 @@ module Legion
       end
 
       def try_legion_llm(llm_provider, api_key)
-        require 'legion/llm'
-        return false unless defined?(Legion::Settings)
+        return false unless defined?(Legion::LLM) && defined?(Legion::Settings)
 
         Legion::Settings[:llm][:providers][llm_provider][:enabled] = true
         Legion::Settings[:llm][:providers][llm_provider][:api_key] = api_key
         Legion::LLM.start unless Legion::LLM.started?
         true
-      rescue LoadError, StandardError
+      rescue StandardError
         false
       end
 
