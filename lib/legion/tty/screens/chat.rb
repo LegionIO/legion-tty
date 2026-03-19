@@ -45,12 +45,18 @@ module Legion
           @running
         end
 
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def run
           activate
           while @running
             render_screen
             input = read_input
             break if input.nil?
+
+            if @app.respond_to?(:screen_manager) && @app.screen_manager.overlay
+              @app.screen_manager.dismiss_overlay
+              next
+            end
 
             result = handle_slash_command(input)
             if result == :quit
@@ -62,6 +68,7 @@ module Legion
             end
           end
         end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def handle_slash_command(input)
           return nil unless input.start_with?('/')
@@ -81,18 +88,21 @@ module Legion
 
         def send_to_llm(message)
           unless @llm_chat
-            @message_stream.append_streaming(
-              'LLM not configured. Use /help for commands.'
-            )
+            @message_stream.append_streaming('LLM not configured. Use /help for commands.')
             return
           end
 
+          @status_bar.update(thinking: true)
+          render_screen
           response = @llm_chat.ask(message) do |chunk|
+            @status_bar.update(thinking: false)
             @message_stream.append_streaming(chunk.content) if chunk.content
             render_screen
           end
+          @status_bar.update(thinking: false)
           track_response_tokens(response)
         rescue StandardError => e
+          @status_bar.update(thinking: false)
           @message_stream.append_streaming("\n[Error: #{e.message}]")
         end
 
@@ -175,7 +185,30 @@ module Legion
           @output.print ::TTY::Cursor.move_to(0, 0)
           @output.print ::TTY::Cursor.clear_screen_down
           lines.each { |line| @output.puts line }
+          render_overlay if @app.respond_to?(:screen_manager) && @app.screen_manager.overlay
         end
+
+        # rubocop:disable Metrics/AbcSize
+        def render_overlay
+          require 'tty-box'
+          text = @app.screen_manager.overlay.to_s
+          width = (terminal_width - 4).clamp(40, terminal_width)
+          box = ::TTY::Box.frame(
+            width: width,
+            padding: 1,
+            title: { top_left: ' Help ' },
+            border: :round
+          ) { text }
+          overlay_lines = box.split("\n")
+          start_row = [(terminal_height - overlay_lines.size) / 2, 0].max
+          overlay_lines.each_with_index do |line, i|
+            @output.print ::TTY::Cursor.move_to(2, start_row + i)
+            @output.print line
+          end
+        rescue StandardError
+          nil
+        end
+        # rubocop:enable Metrics/AbcSize
 
         def read_input
           return nil unless @input_bar.respond_to?(:read_line)

@@ -57,4 +57,25 @@ RSpec.describe Legion::TTY::Components::StatusBar do
       expect(plain.length).to be <= 80
     end
   end
+
+  describe 'thinking indicator' do
+    it 'includes thinking text when thinking is true' do
+      bar.update(thinking: true)
+      result = bar.render(width: 120)
+      expect(result).to include('thinking...')
+    end
+
+    it 'omits thinking text when thinking is false' do
+      bar.update(thinking: false)
+      result = bar.render(width: 120)
+      expect(result).not_to include('thinking...')
+    end
+
+    it 'thinking segment uses warning color' do
+      allow(Legion::TTY::Theme).to receive(:c).and_call_original
+      expect(Legion::TTY::Theme).to receive(:c).with(:warning, 'thinking...')
+      bar.update(thinking: true)
+      bar.render(width: 120)
+    end
+  end
 end

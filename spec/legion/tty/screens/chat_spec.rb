@@ -209,4 +209,38 @@ RSpec.describe Legion::TTY::Screens::Chat do
       expect(result).to eq(:pass)
     end
   end
+
+  describe 'overlay dismiss on next input' do
+    it 'dismisses overlay when input is received while overlay is active' do
+      screen_manager = double('screen_manager')
+      overlay_app = double('app', config: { name: 'Matt', provider: 'claude' }, llm_chat: nil)
+      allow(overlay_app).to receive(:respond_to?).and_return(false)
+      allow(overlay_app).to receive(:respond_to?).with(:llm_chat).and_return(true)
+      allow(overlay_app).to receive(:respond_to?).with(:screen_manager).and_return(true)
+      allow(overlay_app).to receive(:screen_manager).and_return(screen_manager)
+      dismissed = false
+      allow(screen_manager).to receive(:overlay) { dismissed ? nil : 'Help text' }
+      expect(screen_manager).to(receive(:dismiss_overlay).once { dismissed = true })
+
+      overlay_screen = described_class.new(overlay_app, output: output, input_bar: mock_input_bar)
+      allow(mock_input_bar).to receive(:read_line).and_return('any input', nil)
+      overlay_screen.activate
+      overlay_screen.run
+    end
+  end
+
+  describe '#render_overlay' do
+    it 'does not crash when overlay is nil' do
+      screen_manager = double('screen_manager')
+      overlay_app = double('app', config: { name: 'Matt', provider: 'claude' }, llm_chat: nil)
+      allow(overlay_app).to receive(:respond_to?).and_return(false)
+      allow(overlay_app).to receive(:respond_to?).with(:llm_chat).and_return(true)
+      allow(overlay_app).to receive(:respond_to?).with(:screen_manager).and_return(true)
+      allow(overlay_app).to receive(:screen_manager).and_return(screen_manager)
+      allow(screen_manager).to receive(:overlay).and_return(nil)
+
+      overlay_screen = described_class.new(overlay_app, output: output, input_bar: mock_input_bar)
+      expect { overlay_screen.send(:render_screen) }.not_to raise_error
+    end
+  end
 end
