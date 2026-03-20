@@ -44,6 +44,7 @@ module Legion
           run_cache_awakening(scan_data)
           run_gaia_awakening
           run_extension_detection
+          run_service_auth
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
           @log.log('onboarding', 'activate complete')
           build_onboarding_result(config, scan_data, github_data)
@@ -326,6 +327,74 @@ module Legion
           end
         end
         # rubocop:enable Metrics/AbcSize
+
+        def run_service_auth
+          run_teams_auth if teams_detected? && teams_gem_loadable? && !teams_already_authenticated?
+        end
+
+        def run_teams_auth
+          return unless @wizard.confirm('I see Microsoft Teams on your system. Connect to it?')
+
+          typed_output('Connecting to Microsoft Teams...')
+          @output.puts
+          browser_auth = build_teams_browser_auth
+          result = browser_auth.authenticate
+          if result && result[:access_token]
+            store_teams_token(result)
+            typed_output('Teams connected.')
+          else
+            typed_output('Teams connection skipped.')
+          end
+          @output.puts
+        rescue StandardError => e
+          typed_output("Teams connection failed: #{e.message}")
+          @output.puts
+        end
+
+        def teams_detected?
+          return false unless defined?(@detect_queue)
+
+          detect_result = drain_with_timeout(@detect_queue, timeout: 0)
+          return false unless detect_result
+
+          results = detect_result.dig(:data) || []
+          results.any? { |d| d[:name] == 'Microsoft Teams' }
+        rescue StandardError
+          false
+        end
+
+        def teams_gem_loadable?
+          Gem::Specification.find_by_name('lex-microsoft_teams')
+          true
+        rescue Gem::MissingSpecError
+          false
+        end
+
+        def teams_already_authenticated?
+          File.exist?(File.expand_path('~/.legionio/tokens/microsoft_teams.json'))
+        end
+
+        def build_teams_browser_auth
+          require 'legion/extensions/microsoft_teams/helpers/browser_auth'
+          settings = begin
+            Legion::Settings.dig(:microsoft_teams, :auth) || {}
+          rescue StandardError
+            {}
+          end
+          Legion::Extensions::MicrosoftTeams::Helpers::BrowserAuth.new(
+            tenant_id: settings[:tenant_id],
+            client_id: settings[:client_id]
+          )
+        end
+
+        def store_teams_token(result)
+          require 'legion/extensions/microsoft_teams/helpers/token_cache'
+          cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.new
+          cache.store_delegated_token(result)
+          cache.save_to_vault
+        rescue StandardError
+          nil
+        end
 
         def detect_gem_available?
           require 'legion/extensions/detect'
