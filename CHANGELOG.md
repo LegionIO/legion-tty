@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.29] - 2026-03-20
+
+### Fixed
+- RuboCop `Style/SingleArgumentDig` offense in onboarding teams detection
+- RuboCop `Layout/LineLength` offense in onboarding teams spec
+
 ## [0.4.28] - 2026-03-19
 
 ### Added
