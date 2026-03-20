@@ -357,7 +357,7 @@ module Legion
           detect_result = drain_with_timeout(@detect_queue, timeout: 0)
           return false unless detect_result
 
-          results = detect_result.dig(:data) || []
+          results = detect_result[:data] || []
           results.any? { |d| d[:name] == 'Microsoft Teams' }
         rescue StandardError
           false

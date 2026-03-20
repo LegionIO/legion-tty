@@ -74,7 +74,8 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   describe '#teams_already_authenticated?' do
     it 'checks for token file existence' do
       allow(File).to receive(:exist?).and_call_original
-      allow(File).to receive(:exist?).with(File.expand_path('~/.legionio/tokens/microsoft_teams.json')).and_return(false)
+      token_path = File.expand_path('~/.legionio/tokens/microsoft_teams.json')
+      allow(File).to receive(:exist?).with(token_path).and_return(false)
       expect(onboarding.send(:teams_already_authenticated?)).to be false
     end
   end
