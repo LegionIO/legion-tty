@@ -8,7 +8,7 @@ Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wi
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.27
+**Version**: 0.4.28
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 
@@ -20,6 +20,7 @@ lib/legion/tty/
   screen_manager.rb       # Push/pop screen stack, overlay, render queue
   hotkeys.rb              # Key binding registry (Ctrl+D, Ctrl+K, Ctrl+S, Ctrl+L, Escape)
   session_store.rb        # JSON session persistence (~/.legionio/sessions/)
+  daemon_client.rb        # HTTP client for LegionIO daemon REST API (routes tasks, gets status)
   boot_logger.rb          # Boot sequence logging
   theme.rb                # 4 themes (purple/green/blue/amber) with 17-shade palettes + semantic colors
   version.rb
@@ -36,8 +37,8 @@ lib/legion/tty/
       model_commands.rb   #   model/system/personality switching/retry/chain/info/scroll/summary/prompt/reset/replace/highlight/multiline/filter/annotate/annotations
       custom_commands.rb  #   alias/snippet/template/macro/draft/revise/tee/pipe/archive/archives/ls/pwd/prefix/suffix
     dashboard.rb          # Service/LLM status, extensions, system info, panel navigation (j/k/1-5)
-    extensions.rb         # LEX gem browser: category filter (f/c keys), detail view, 'o' opens homepage
-    config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking, JSON validation, 'b' backup
+    extensions.rb         # LEX gem browser: category filter (f/c keys), detail view, 'o' opens homepage (lazy-loaded)
+    config.rb             # Settings viewer/editor: ~/.legionio/settings/*.json, vault:// masking, JSON validation, 'b' backup (lazy-loaded)
 
   components/
     digital_rain.rb       # Matrix-style falling LEX names
@@ -59,6 +60,8 @@ lib/legion/tty/
     scanner.rb            # Port probing, git repos, shell history, config detection
     github_probe.rb       # GitHub API: profile, repos, PRs, notifications, events
     kerberos_probe.rb     # klist + DNS SRV + LDAP profile resolution
+    bootstrap_config.rb   # LEGIONIO_BOOTSTRAP_CONFIG fetch + split into ~/.legionio/settings/{key}.json
+    llm_probe.rb          # LLM provider availability probe (checks local Ollama, cloud keys)
 ```
 
 ## LLM Integration
