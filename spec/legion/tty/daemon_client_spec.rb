@@ -20,6 +20,7 @@ RSpec.describe Legion::TTY::DaemonClient do
 
   describe '.available?' do
     it 'returns false when daemon is not reachable' do
+      allow(Net::HTTP).to receive(:start).and_raise(Errno::ECONNREFUSED)
       expect(described_class.available?).to be false
     end
   end

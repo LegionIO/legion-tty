@@ -5,6 +5,7 @@ require_relative '../components/message_stream'
 require_relative '../components/status_bar'
 require_relative '../components/input_bar'
 require_relative '../components/token_tracker'
+require_relative '../components/tool_call_parser'
 require_relative '../theme'
 require_relative 'chat/session_commands'
 require_relative 'chat/export_commands'
@@ -258,7 +259,9 @@ module Legion
 
           case result&.dig(:status)
           when :done
-            @message_stream.append_streaming(result[:response])
+            parser = build_tool_call_parser
+            parser.feed(result[:response])
+            parser.flush
           when :error
             err = result.dig(:error, :message) || 'Unknown error'
             @message_stream.append_streaming("\n[Daemon error: #{err}]")
@@ -277,14 +280,16 @@ module Legion
           render_screen
           start_time = Time.now
           response_text = +''
+          parser = build_tool_call_parser
           response = @llm_chat.ask(message) do |chunk|
             @status_bar.update(thinking: false)
             if chunk.content
               response_text << chunk.content
-              @message_stream.append_streaming(chunk.content)
+              parser.feed(chunk.content)
             end
             render_screen
           end
+          parser.flush
           record_response_time(Time.now - start_time)
           @status_bar.update(thinking: false)
           track_response_tokens(response)
@@ -615,6 +620,19 @@ module Legion
             "macros:#{@macros.size} " \
             "pinned:#{@pinned_messages.size} " \
             "autosave:#{@autosave_enabled}"
+        end
+
+        def build_tool_call_parser
+          Components::ToolCallParser.new(
+            on_text: lambda { |text|
+              last = @message_stream.messages.last
+              @message_stream.add_message(role: :assistant, content: '') if last && last[:tool_panel]
+              @message_stream.append_streaming(text)
+            },
+            on_tool_call: lambda { |name:, args:|
+              @message_stream.add_tool_call(name: name, args: args, status: :complete)
+            }
+          )
         end
 
         def build_default_input_bar
