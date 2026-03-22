@@ -98,6 +98,7 @@ module Legion
             display_grep_results(results, pattern_str)
             :handled
           rescue RegexpError => e
+            Legion::Logging.warn("handle_grep regex error: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Invalid regex: #{e.message}")
             :handled
           end
@@ -300,10 +301,12 @@ module Legion
 
           def copy_to_clipboard(text)
             IO.popen('pbcopy', 'w') { |io| io.write(text) }
-          rescue Errno::ENOENT
+          rescue Errno::ENOENT => e
+            Legion::Logging.debug("pbcopy not available: #{e.message}") if defined?(Legion::Logging)
             begin
               IO.popen('xclip -selection clipboard', 'w') { |io| io.write(text) }
-            rescue Errno::ENOENT
+            rescue Errno::ENOENT => e
+              Legion::Logging.debug("xclip not available: #{e.message}") if defined?(Legion::Logging)
               nil
             end
           end
@@ -394,7 +397,8 @@ module Legion
             raw = File.read(favorites_file)
             parsed = ::JSON.parse(raw, symbolize_names: true)
             parsed.is_a?(Array) ? parsed : []
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.warn("load_favorites failed: #{e.message}") if defined?(Legion::Logging)
             []
           end
 

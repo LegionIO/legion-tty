@@ -24,7 +24,8 @@ module Legion
             http.get(uri.path)
           end
           response.code.to_i == 200
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("daemon available? check failed: #{e.message}") if defined?(Legion::Logging)
           false
         end
 
@@ -39,7 +40,8 @@ module Legion
           @manifest = body[:data]
           write_cache(@manifest)
           @manifest
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("fetch_manifest failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -49,7 +51,8 @@ module Legion
           return nil unless @cache_file && File.exist?(@cache_file)
 
           @manifest = Legion::JSON.load(File.read(@cache_file))
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("cached_manifest failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -81,7 +84,8 @@ module Legion
           return nil unless response && SUCCESS_CODES.include?(response.code.to_i)
 
           Legion::JSON.load(response.body)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("chat failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -110,7 +114,8 @@ module Legion
 
           FileUtils.mkdir_p(File.dirname(@cache_file))
           File.write(@cache_file, Legion::JSON.dump(data))
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("write_cache failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end

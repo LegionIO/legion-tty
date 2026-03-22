@@ -9,6 +9,7 @@ module Legion
           table = ::TTY::Table.new(header: headers, rows: rows)
           table.render(:unicode, width: width, padding: [0, 1]) || ''
         rescue StandardError => e
+          Legion::Logging.warn("table render failed: #{e.message}") if defined?(Legion::Logging)
           "Table render error: #{e.message}"
         end
       end

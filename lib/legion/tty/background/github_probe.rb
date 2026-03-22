@@ -104,7 +104,8 @@ module Legion
           return 0 unless data.is_a?(Hash)
 
           data['total_count'] || 0
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("count_commits failed: #{e.message}") if defined?(Legion::Logging)
           0
         end
 
@@ -326,7 +327,8 @@ module Legion
           http = build_http(uri)
           response = http.request(build_request(uri))
           ::JSON.parse(response.body)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("api_get failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 

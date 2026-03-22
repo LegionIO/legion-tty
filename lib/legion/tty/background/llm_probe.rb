@@ -53,6 +53,7 @@ module Legion
           { name: name, model: model, status: :ok, latency_ms: latency }
         rescue StandardError => e
           latency = ((Time.now - start_time) * 1000).round
+          Legion::Logging.debug("ping_provider #{name} failed: #{e.message}") if defined?(Legion::Logging)
           { name: name, model: model, status: :error, latency_ms: latency, error: e.message }
         end
       end

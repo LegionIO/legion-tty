@@ -25,6 +25,7 @@ module Legion
 
             apply_model_switch(name)
           rescue StandardError => e
+            Legion::Logging.warn("switch_model failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
           end
 
@@ -53,7 +54,8 @@ module Legion
             return nil unless providers.is_a?(Hash) && providers.key?(name.to_sym)
 
             Legion::LLM.chat(provider: name)
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.warn("try_provider_switch failed: #{e.message}") if defined?(Legion::Logging)
             nil
           end
 

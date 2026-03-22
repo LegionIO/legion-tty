@@ -37,7 +37,8 @@ module Legion
             { name: "#{m[:provider]} / #{m[:model]}#{indicator}", value: m }
           end
           prompt.select('Select model:', choices, per_page: 10)
-        rescue ::TTY::Reader::InputInterrupt, Interrupt
+        rescue ::TTY::Reader::InputInterrupt, Interrupt => e
+          Legion::Logging.debug("model picker cancelled: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end

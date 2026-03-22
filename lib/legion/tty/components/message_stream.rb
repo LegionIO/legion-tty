@@ -182,7 +182,8 @@ module Legion
         def render_markdown(text, width)
           require_relative 'markdown_view'
           MarkdownView.render(text, width: width)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("render_markdown failed: #{e.message}") if defined?(Legion::Logging)
           text
         end
 
@@ -206,7 +207,8 @@ module Legion
           @highlights.reduce(text) do |result, pattern|
             result.gsub(pattern) { "#{HIGHLIGHT_COLOR}#{$LAST_MATCH_INFO}#{HIGHLIGHT_RESET}" }
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("apply_highlights failed: #{e.message}") if defined?(Legion::Logging)
           text
         end
 

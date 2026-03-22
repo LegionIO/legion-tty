@@ -39,7 +39,8 @@ module Legion
           gems = Gem::Specification.select { |s| s.name.start_with?('lex-') }
                                    .map { |s| s.name.sub(/^lex-/, '') }
           gems.empty? ? FALLBACK_NAMES : gems
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("extension_names failed: #{e.message}") if defined?(Legion::Logging)
           FALLBACK_NAMES
         end
 

@@ -171,7 +171,8 @@ module Legion
           return unless entry && entry[:homepage]
 
           system_open(entry[:homepage])
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("open_homepage failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 

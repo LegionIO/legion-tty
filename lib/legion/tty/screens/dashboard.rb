@@ -215,11 +215,12 @@ module Legion
           else
             :pass
           end
-        rescue LoadError, StandardError
+        rescue LoadError, StandardError => e
+          Legion::Logging.debug("extensions_shortcut failed: #{e.message}") if defined?(Legion::Logging)
           :pass
         end
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
         def llm_info
           info = { provider: 'none', model: nil, started: false, daemon: false }
           if defined?(Legion::LLM)
@@ -233,11 +234,12 @@ module Legion
                             Legion::LLM::DaemonClient.available?
           end
           info
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("llm_info failed: #{e.message}") if defined?(Legion::Logging)
           info
         end
 
-        # rubocop:enable Metrics/AbcSize
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
         def probe_services
           require 'socket'
@@ -252,13 +254,15 @@ module Legion
 
         def port_open?(port)
           ::Socket.tcp('127.0.0.1', port, connect_timeout: 0.5) { true }
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("port_open? #{port} failed: #{e.message}") if defined?(Legion::Logging)
           false
         end
 
         def discover_extensions
           Gem::Specification.select { |s| s.name.start_with?('lex-') }.map(&:name).sort
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("discover_extensions failed: #{e.message}") if defined?(Legion::Logging)
           []
         end
 
@@ -270,7 +274,8 @@ module Legion
             pid: ::Process.pid,
             memory: format_memory
           }
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("system_info failed: #{e.message}") if defined?(Legion::Logging)
           {}
         end
 
@@ -283,7 +288,8 @@ module Legion
             rss_kb = match ? match[1].to_i : 0
             "#{(rss_kb / 1024.0).round(1)} MB"
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("format_memory failed: #{e.message}") if defined?(Legion::Logging)
           'unknown'
         end
 
@@ -292,7 +298,8 @@ module Legion
           return [] unless File.exist?(log_path)
 
           File.readlines(log_path, chomp: true).last(20)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("recent_activity failed: #{e.message}") if defined?(Legion::Logging)
           []
         end
       end

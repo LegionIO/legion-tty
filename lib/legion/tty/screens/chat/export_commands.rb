@@ -15,6 +15,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Exported to: #{path}")
             :handled
           rescue StandardError => e
+            Legion::Logging.warn("handle_export failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Export failed: #{e.message}")
             :handled
           end
@@ -128,6 +129,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Bookmarks exported to: #{path}")
             :handled
           rescue StandardError => e
+            Legion::Logging.warn("handle_bookmark failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Bookmark export failed: #{e.message}")
             :handled
           end
@@ -150,6 +152,7 @@ module Legion
             end
             :handled
           rescue StandardError => e
+            Legion::Logging.warn("handle_tee failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Tee error: #{e.message}")
             :handled
           end
@@ -158,7 +161,8 @@ module Legion
             return unless @tee_path
 
             File.open(@tee_path, 'a') { |f| f.puts(line) }
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.warn("tee_message failed: #{e.message}") if defined?(Legion::Logging)
             nil
           end
         end

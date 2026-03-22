@@ -141,7 +141,8 @@ module Legion
             auto_save_session
             @last_autosave = Time.now
             @status_bar.notify(message: 'Autosaved', level: :info, ttl: 2)
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.warn("check_autosave failed: #{e.message}") if defined?(Legion::Logging)
             nil
           end
 
@@ -152,7 +153,8 @@ module Legion
               @session_name = @session_store.auto_session_name(messages: @message_stream.messages)
             end
             @session_store.save(@session_name, messages: @message_stream.messages)
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.warn("auto_save_session failed: #{e.message}") if defined?(Legion::Logging)
             nil
           end
 

@@ -19,7 +19,8 @@ module Legion
           end
           choices << { name: '+ New session', value: :new }
           prompt.select('Select session:', choices, per_page: 10)
-        rescue ::TTY::Reader::InputInterrupt, Interrupt
+        rescue ::TTY::Reader::InputInterrupt, Interrupt => e
+          Legion::Logging.debug("session picker cancelled: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end

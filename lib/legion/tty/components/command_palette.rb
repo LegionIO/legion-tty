@@ -35,7 +35,8 @@ module Legion
           prompt = ::TTY::Prompt.new(output: output)
           choices = entries.map { |e| { name: "#{e[:label]} (#{e[:category]})", value: e[:label] } }
           prompt.select('Command:', choices, filter: true, per_page: 15)
-        rescue ::TTY::Reader::InputInterrupt, Interrupt
+        rescue ::TTY::Reader::InputInterrupt, Interrupt => e
+          Legion::Logging.debug("command palette cancelled: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end

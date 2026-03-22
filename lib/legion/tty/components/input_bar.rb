@@ -54,7 +54,8 @@ module Legion
           reader = ::TTY::Reader.new(history_cycle: true)
           register_tab_completion(reader)
           reader
-        rescue LoadError
+        rescue LoadError => e
+          Legion::Logging.debug("tty-reader not available: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 

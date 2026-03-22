@@ -100,7 +100,8 @@ module Legion
           @file_data = ::JSON.parse(File.read(path))
           @viewing_file = true
           @selected_key = 0
-        rescue ::JSON::ParserError, Errno::ENOENT
+        rescue ::JSON::ParserError, Errno::ENOENT => e
+          Legion::Logging.warn("open_file failed: #{e.message}") if defined?(Legion::Logging)
           @file_data = { 'error' => 'Failed to parse file' }
           @viewing_file = true
         end
@@ -123,7 +124,8 @@ module Legion
           return unless validate_config(@file_data)
 
           save_current_file
-        rescue ::TTY::Reader::InputInterrupt, Interrupt
+        rescue ::TTY::Reader::InputInterrupt, Interrupt => e
+          Legion::Logging.debug("edit_selected_key cancelled: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -131,6 +133,7 @@ module Legion
           ::JSON.generate(data)
           true
         rescue StandardError => e
+          Legion::Logging.warn("validate_config failed: #{e.message}") if defined?(Legion::Logging)
           @messages = ["Invalid JSON: #{e.message}"]
           false
         end

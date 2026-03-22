@@ -194,6 +194,7 @@ module Legion
             send_via_direct(message)
           end
         rescue StandardError => e
+          Legion::Logging.error("send_to_llm failed: #{e.message}") if defined?(Legion::Logging)
           @status_bar.update(thinking: false)
           @message_stream.append_streaming("\n[Error: #{e.message}]")
         end
@@ -268,7 +269,8 @@ module Legion
           else
             send_via_direct(message)
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("send_via_daemon failed: #{e.message}") if defined?(Legion::Logging)
           send_via_direct(message)
         end
 
@@ -301,7 +303,8 @@ module Legion
           return unless RUBY_PLATFORM =~ /darwin/
 
           ::Process.spawn('say', text[0..500], err: '/dev/null', out: '/dev/null')
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("speak_response failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -383,7 +386,8 @@ module Legion
             @output.print ::TTY::Cursor.move_to(2, start_row + i)
             @output.print line
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("render_overlay failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
         # rubocop:enable Metrics/AbcSize
@@ -393,7 +397,8 @@ module Legion
           return read_multiline_input if @multiline_mode
 
           @input_bar.read_line
-        rescue Interrupt
+        rescue Interrupt => e
+          Legion::Logging.debug("read_input interrupted: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -407,7 +412,8 @@ module Legion
             lines << line
           end
           lines.empty? ? nil : lines.join("\n")
-        rescue Interrupt
+        rescue Interrupt => e
+          Legion::Logging.debug("read_multiline_input interrupted: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -644,14 +650,16 @@ module Legion
         def terminal_width
           require 'tty-screen'
           ::TTY::Screen.width
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("terminal_width failed: #{e.message}") if defined?(Legion::Logging)
           80
         end
 
         def terminal_height
           require 'tty-screen'
           ::TTY::Screen.height
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("terminal_height failed: #{e.message}") if defined?(Legion::Logging)
           24
         end
 

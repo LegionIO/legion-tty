@@ -19,7 +19,8 @@ module Legion
         opts = parse_argv(argv)
         app = new(**opts)
         app.start
-      rescue Interrupt
+      rescue Interrupt => e
+        Legion::Logging.debug("app interrupted: #{e.message}") if defined?(Legion::Logging)
         app&.shutdown
       end
 
@@ -91,7 +92,8 @@ module Legion
       def setup_llm
         boot_legion_subsystems
         @llm_chat = try_settings_llm
-      rescue StandardError
+      rescue StandardError => e
+        Legion::Logging.warn("setup_llm failed: #{e.message}") if defined?(Legion::Logging)
         @llm_chat = nil
       end
 
@@ -113,7 +115,8 @@ module Legion
           }.compact
           File.write(identity_path, ::JSON.generate(identity))
           @config = load_config
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("rescan_environment failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end
@@ -132,6 +135,7 @@ module Legion
 
       private
 
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
       def boot_legion_subsystems
         # Follow the same init order as Legion::Service:
         # 1. logging  2. settings  3. crypt  4. resolve secrets  5. LLM merge
@@ -148,19 +152,26 @@ module Legion
           require 'legion/crypt'
           Legion::Crypt.start unless Legion::Crypt.instance_variable_get(:@started)
           Legion::Settings.resolve_secrets! if Legion::Settings.respond_to?(:resolve_secrets!)
-        rescue LoadError, StandardError
+        rescue LoadError => e
+          Legion::Logging.debug("legion/crypt not available: #{e.message}") if defined?(Legion::Logging)
+          nil
+        rescue StandardError => e
+          Legion::Logging.warn("crypt/secrets setup failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
         begin
           require 'legion/llm'
           Legion::Settings.merge_settings(:llm, Legion::LLM::Settings.default)
-        rescue LoadError
+        rescue LoadError => e
+          Legion::Logging.debug("legion/llm not available: #{e.message}") if defined?(Legion::Logging)
           nil
         end
-      rescue LoadError
+      rescue LoadError => e
+        Legion::Logging.debug("legion subsystem load failed: #{e.message}") if defined?(Legion::Logging)
         nil
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
 
       def settings_search_path
         [
@@ -181,7 +192,8 @@ module Legion
         return nil unless provider
 
         Legion::LLM.chat(provider: provider)
-      rescue StandardError
+      rescue StandardError => e
+        Legion::Logging.warn("try_settings_llm failed: #{e.message}") if defined?(Legion::Logging)
         nil
       end
 
@@ -246,7 +258,8 @@ module Legion
         return {} unless File.exist?(path)
 
         deep_symbolize(::JSON.parse(File.read(path)))
-      rescue ::JSON::ParserError, Errno::ENOENT
+      rescue ::JSON::ParserError, Errno::ENOENT => e
+        Legion::Logging.warn("load_credentials failed: #{e.message}") if defined?(Legion::Logging)
         {}
       end
 
@@ -262,7 +275,8 @@ module Legion
         return {} unless File.exist?(path)
 
         deep_symbolize(::JSON.parse(File.read(path)))
-      rescue ::JSON::ParserError, Errno::ENOENT
+      rescue ::JSON::ParserError, Errno::ENOENT => e
+        Legion::Logging.warn("load_config failed: #{e.message}") if defined?(Legion::Logging)
         {}
       end
 

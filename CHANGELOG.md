@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.30] - 2026-03-22
+
+### Fixed
+- Add `Legion::Logging.debug/warn` to all previously silent rescue blocks across lib/ files
+- Add rubocop disable/enable directives for Metrics cops on methods whose complexity increased from logging additions
+
 ## [0.4.29] - 2026-03-20
 
 ### Fixed

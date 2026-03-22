@@ -89,10 +89,12 @@ module Legion
 
         def port_open?(host, port)
           ::Socket.tcp(host, port, connect_timeout: 1) { true }
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("port_open? #{host}:#{port} failed: #{e.message}") if defined?(Legion::Logging)
           false
         end
 
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
         def collect_repos(base, depth = 0)
           return [] unless File.directory?(base)
           return [build_repo_entry(base)] if File.directory?(File.join(base, '.git'))
@@ -103,12 +105,15 @@ module Legion
 
             child_path = File.join(base, child)
             acc.concat(collect_repos(child_path, depth + 1)) if File.directory?(child_path)
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.debug("collect_repos child failed: #{e.message}") if defined?(Legion::Logging)
             next
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("collect_repos failed: #{e.message}") if defined?(Legion::Logging)
           []
         end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
         def build_repo_entry(path)
           { path: path, name: File.basename(path), remote: git_remote(path),
@@ -118,14 +123,16 @@ module Legion
         def git_remote(path)
           out = `git -C #{path.shellescape} remote get-url origin 2>/dev/null`.strip
           out.empty? ? nil : out
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("git_remote failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
         def git_branch(path)
           out = `git -C #{path.shellescape} rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
           out.empty? ? nil : out
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("git_branch failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -144,7 +151,8 @@ module Legion
             next [] unless File.exist?(full)
 
             File.readlines(full, encoding: 'utf-8', chomp: true).last(500)
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.debug("read_history_lines failed for #{path}: #{e.message}") if defined?(Legion::Logging)
             []
           end
         end
@@ -169,7 +177,8 @@ module Legion
           result = { name: name.empty? ? nil : name, email: email.empty? ? nil : email }
           result[:signing_key] = signing_key unless signing_key.empty?
           result
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("scan_gitconfig failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -185,7 +194,8 @@ module Legion
           servers.map do |s|
             { server_id: s[:serverId], url: s[:url], user: s[:user] }
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("scan_jfrog failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -199,7 +209,8 @@ module Legion
           return nil if hosts.empty?
 
           { hosts: hosts.map(&:to_s) }
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("scan_terraform failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end

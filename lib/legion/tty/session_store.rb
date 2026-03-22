@@ -31,7 +31,8 @@ module Legion
         data = ::JSON.parse(File.read(path), symbolize_names: true)
         data[:messages] = data[:messages].map { |m| deserialize_message(m) }
         data
-      rescue ::JSON::ParserError
+      rescue ::JSON::ParserError => e
+        Legion::Logging.warn("session load failed: #{e.message}") if defined?(Legion::Logging)
         nil
       end
 
@@ -40,7 +41,8 @@ module Legion
           name = File.basename(path, '.json')
           data = ::JSON.parse(File.read(path), symbolize_names: true)
           { name: name, saved_at: data[:saved_at], message_count: data[:messages]&.size || 0 }
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("session list entry failed: #{e.message}") if defined?(Legion::Logging)
           { name: name, saved_at: nil, message_count: 0 }
         end
         entries.sort_by { |s| s[:saved_at] || '' }.reverse

@@ -61,7 +61,8 @@ module Legion
             output: @output,
             width: 40
           )
-        rescue LoadError
+        rescue LoadError => e
+          Legion::Logging.debug("tty-progressbar not available: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end

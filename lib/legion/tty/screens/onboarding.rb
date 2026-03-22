@@ -359,14 +359,16 @@ module Legion
 
           results = detect_result[:data] || []
           results.any? { |d| d[:name] == 'Microsoft Teams' }
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("teams_detected? failed: #{e.message}") if defined?(Legion::Logging)
           false
         end
 
         def teams_gem_loadable?
           Gem::Specification.find_by_name('lex-microsoft_teams')
           true
-        rescue Gem::MissingSpecError
+        rescue Gem::MissingSpecError => e
+          Legion::Logging.debug("lex-microsoft_teams not installed: #{e.message}") if defined?(Legion::Logging)
           false
         end
 
@@ -378,7 +380,8 @@ module Legion
           require 'legion/extensions/microsoft_teams/helpers/browser_auth'
           settings = begin
             Legion::Settings.dig(:microsoft_teams, :auth) || {}
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.warn("build_teams_browser_auth settings failed: #{e.message}") if defined?(Legion::Logging)
             {}
           end
           Legion::Extensions::MicrosoftTeams::Helpers::BrowserAuth.new(
@@ -392,7 +395,8 @@ module Legion
           cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.new
           cache.store_delegated_token(result)
           cache.save_to_vault
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("store_teams_token failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -445,13 +449,15 @@ module Legion
 
           clusters = Legion::Settings.dig(:crypt, :vault, :clusters)
           clusters.is_a?(Hash) && clusters.any?
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("vault_clusters_configured? failed: #{e.message}") if defined?(Legion::Logging)
           false
         end
 
         def vault_cluster_count
           Legion::Settings.dig(:crypt, :vault, :clusters)&.size || 0
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("vault_cluster_count failed: #{e.message}") if defined?(Legion::Logging)
           0
         end
 
@@ -848,7 +854,8 @@ module Legion
 
             sleep 0.1
           end
-        rescue ThreadError
+        rescue ThreadError => e
+          Legion::Logging.debug("drain_with_timeout interrupted: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
@@ -870,6 +877,7 @@ module Legion
           false
         end
 
+        # rubocop:disable Metrics/AbcSize
         def legionio_running?
           pid_paths = [
             File.expand_path('~/.legionio/legion.pid'),
@@ -884,16 +892,20 @@ module Legion
             begin
               ::Process.kill(0, pid)
               return true
-            rescue Errno::ESRCH
+            rescue Errno::ESRCH => e
+              Legion::Logging.debug("pid #{pid} not running: #{e.message}") if defined?(Legion::Logging)
               next
-            rescue Errno::EPERM
+            rescue Errno::EPERM => e
+              Legion::Logging.debug("pid #{pid} exists (no permission): #{e.message}") if defined?(Legion::Logging)
               return true
             end
           end
           system('pgrep -x legionio > /dev/null 2>&1')
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("legionio_running? failed: #{e.message}") if defined?(Legion::Logging)
           false
         end
+        # rubocop:enable Metrics/AbcSize
 
         def start_legionio_daemon
           @log.log('gaia', 'attempting to start legionio daemon')
@@ -915,14 +927,16 @@ module Legion
         def terminal_width
           require 'tty-screen'
           ::TTY::Screen.width
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("terminal_width failed: #{e.message}") if defined?(Legion::Logging)
           80
         end
 
         def terminal_height
           require 'tty-screen'
           ::TTY::Screen.height
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("terminal_height failed: #{e.message}") if defined?(Legion::Logging)
           24
         end
       end

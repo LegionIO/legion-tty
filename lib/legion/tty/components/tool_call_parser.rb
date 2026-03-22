@@ -96,7 +96,8 @@ module Legion
           end
 
           @on_tool_call.call(name: name, args: args)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.warn("emit_tool_call failed: #{e.message}") if defined?(Legion::Logging)
           @on_text.call("#{OPEN_TAG}#{json_str}#{CLOSE_TAG}")
         end
 
