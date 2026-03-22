@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.31] - 2026-03-22
+
+### Changed
+- Update gemspec dependency version constraints: `legion-json >= 1.2.0`, `legion-logging >= 1.2.8`
+
 ## [0.4.30] - 2026-03-22
 
 ### Fixed
