@@ -29,6 +29,24 @@
 - [x] README with feature comparison (vs Claude Code, Codex CLI)
 - [x] CLAUDE.md with architecture tree and key patterns
 
+### v0.3.0 - v0.4.29
+- [x] 115 slash commands (from 5 in v0.1.0)
+- [x] Configurable theme selection (4 themes: purple/green/blue/amber with 17-shade palettes)
+- [x] Tab completion for slash commands
+- [x] Multi-model chat (`/model` slash command for mid-chat model switching)
+- [x] Notification integration (notification component with TTL expiry and level-based icons)
+- [x] Screen manager navigation hotkeys (push/pop stack with overlay support, Escape pops)
+- [x] Command palette (Ctrl+K fuzzy-search overlay for commands, screens, sessions)
+- [x] Model picker and session picker components
+- [x] Extensions browser with category filter
+- [x] Config editor with backup and vault:// masking
+- [x] Progress bars, tables, spinners components
+- [x] Daemon client for LegionIO REST API integration
+- [x] Message decorators, countdown timers, session persistence
+- [x] Draft buffer, word frequency analysis, persistent preferences
+- [x] Homebrew formula: `legion-tty` in homebrew-tap (3-formula split)
+- [x] 1817 specs, 150 files rubocop clean
+
 ## Pending
 
 ### Integration Points
@@ -36,20 +54,11 @@
 - [ ] Wire token tracking into LLM response callbacks (track_response_tokens exists, needs real LLM)
 - [ ] MCP tool use display in chat (tool_panel rendering exists, needs MCP integration)
 
-### Homebrew
-- [ ] Evaluate adding tty gems as brew formula dependencies
-- [ ] Currently installed via bundler, may not need brew-level deps
-
 ### Kerberos Ticket Expiry
 - [ ] Ties into `legion-rbac`, not `legion-tty`
 - [ ] On ticket expiry, RBAC should handle re-auth or session downgrade
 - [ ] legion-tty just reads current ticket state at boot
 
 ### Future
-- [ ] Screen manager navigation hotkeys (push/pop screens beyond dashboard)
 - [ ] TLS/Zscaler -- should work as-is with system cert store, monitor for issues
 - [ ] Plugin system for custom slash commands
-- [ ] Configurable theme selection
-- [ ] Tab completion for slash commands
-- [ ] Multi-model chat (switch providers mid-conversation)
-- [ ] Notification integration (background alerts from lex-mesh, lex-health)

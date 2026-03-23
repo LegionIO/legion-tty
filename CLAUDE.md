@@ -138,5 +138,4 @@ Same as all Legion gems -- see parent CLAUDE.md.
 
 ---
 
-**Last Updated**: 2026-03-19
 **Maintained By**: Matthew Iverson (@Esity)
