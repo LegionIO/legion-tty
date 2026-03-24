@@ -95,7 +95,10 @@ RSpec.describe Legion::TTY::Screens::Chat do
       before do
         stub_const('Legion::LLM', fake_llm_module)
         stub_const('Legion::LLM::DaemonClient', daemon_client_available)
-        allow(Legion::LLM).to receive(:ask).with(message: 'hello').and_return(daemon_response)
+        allow(Legion::LLM).to receive(:ask).with(message: 'hello',
+                                                 caller: {
+                                                   source: 'tty', screen: 'chat'
+                                                 }).and_return(daemon_response)
         allow(screen.message_stream).to receive(:append_streaming)
       end
 
@@ -111,7 +114,10 @@ RSpec.describe Legion::TTY::Screens::Chat do
       before do
         stub_const('Legion::LLM', fake_llm_module)
         stub_const('Legion::LLM::DaemonClient', daemon_client_available)
-        allow(Legion::LLM).to receive(:ask).with(message: 'hello').and_return(error_response)
+        allow(Legion::LLM).to receive(:ask).with(message: 'hello',
+                                                 caller: {
+                                                   source: 'tty', screen: 'chat'
+                                                 }).and_return(error_response)
         allow(screen.message_stream).to receive(:append_streaming)
       end
 
@@ -128,7 +134,10 @@ RSpec.describe Legion::TTY::Screens::Chat do
       before do
         stub_const('Legion::LLM', fake_llm_module)
         stub_const('Legion::LLM::DaemonClient', daemon_client_available)
-        allow(Legion::LLM).to receive(:ask).with(message: 'hello').and_return(error_response)
+        allow(Legion::LLM).to receive(:ask).with(message: 'hello',
+                                                 caller: {
+                                                   source: 'tty', screen: 'chat'
+                                                 }).and_return(error_response)
         allow(screen.message_stream).to receive(:append_streaming)
       end
 
@@ -172,7 +181,10 @@ RSpec.describe Legion::TTY::Screens::Chat do
       before do
         stub_const('Legion::LLM', fake_llm_module)
         stub_const('Legion::LLM::DaemonClient', daemon_client_available)
-        allow(Legion::LLM).to receive(:ask).with(message: 'hello').and_return(unknown_response)
+        allow(Legion::LLM).to receive(:ask).with(message: 'hello',
+                                                 caller: {
+                                                   source: 'tty', screen: 'chat'
+                                                 }).and_return(unknown_response)
         screen.instance_variable_set(:@llm_chat, llm_chat)
         allow(llm_chat).to receive(:ask).and_yield(double(content: 'fallback')).and_return(fake_response)
         allow(screen.message_stream).to receive(:append_streaming)

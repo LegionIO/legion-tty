@@ -256,7 +256,7 @@ module Legion
         end
 
         def send_via_daemon(message)
-          result = Legion::LLM.ask(message: message)
+          result = Legion::LLM.ask(message: message, caller: { source: 'tty', screen: 'chat' })
 
           case result&.dig(:status)
           when :done

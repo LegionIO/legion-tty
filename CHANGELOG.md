@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.32] - 2026-03-23
+
+### Changed
+- Add `caller:` identity to daemon path LLM call in `send_via_daemon`
+
 ## [0.4.31] - 2026-03-22
 
 ### Changed
