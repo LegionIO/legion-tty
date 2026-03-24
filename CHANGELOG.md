@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.33] - 2026-03-23
+
+### Changed
+- Add `caller:` identity to direct streaming LLM path in `try_settings_llm`
+
 ## [0.4.32] - 2026-03-23
 
 ### Changed

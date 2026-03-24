@@ -191,7 +191,7 @@ module Legion
         provider = Legion::LLM.settings[:default_provider]
         return nil unless provider
 
-        Legion::LLM.chat(provider: provider)
+        Legion::LLM.chat(provider: provider, caller: { source: 'tty', screen: 'chat' })
       rescue StandardError => e
         Legion::Logging.warn("try_settings_llm failed: #{e.message}") if defined?(Legion::Logging)
         nil
