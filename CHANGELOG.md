@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.34] - 2026-03-24
+
+### Fixed
+- Remove `caller:` from `send_via_daemon` since `Legion::LLM.ask` has a fixed signature and does not accept keyword arguments
+
 ## [0.4.33] - 2026-03-23
 
 ### Changed
