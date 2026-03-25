@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.35] - 2026-03-25
+
+### Changed
+- Guard bootsnap behind `LEGION_BOOTSNAP=true` env var in `exe/legion-tty`, default to disabled
+
 ## [0.4.34] - 2026-03-24
 
 ### Fixed
