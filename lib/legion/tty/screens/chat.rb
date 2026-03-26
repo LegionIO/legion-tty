@@ -349,6 +349,10 @@ module Legion
               result = Legion::Extensions::Agentic::Self::Metacognition::Runners::Metacognition.self_narrative
               narrative = result[:prose] if result.is_a?(Hash) && result[:prose]
               if narrative
+                narrative = narrative.strip
+                narrative = narrative[0, 2000] if narrative.length > 2000
+              end
+              if narrative && !narrative.empty?
                 lines << ''
                 lines << 'Current self-awareness:'
                 lines << narrative
