@@ -67,7 +67,7 @@
 - [x] Initialize TokenTracker with actual model from LLM chat session at startup
 - [x] Add track_daemon_tokens for daemon path (reads meta[:tokens_in]/meta[:tokens_out])
 - [x] Extract update_status_bar_tokens helper
-- [x] 1846 specs, 156 files rubocop clean
+- [x] 1850 specs, 156 files rubocop clean
 
 ## Pending
 
