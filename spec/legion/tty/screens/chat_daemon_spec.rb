@@ -305,6 +305,22 @@ RSpec.describe Legion::TTY::Screens::Chat do
       tracker = screen.instance_variable_get(:@token_tracker)
       expect(tracker.total_input_tokens).to eq(0)
     end
+
+    it 'handles meta with only tokens_in present' do
+      result = { meta: { tokens_in: 150, model: 'claude-sonnet-4-6' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(150)
+      expect(tracker.total_output_tokens).to eq(0)
+    end
+
+    it 'handles meta with only tokens_out present' do
+      result = { meta: { tokens_out: 60, model: 'claude-sonnet-4-6' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+      expect(tracker.total_output_tokens).to eq(60)
+    end
   end
 
   describe 'StandardError rescue in send_to_llm' do
