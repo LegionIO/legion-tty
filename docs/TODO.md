@@ -29,7 +29,7 @@
 - [x] README with feature comparison (vs Claude Code, Codex CLI)
 - [x] CLAUDE.md with architecture tree and key patterns
 
-### v0.3.0 - v0.4.29
+### v0.3.0 - v0.4.35
 - [x] 115 slash commands (from 5 in v0.1.0)
 - [x] Configurable theme selection (4 themes: purple/green/blue/amber with 17-shade palettes)
 - [x] Tab completion for slash commands
@@ -46,6 +46,21 @@
 - [x] Draft buffer, word frequency analysis, persistent preferences
 - [x] Homebrew formula: `legion-tty` in homebrew-tap (3-formula split)
 - [x] 1817 specs, 150 files rubocop clean
+
+### v0.4.36 - Rendering Engine Rebuild
+- [x] Raw-mode event loop replacing synchronous readline blocking
+- [x] App#run_loop with IO.select + $stdin.raw + manual escape sequence parsing
+- [x] Key normalization (KEY_MAP mapping raw escape sequences to symbols)
+- [x] Differential rendering (write_differential, line-by-line frame buffer comparison)
+- [x] Overlay compositing (TTY::Box.frame centered, persists until Escape)
+- [x] InputBar rewritten with handle_key line buffer (character-by-character, non-blocking)
+- [x] Chat screen conforms to render/handle_input/handle_line contract
+- [x] Streaming flag enables 50ms refresh during LLM output
+- [x] Hotkeys use normalized symbol keys (:ctrl_d, :ctrl_l, :ctrl_k, :ctrl_s)
+- [x] Dashboard, Extensions, Config screens driven by App event loop
+- [x] with_cooked_mode for blocking TTY::Prompt calls (model picker, command palette)
+- [x] 1841 specs, 156 files rubocop clean
+- [x] Design: docs/plans/2026-03-26-legion-tty-rendering-engine-design.md
 
 ## Pending
 
