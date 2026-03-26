@@ -128,8 +128,8 @@ lib/legion/tty/
 
 ```bash
 bundle install
-bundle exec rspec       # 1846 examples, 0 failures
-bundle exec rubocop     # 150 files, 0 offenses
+bundle exec rspec       # 1850 examples, 0 failures
+bundle exec rubocop     # 156 files, 0 offenses
 ```
 
 ## Pre-Push Pipeline
