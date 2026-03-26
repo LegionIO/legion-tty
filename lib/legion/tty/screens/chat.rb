@@ -348,9 +348,15 @@ module Legion
             begin
               result = Legion::Extensions::Agentic::Self::Metacognition::Runners::Metacognition.self_narrative
               narrative = result[:prose] if result.is_a?(Hash) && result[:prose]
-              lines << "\nCurrent self-awareness:\n#{narrative}" if narrative
-            rescue StandardError
-              nil
+              if narrative
+                lines << ''
+                lines << 'Current self-awareness:'
+                lines << narrative
+              end
+            rescue StandardError => e
+              if defined?(Legion::Logging)
+                Legion::Logging.warn("Metacognition.self_narrative failed: #{e.class}: #{e.message}")
+              end
             end
           end
 

@@ -27,20 +27,6 @@ RSpec.describe Legion::TTY::Screens::Chat, '#build_system_prompt' do
           end
         end
 
-        metacog_mod = Module.new
-        metacog_mod.const_set(:Runners, Module.new)
-        metacog_mod::Runners.const_set(:Metacognition, runners_mod)
-
-        agentic_mod = Module.new
-        agentic_mod.const_set(:Metacognition, metacog_mod)
-
-        self_mod = Module.new
-        self_mod.const_set(:Metacognition, metacog_mod)
-
-        extensions_mod = Module.new
-        extensions_mod.const_set(:Agentic, Module.new)
-        extensions_mod::Agentic.const_set(:Self, self_mod)
-
         stub_const('Legion::Extensions::Agentic::Self::Metacognition::Runners::Metacognition', runners_mod)
       end
 
