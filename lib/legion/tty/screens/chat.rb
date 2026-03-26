@@ -344,6 +344,16 @@ module Legion
             lines << "Top languages: #{env[:top_languages].keys.join(', ')}" if env[:top_languages]&.any?
           end
 
+          if defined?(Legion::Extensions::Agentic::Self::Metacognition::Runners::Metacognition)
+            begin
+              result = Legion::Extensions::Agentic::Self::Metacognition::Runners::Metacognition.self_narrative
+              narrative = result[:prose] if result.is_a?(Hash) && result[:prose]
+              lines << "\nCurrent self-awareness:\n#{narrative}" if narrative
+            rescue StandardError
+              nil
+            end
+          end
+
           lines.join("\n")
         end
         # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
