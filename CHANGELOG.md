@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.37] - 2026-03-26
+
+### Fixed
+- Token tracking uses `model_id` from RubyLLM::Message response (was incorrectly checking non-existent `model` method)
+- Initialize TokenTracker with actual model from LLM chat session when available
+
+### Added
+- Daemon path token tracking via `track_daemon_tokens` (reads `meta[:tokens_in]`/`meta[:tokens_out]` from daemon response)
+- Extracted `update_status_bar_tokens` helper to DRY up status bar updates after tracking
+
 ## [0.4.36] - 2026-03-26
 
 ### Changed

@@ -62,11 +62,17 @@
 - [x] 1841 specs, 156 files rubocop clean
 - [x] Design: docs/plans/2026-03-26-legion-tty-rendering-engine-design.md
 
+### v0.4.37 - Token Tracking Wiring
+- [x] Fix track_response_tokens to use `model_id` from RubyLLM::Message (was checking non-existent `model`)
+- [x] Initialize TokenTracker with actual model from LLM chat session at startup
+- [x] Add track_daemon_tokens for daemon path (reads meta[:tokens_in]/meta[:tokens_out])
+- [x] Extract update_status_bar_tokens helper
+- [x] 1846 specs, 156 files rubocop clean
+
 ## Pending
 
 ### Integration Points
 - [ ] Memory file writing -- write identity data to legion memory store for richer chat context
-- [ ] Wire token tracking into LLM response callbacks (track_response_tokens exists, needs real LLM)
 - [ ] MCP tool use display in chat (tool_panel rendering exists, needs MCP integration)
 
 ### Kerberos Ticket Expiry

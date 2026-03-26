@@ -263,6 +263,50 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
   end
 
+  describe '#track_response_tokens' do
+    it 'reads model_id from the response' do
+      response = double('response', input_tokens: 100, output_tokens: 50, model_id: 'claude-sonnet-4-6')
+      allow(response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(response).to receive(:respond_to?).with(:model_id).and_return(true)
+      screen.send(:track_response_tokens, response)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(100)
+      expect(tracker.total_output_tokens).to eq(50)
+    end
+
+    it 'skips when response does not have input_tokens' do
+      response = double('response')
+      allow(response).to receive(:respond_to?).with(:input_tokens).and_return(false)
+      screen.send(:track_response_tokens, response)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+    end
+  end
+
+  describe '#track_daemon_tokens' do
+    it 'tracks tokens from daemon meta hash' do
+      result = { meta: { tokens_in: 200, tokens_out: 80, model: 'claude-sonnet-4-6' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(200)
+      expect(tracker.total_output_tokens).to eq(80)
+    end
+
+    it 'skips when meta is nil' do
+      result = { meta: nil }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+    end
+
+    it 'skips when meta has no token keys' do
+      result = { meta: { model: 'test' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+    end
+  end
+
   describe 'StandardError rescue in send_to_llm' do
     before do
       hide_const('Legion::LLM::DaemonClient') if defined?(Legion::LLM::DaemonClient)
