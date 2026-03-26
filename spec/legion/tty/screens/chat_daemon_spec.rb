@@ -267,6 +267,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
     it 'reads model_id from the response' do
       response = double('response', input_tokens: 100, output_tokens: 50, model_id: 'claude-sonnet-4-6')
       allow(response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(response).to receive(:respond_to?).with(:output_tokens).and_return(true)
       allow(response).to receive(:respond_to?).with(:model_id).and_return(true)
       screen.send(:track_response_tokens, response)
       tracker = screen.instance_variable_get(:@token_tracker)
@@ -280,10 +281,12 @@ RSpec.describe Legion::TTY::Screens::Chat do
 
       sonnet_response = double('response', input_tokens: 200, output_tokens: 80, model_id: 'claude-sonnet-4-6')
       allow(sonnet_response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(sonnet_response).to receive(:respond_to?).with(:output_tokens).and_return(true)
       allow(sonnet_response).to receive(:respond_to?).with(:model_id).and_return(true)
 
       opus_response = double('response', input_tokens: 200, output_tokens: 80, model_id: 'claude-opus-4-6')
       allow(opus_response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(opus_response).to receive(:respond_to?).with(:output_tokens).and_return(true)
       allow(opus_response).to receive(:respond_to?).with(:model_id).and_return(true)
 
       sonnet_screen.send(:track_response_tokens, sonnet_response)

@@ -607,9 +607,11 @@ module Legion
           return unless response.respond_to?(:input_tokens)
 
           model_id = response.respond_to?(:model_id) ? response.model_id.to_s : nil
+          input_tokens = response.input_tokens.to_i
+          output_tokens = response.respond_to?(:output_tokens) ? response.output_tokens.to_i : 0
           @token_tracker.track(
-            input_tokens: response.input_tokens.to_i,
-            output_tokens: response.output_tokens.to_i,
+            input_tokens: input_tokens,
+            output_tokens: output_tokens,
             model: model_id
           )
           update_status_bar_tokens
