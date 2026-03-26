@@ -263,6 +263,106 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
   end
 
+  describe '#track_response_tokens' do
+    it 'reads model_id from the response' do
+      response = double('response', input_tokens: 100, output_tokens: 50, model_id: 'claude-sonnet-4-6')
+      allow(response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(response).to receive(:respond_to?).with(:output_tokens).and_return(true)
+      allow(response).to receive(:respond_to?).with(:model_id).and_return(true)
+      screen.send(:track_response_tokens, response)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(100)
+      expect(tracker.total_output_tokens).to eq(50)
+    end
+
+    it 'applies per-model pricing when model_id is set' do
+      sonnet_screen = described_class.new(app, output: output, input_bar: mock_input_bar)
+      opus_screen   = described_class.new(app, output: output, input_bar: mock_input_bar)
+
+      sonnet_response = double('response', input_tokens: 200, output_tokens: 80, model_id: 'claude-sonnet-4-6')
+      allow(sonnet_response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(sonnet_response).to receive(:respond_to?).with(:output_tokens).and_return(true)
+      allow(sonnet_response).to receive(:respond_to?).with(:model_id).and_return(true)
+
+      opus_response = double('response', input_tokens: 200, output_tokens: 80, model_id: 'claude-opus-4-6')
+      allow(opus_response).to receive(:respond_to?).with(:input_tokens).and_return(true)
+      allow(opus_response).to receive(:respond_to?).with(:output_tokens).and_return(true)
+      allow(opus_response).to receive(:respond_to?).with(:model_id).and_return(true)
+
+      sonnet_screen.send(:track_response_tokens, sonnet_response)
+      opus_screen.send(:track_response_tokens, opus_response)
+
+      sonnet_tracker = sonnet_screen.instance_variable_get(:@token_tracker)
+      opus_tracker   = opus_screen.instance_variable_get(:@token_tracker)
+
+      expect(sonnet_tracker.total_cost).not_to eq(opus_tracker.total_cost)
+    end
+
+    it 'skips when response does not have input_tokens' do
+      response = double('response')
+      allow(response).to receive(:respond_to?).with(:input_tokens).and_return(false)
+      screen.send(:track_response_tokens, response)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+    end
+  end
+
+  describe '#track_daemon_tokens' do
+    it 'tracks tokens from daemon meta hash' do
+      result = { meta: { tokens_in: 200, tokens_out: 80, model: 'claude-sonnet-4-6' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(200)
+      expect(tracker.total_output_tokens).to eq(80)
+    end
+
+    it 'skips when meta is nil' do
+      result = { meta: nil }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+    end
+
+    it 'skips when meta has no token keys' do
+      result = { meta: { model: 'test' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+    end
+
+    it 'handles meta with only tokens_in present' do
+      result = { meta: { tokens_in: 150, model: 'claude-sonnet-4-6' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(150)
+      expect(tracker.total_output_tokens).to eq(0)
+    end
+
+    it 'handles meta with only tokens_out present' do
+      result = { meta: { tokens_out: 60, model: 'claude-sonnet-4-6' } }
+      screen.send(:track_daemon_tokens, result)
+      tracker = screen.instance_variable_get(:@token_tracker)
+      expect(tracker.total_input_tokens).to eq(0)
+      expect(tracker.total_output_tokens).to eq(60)
+    end
+
+    it 'uses daemon-provided model for per-model pricing' do
+      sonnet_screen = described_class.new(app, output: output, input_bar: mock_input_bar)
+      opus_screen   = described_class.new(app, output: output, input_bar: mock_input_bar)
+
+      sonnet_result = { meta: { tokens_in: 200, tokens_out: 80, model: 'claude-sonnet-4-6' } }
+      opus_result   = { meta: { tokens_in: 200, tokens_out: 80, model: 'claude-opus-4-6' } }
+
+      sonnet_screen.send(:track_daemon_tokens, sonnet_result)
+      opus_screen.send(:track_daemon_tokens, opus_result)
+
+      sonnet_tracker = sonnet_screen.instance_variable_get(:@token_tracker)
+      opus_tracker   = opus_screen.instance_variable_get(:@token_tracker)
+
+      expect(sonnet_tracker.total_cost).not_to eq(opus_tracker.total_cost)
+    end
+  end
+
   describe 'StandardError rescue in send_to_llm' do
     before do
       hide_const('Legion::LLM::DaemonClient') if defined?(Legion::LLM::DaemonClient)

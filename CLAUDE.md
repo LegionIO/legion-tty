@@ -8,7 +8,7 @@ Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wi
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.36
+**Version**: 0.4.37
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 
@@ -128,8 +128,8 @@ lib/legion/tty/
 
 ```bash
 bundle install
-bundle exec rspec       # 1841 examples, 0 failures
-bundle exec rubocop     # 150 files, 0 offenses
+bundle exec rspec       # 1850 examples, 0 failures
+bundle exec rubocop     # 156 files, 0 offenses
 ```
 
 ## Pre-Push Pipeline

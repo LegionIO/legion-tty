@@ -48,6 +48,7 @@ RSpec.describe Legion::TTY::Screens::Chat, 'model switching' do
     it 'handles switch failure gracefully' do
       llm_chat = double('llm_chat')
       allow(llm_chat).to receive(:respond_to?).and_return(true)
+      allow(llm_chat).to receive(:model).and_return('test-model')
       allow(llm_chat).to receive(:with_model).and_raise(StandardError.new('bad model'))
       allow(llm_chat).to receive(:with_instructions)
       allow(app).to receive(:llm_chat).and_return(llm_chat)

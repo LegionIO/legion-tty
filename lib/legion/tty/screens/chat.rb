@@ -74,7 +74,10 @@ module Legion
           @message_stream = Components::MessageStream.new
           @status_bar = Components::StatusBar.new
           @llm_chat = app.respond_to?(:llm_chat) ? app.llm_chat : nil
-          @token_tracker = Components::TokenTracker.new(provider: detect_provider)
+          @token_tracker = Components::TokenTracker.new(
+            provider: detect_provider,
+            model: @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : nil
+          )
           @session_store = SessionStore.new
           @session_name = 'default'
           @plan_mode = false
@@ -251,6 +254,7 @@ module Legion
             parser = build_tool_call_parser
             parser.feed(result[:response])
             parser.flush
+            track_daemon_tokens(result)
           when :error
             err = result.dig(:error, :message) || 'Unknown error'
             @message_stream.append_streaming("\n[Daemon error: #{err}]")
@@ -602,12 +606,31 @@ module Legion
         def track_response_tokens(response)
           return unless response.respond_to?(:input_tokens)
 
-          model_id = response.respond_to?(:model) ? response.model.to_s : nil
+          raw_model = response.respond_to?(:model_id) ? response.model_id.to_s : nil
+          model_id = raw_model && !raw_model.empty? ? raw_model : nil
+          input_tokens = response.input_tokens.to_i
+          output_tokens = response.respond_to?(:output_tokens) ? response.output_tokens.to_i : 0
           @token_tracker.track(
-            input_tokens: response.input_tokens.to_i,
-            output_tokens: response.output_tokens.to_i,
+            input_tokens: input_tokens,
+            output_tokens: output_tokens,
             model: model_id
           )
+          update_status_bar_tokens
+        end
+
+        def track_daemon_tokens(result)
+          meta = result[:meta]
+          return unless meta.is_a?(Hash) && (meta[:tokens_in] || meta[:tokens_out])
+
+          @token_tracker.track(
+            input_tokens: meta[:tokens_in].to_i,
+            output_tokens: meta[:tokens_out].to_i,
+            model: meta[:model]&.to_s
+          )
+          update_status_bar_tokens
+        end
+
+        def update_status_bar_tokens
           @status_bar.update(
             tokens: @token_tracker.total_input_tokens + @token_tracker.total_output_tokens,
             cost: @token_tracker.total_cost
