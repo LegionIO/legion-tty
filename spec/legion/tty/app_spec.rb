@@ -92,8 +92,8 @@ RSpec.describe Legion::TTY::App do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
         app.send(:save_config, { name: 'Matt', provider: 'claude', api_key: 'sk-test' })
-        identity = JSON.parse(File.read(File.join(dir, 'identity.json')))
-        expect(identity).not_to have_key('api_key')
+        identity = Legion::JSON.parse(File.read(File.join(dir, 'identity.json')))
+        expect(identity).not_to have_key(:api_key)
       end
     end
 
@@ -101,8 +101,8 @@ RSpec.describe Legion::TTY::App do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
         app.send(:save_config, { name: 'Matt', provider: 'claude', api_key: 'sk-test' })
-        creds = JSON.parse(File.read(File.join(dir, 'credentials.json')))
-        expect(creds['api_key']).to eq('sk-test')
+        creds = Legion::JSON.parse(File.read(File.join(dir, 'credentials.json')))
+        expect(creds[:api_key]).to eq('sk-test')
       end
     end
   end
