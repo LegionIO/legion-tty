@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.38] - 2026-03-26
+
+### Added
+- `build_system_prompt` injects a live self-awareness section from `lex-agentic-self` Metacognition when the gem is loaded; guarded with a `defined?` check and `rescue StandardError` so chat is unaffected if the module is absent or raises; narrative is stripped and capped at 2000 chars to prevent prompt bloat
+
 ## [0.4.37] - 2026-03-26
 
 ### Fixed
