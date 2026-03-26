@@ -243,7 +243,7 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands: timing, /wc, /import, 
     it 'replaces current messages with imported messages' do
       path = '/tmp/valid_import_test.json'
       data = { messages: [{ role: 'user', content: 'imported message' }] }
-      File.write(path, JSON.generate(data))
+      File.write(path, Legion::JSON.dump(data))
       chat.handle_slash_command("/import #{path}")
       roles = chat.message_stream.messages.map { |m| m[:role] }
       expect(roles).to include(:user)
@@ -255,7 +255,7 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands: timing, /wc, /import, 
     it 'adds a system confirmation message after import' do
       path = '/tmp/confirm_import_test.json'
       data = { messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hello' }] }
-      File.write(path, JSON.generate(data))
+      File.write(path, Legion::JSON.dump(data))
       chat.handle_slash_command("/import #{path}")
       # last message is the system confirmation appended after replace
       content = chat.message_stream.messages.last[:content]
@@ -268,7 +268,7 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands: timing, /wc, /import, 
     it 'notifies the status bar on successful import' do
       path = '/tmp/notify_import_test.json'
       data = { messages: [{ role: 'user', content: 'test' }] }
-      File.write(path, JSON.generate(data))
+      File.write(path, Legion::JSON.dump(data))
       expect(chat.status_bar).to receive(:notify).with(
         hash_including(level: :success)
       )
@@ -280,7 +280,7 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands: timing, /wc, /import, 
     it 'converts role strings to symbols during import' do
       path = '/tmp/symbol_import_test.json'
       data = { messages: [{ role: 'assistant', content: 'hey' }] }
-      File.write(path, JSON.generate(data))
+      File.write(path, Legion::JSON.dump(data))
       chat.handle_slash_command("/import #{path}")
       imported = chat.message_stream.messages.find { |m| m[:content] == 'hey' }
       expect(imported[:role]).to eq(:assistant)
