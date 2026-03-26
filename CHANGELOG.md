@@ -5,6 +5,7 @@
 ### Fixed
 - Token tracking uses `model_id` from RubyLLM::Message response (was incorrectly checking non-existent `model` method)
 - Initialize TokenTracker with actual model from LLM chat session when available
+- Guard against blank `model_id` in `track_response_tokens` — a nil `model_id` no longer overwrites the previously-set model with an empty string
 
 ### Added
 - Daemon path token tracking via `track_daemon_tokens` (reads `meta[:tokens_in]`/`meta[:tokens_out]` from daemon response)
