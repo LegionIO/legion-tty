@@ -124,7 +124,6 @@ RSpec.describe Legion::TTY::Screens::Chat, 'feature commands' do
     it 'updates message_count after handle_user_message' do
       chat.activate
       allow(chat).to receive(:send_to_llm)
-      allow(chat).to receive(:render_screen)
       before_count = chat.message_stream.messages.size
       chat.handle_user_message('hello')
       state = chat.status_bar.instance_variable_get(:@state)

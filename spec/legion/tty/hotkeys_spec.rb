@@ -14,9 +14,9 @@ RSpec.describe Legion::TTY::Hotkeys do
       expect(triggered).to be true
     end
 
-    it 'returns true when a registered key is handled' do
-      hotkeys.register('q', 'quit') { nil }
-      expect(hotkeys.handle('q')).to be true
+    it 'returns the block result when a registered key is handled' do
+      hotkeys.register('q', 'quit') { :handled }
+      expect(hotkeys.handle('q')).to eq(:handled)
     end
 
     it 'passes the registered callback return value through' do
@@ -26,8 +26,8 @@ RSpec.describe Legion::TTY::Hotkeys do
   end
 
   describe '#handle' do
-    it 'returns false for an unregistered key' do
-      expect(hotkeys.handle('z')).to be false
+    it 'returns nil for an unregistered key' do
+      expect(hotkeys.handle('z')).to be_nil
     end
 
     it 'does not raise for unknown keys' do

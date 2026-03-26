@@ -68,13 +68,11 @@ module Legion
         attr_reader :message_stream, :status_bar
 
         # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-        def initialize(app, output: $stdout, input_bar: nil)
+        def initialize(app, output: $stdout, input_bar: nil) # rubocop:disable Lint/UnusedMethodArgument
           super(app)
           @output = output
           @message_stream = Components::MessageStream.new
           @status_bar = Components::StatusBar.new
-          @running = false
-          @input_bar = input_bar || build_default_input_bar
           @llm_chat = app.respond_to?(:llm_chat) ? app.llm_chat : nil
           @token_tracker = Components::TokenTracker.new(provider: detect_provider)
           @session_store = SessionStore.new
@@ -105,12 +103,12 @@ module Legion
           @timer_thread = nil
           @message_prefix = nil
           @message_suffix = nil
+          @streaming = false
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
         def activate
-          @running = true
           cfg = safe_config
           @status_bar.update(model: cfg[:provider], session: 'default')
           setup_system_prompt
@@ -121,34 +119,25 @@ module Legion
           @status_bar.update(message_count: @message_stream.messages.size)
         end
 
-        def running?
-          @running
+        def needs_input_bar?
+          true
         end
 
-        # rubocop:disable Metrics/AbcSize
-        def run
-          activate
-          while @running
-            render_screen
-            input = read_input
-            break if input.nil?
+        def streaming?
+          @streaming
+        end
 
-            if @app.respond_to?(:screen_manager) && @app.screen_manager.overlay
-              @app.screen_manager.dismiss_overlay
-              next
-            end
+        def handle_line(line)
+          return :handled if line.strip.empty?
 
-            result = handle_slash_command(input)
-            if result == :quit
-              auto_save_session
-              @running = false
-              break
-            elsif result.nil?
-              handle_user_message(input) unless input.strip.empty?
-            end
+          result = handle_slash_command(line)
+          if result == :quit
+            auto_save_session
+            return :quit
           end
+          handle_user_message(line) if result.nil?
+          :handled
         end
-        # rubocop:enable Metrics/AbcSize
 
         def handle_slash_command(input)
           return nil unless input.start_with?('/')
@@ -179,7 +168,6 @@ module Legion
           end
           @status_bar.update(message_count: @message_stream.messages.size)
           check_autosave
-          render_screen
         end
 
         def send_to_llm(message)
@@ -207,11 +195,11 @@ module Legion
 
         def handle_input(key)
           case key
-          when :up
-            @message_stream.scroll_up
+          when :page_up
+            @message_stream.scroll_up(10)
             :handled
-          when :down
-            @message_stream.scroll_down
+          when :page_down
+            @message_stream.scroll_down(10)
             :handled
           else
             :pass
@@ -279,7 +267,8 @@ module Legion
           return unless @llm_chat
 
           @status_bar.update(thinking: true)
-          render_screen
+          @streaming = true
+          @app.render_frame if @app.respond_to?(:render_frame)
           start_time = Time.now
           response_text = +''
           parser = build_tool_call_parser
@@ -289,13 +278,15 @@ module Legion
               response_text << chunk.content
               parser.feed(chunk.content)
             end
-            render_screen
+            @app.render_frame if @app.respond_to?(:render_frame)
           end
           parser.flush
           record_response_time(Time.now - start_time)
           @status_bar.update(thinking: false)
           track_response_tokens(response)
           speak_response(response_text) if @speak_mode
+        ensure
+          @streaming = false
         end
         # rubocop:enable Metrics/AbcSize
 
@@ -358,63 +349,6 @@ module Legion
 
           cfg = @app.config
           cfg.is_a?(Hash) ? cfg : {}
-        end
-
-        def render_screen
-          require 'tty-cursor'
-          lines = render(terminal_width, terminal_height - 1)
-          @output.print ::TTY::Cursor.move_to(0, 0)
-          @output.print ::TTY::Cursor.clear_screen_down
-          lines.each { |line| @output.puts line }
-          render_overlay if @app.respond_to?(:screen_manager) && @app.screen_manager.overlay
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def render_overlay
-          require 'tty-box'
-          text = @app.screen_manager.overlay.to_s
-          width = (terminal_width - 4).clamp(40, terminal_width)
-          box = ::TTY::Box.frame(
-            width: width,
-            padding: 1,
-            title: { top_left: ' Help ' },
-            border: :round
-          ) { text }
-          overlay_lines = box.split("\n")
-          start_row = [(terminal_height - overlay_lines.size) / 2, 0].max
-          overlay_lines.each_with_index do |line, i|
-            @output.print ::TTY::Cursor.move_to(2, start_row + i)
-            @output.print line
-          end
-        rescue StandardError => e
-          Legion::Logging.warn("render_overlay failed: #{e.message}") if defined?(Legion::Logging)
-          nil
-        end
-        # rubocop:enable Metrics/AbcSize
-
-        def read_input
-          return nil unless @input_bar.respond_to?(:read_line)
-          return read_multiline_input if @multiline_mode
-
-          @input_bar.read_line
-        rescue Interrupt => e
-          Legion::Logging.debug("read_input interrupted: #{e.message}") if defined?(Legion::Logging)
-          nil
-        end
-
-        def read_multiline_input
-          lines = []
-          loop do
-            line = @input_bar.read_line
-            return nil if line.nil? && lines.empty?
-            break if line.nil? || line.empty?
-
-            lines << line
-          end
-          lines.empty? ? nil : lines.join("\n")
-        rescue Interrupt => e
-          Legion::Logging.debug("read_multiline_input interrupted: #{e.message}") if defined?(Legion::Logging)
-          nil
         end
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
@@ -639,12 +573,6 @@ module Legion
               @message_stream.add_tool_call(name: name, args: args, status: :complete)
             }
           )
-        end
-
-        def build_default_input_bar
-          cfg = safe_config
-          name = cfg[:name] || 'User'
-          Components::InputBar.new(name: name, completions: SLASH_COMMANDS)
         end
 
         def terminal_width

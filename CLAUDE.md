@@ -8,7 +8,7 @@ Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wi
 
 **GitHub**: https://github.com/LegionIO/legion-tty
 **Gem**: `legion-tty`
-**Version**: 0.4.29
+**Version**: 0.4.36
 **License**: Apache-2.0
 **Ruby**: >= 3.4
 
@@ -16,9 +16,9 @@ Rich terminal UI for the LegionIO async cognition engine. Provides onboarding wi
 
 ```
 lib/legion/tty/
-  app.rb                  # Orchestrator: config, LLM (Legion::LLM only), screens, hotkeys
+  app.rb                  # Orchestrator: raw-mode event loop, differential rendering, key dispatch, overlay compositing
   screen_manager.rb       # Push/pop screen stack, overlay, render queue
-  hotkeys.rb              # Key binding registry (Ctrl+D, Ctrl+K, Ctrl+S, Ctrl+L, Escape)
+  hotkeys.rb              # Key binding registry (normalized symbols: :ctrl_d, :ctrl_k, :ctrl_s, :ctrl_l)
   session_store.rb        # JSON session persistence (~/.legionio/sessions/)
   daemon_client.rb        # HTTP client for LegionIO daemon REST API (routes tasks, gets status)
   boot_logger.rb          # Boot sequence logging
@@ -128,7 +128,7 @@ lib/legion/tty/
 
 ```bash
 bundle install
-bundle exec rspec       # 1817 examples, 0 failures
+bundle exec rspec       # 1841 examples, 0 failures
 bundle exec rubocop     # 150 files, 0 offenses
 ```
 

@@ -40,9 +40,8 @@ RSpec.describe Legion::TTY::Screens::Chat do
       expect(screen.message_stream.messages).not_to be_empty
     end
 
-    it 'sets the running state' do
-      screen.activate
-      expect(screen.running?).to be true
+    it 'returns without error' do
+      expect { screen.activate }.not_to raise_error
     end
 
     it 'updates the status bar with provider info' do
@@ -287,7 +286,6 @@ RSpec.describe Legion::TTY::Screens::Chat do
     it 'bookmarks the message instead of sending to LLM when plan_mode is on' do
       screen.instance_variable_set(:@plan_mode, true)
       allow(screen).to receive(:send_to_llm)
-      allow(screen).to receive(:render_screen)
       screen.handle_user_message('do something')
       expect(screen).not_to have_received(:send_to_llm)
       system_msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
@@ -328,13 +326,13 @@ RSpec.describe Legion::TTY::Screens::Chat do
   end
 
   describe '#handle_input' do
-    it 'handles up arrow scroll' do
-      result = screen.handle_input(:up)
+    it 'handles page_up scroll' do
+      result = screen.handle_input(:page_up)
       expect(result).to eq(:handled)
     end
 
-    it 'handles down arrow scroll' do
-      result = screen.handle_input(:down)
+    it 'handles page_down scroll' do
+      result = screen.handle_input(:page_down)
       expect(result).to eq(:handled)
     end
 
@@ -344,22 +342,9 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
   end
 
-  describe 'overlay dismiss on next input' do
-    it 'dismisses overlay when input is received while overlay is active' do
-      screen_manager = double('screen_manager')
-      overlay_app = double('app', config: { name: 'Matt', provider: 'claude' }, llm_chat: nil)
-      allow(overlay_app).to receive(:respond_to?).and_return(false)
-      allow(overlay_app).to receive(:respond_to?).with(:llm_chat).and_return(true)
-      allow(overlay_app).to receive(:respond_to?).with(:screen_manager).and_return(true)
-      allow(overlay_app).to receive(:screen_manager).and_return(screen_manager)
-      dismissed = false
-      allow(screen_manager).to receive(:overlay) { dismissed ? nil : 'Help text' }
-      expect(screen_manager).to(receive(:dismiss_overlay).once { dismissed = true })
-
-      overlay_screen = described_class.new(overlay_app, output: output, input_bar: mock_input_bar)
-      allow(mock_input_bar).to receive(:read_line).and_return('any input', nil)
-      overlay_screen.activate
-      overlay_screen.run
+  describe 'needs_input_bar?' do
+    it 'returns true for chat screen' do
+      expect(screen.needs_input_bar?).to be true
     end
   end
 
@@ -439,18 +424,9 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
   end
 
-  describe '#render_overlay' do
-    it 'does not crash when overlay is nil' do
-      screen_manager = double('screen_manager')
-      overlay_app = double('app', config: { name: 'Matt', provider: 'claude' }, llm_chat: nil)
-      allow(overlay_app).to receive(:respond_to?).and_return(false)
-      allow(overlay_app).to receive(:respond_to?).with(:llm_chat).and_return(true)
-      allow(overlay_app).to receive(:respond_to?).with(:screen_manager).and_return(true)
-      allow(overlay_app).to receive(:screen_manager).and_return(screen_manager)
-      allow(screen_manager).to receive(:overlay).and_return(nil)
-
-      overlay_screen = described_class.new(overlay_app, output: output, input_bar: mock_input_bar)
-      expect { overlay_screen.send(:render_screen) }.not_to raise_error
+  describe '#streaming?' do
+    it 'defaults to false' do
+      expect(screen.streaming?).to be false
     end
   end
 end

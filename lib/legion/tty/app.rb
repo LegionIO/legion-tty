@@ -13,7 +13,21 @@ module Legion
     class App
       CONFIG_DIR = File.expand_path('~/.legionio/settings')
 
-      attr_reader :config, :credentials, :screen_manager, :hotkeys, :llm_chat
+      # Key normalization: raw escape sequences and control chars to symbols
+      KEY_MAP = {
+        "\e[A" => :up, "\e[B" => :down, "\e[C" => :right, "\e[D" => :left,
+        "\r" => :enter, "\n" => :enter, "\e" => :escape,
+        "\e[5~" => :page_up, "\e[6~" => :page_down,
+        "\e[H" => :home, "\eOH" => :home, "\e[F" => :end, "\eOF" => :end,
+        "\e[1~" => :home, "\e[4~" => :end,
+        "\x7f" => :backspace, "\b" => :backspace, "\t" => :tab,
+        "\x03" => :ctrl_c, "\x04" => :ctrl_d,
+        "\x01" => :ctrl_a, "\x05" => :ctrl_e,
+        "\x0B" => :ctrl_k, "\x0C" => :ctrl_l, "\x13" => :ctrl_s,
+        "\x15" => :ctrl_u
+      }.freeze
+
+      attr_reader :config, :credentials, :screen_manager, :hotkeys, :llm_chat, :input_bar
 
       def self.run(argv = [])
         opts = parse_argv(argv)
@@ -42,23 +56,59 @@ module Legion
         @screen_manager = ScreenManager.new
         @hotkeys = Hotkeys.new
         @llm_chat = nil
+        @input_bar = nil
+        @running = false
+        @prev_frame = []
+        @raw_mode = false
       end
 
       def start
         setup_hotkeys
-        if self.class.first_run?(config_dir: @config_dir)
-          run_onboarding
-        else
-          run_chat
-        end
+        run_onboarding if self.class.first_run?(config_dir: @config_dir)
+        setup_for_chat
+        run_loop
       end
 
-      def setup_hotkeys
-        @hotkeys.register("\x04", 'Toggle dashboard (Ctrl+D)') { toggle_dashboard }
-        @hotkeys.register("\x0C", 'Refresh screen (Ctrl+L)') { :refresh }
-        @hotkeys.register("\x0B", 'Command palette (Ctrl+K)') { :command_palette }
-        @hotkeys.register("\x13", 'Session picker (Ctrl+S)') { :session_picker }
-        @hotkeys.register("\e", 'Go back (Escape)') { :escape }
+      # Public: called by screens (e.g., Chat during LLM streaming) to force a re-render
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def render_frame
+        width = terminal_width
+        height = terminal_height
+        active = @screen_manager.active_screen
+        return unless active
+
+        has_input = active.respond_to?(:needs_input_bar?) && active.needs_input_bar?
+        screen_height = has_input ? height - 1 : height
+
+        lines = active.render(width, screen_height)
+        lines << @input_bar.render_line(width: width) if has_input && @input_bar
+
+        lines = lines[0, height] if lines.size > height
+        lines += Array.new(height - lines.size, '') if lines.size < height
+
+        lines = composite_overlay(lines, width, height) if @screen_manager.overlay
+
+        write_differential(lines, width)
+
+        if has_input && @input_bar
+          col = [@input_bar.cursor_column, width - 1].min
+          $stdout.print cursor.move_to(col, height - 1)
+        end
+
+        $stdout.flush
+      rescue StandardError => e
+        Legion::Logging.warn("render_frame failed: #{e.message}") if defined?(Legion::Logging)
+      end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+      # Temporarily exit raw mode for blocking prompts (TTY::Prompt, etc.)
+      def with_cooked_mode(&)
+        return yield unless @raw_mode
+
+        $stdout.print cursor.show
+        $stdin.cooked(&)
+        $stdout.print cursor.hide
+        @prev_frame = []
       end
 
       def toggle_dashboard
@@ -72,22 +122,272 @@ module Legion
         end
       end
 
+      def shutdown
+        @running = false
+        @screen_manager.teardown_all
+      end
+
+      private
+
+      # --- Boot ---
+
+      def setup_for_chat
+        rescan_environment
+        setup_llm
+        cfg = safe_config
+        name = cfg[:name] || 'User'
+        @input_bar = Components::InputBar.new(name: name, completions: Screens::Chat::SLASH_COMMANDS)
+        chat = Screens::Chat.new(self)
+        @screen_manager.push(chat)
+      end
+
+      # --- Event Loop ---
+
+      # rubocop:disable Metrics/AbcSize
+      def run_loop
+        require 'io/console'
+
+        @running = true
+        @raw_mode = true
+        $stdout.print cursor.hide
+        $stdout.print cursor.clear_screen
+
+        $stdin.raw do |raw_in|
+          while @running
+            render_frame
+            timeout = needs_refresh? ? 0.05 : nil
+            raw_key = read_raw_key(raw_in, timeout: timeout)
+            next unless raw_key
+
+            key = normalize_key(raw_key)
+            dispatch_key(key)
+          end
+        end
+      rescue Interrupt
+        nil
+      ensure
+        @raw_mode = false
+        $stdout.print cursor.show
+        $stdout.print cursor.move_to(0, terminal_height - 1)
+        $stdout.puts
+        shutdown
+      end
+      # rubocop:enable Metrics/AbcSize
+
+      def needs_refresh?
+        active = @screen_manager.active_screen
+        active.respond_to?(:streaming?) && active.streaming?
+      end
+
+      def normalize_key(raw)
+        KEY_MAP[raw] || raw
+      end
+
+      # --- Key Dispatch ---
+
+      def dispatch_key(key)
+        if key == :ctrl_c
+          @running = false
+          return
+        end
+
+        if key == :escape && @screen_manager.overlay
+          @screen_manager.dismiss_overlay
+          return
+        end
+
+        result = @hotkeys.handle(key)
+        if result
+          handle_hotkey_result(result)
+          return
+        end
+
+        active = @screen_manager.active_screen
+        return unless active
+
+        if active.respond_to?(:needs_input_bar?) && active.needs_input_bar? && @input_bar
+          dispatch_to_input_screen(active, key)
+        else
+          dispatch_to_screen(active, key)
+        end
+      end
+
+      def dispatch_to_input_screen(screen, key)
+        result = @input_bar.handle_key(key)
+        if result.is_a?(Array) && result[0] == :submit
+          screen_result = screen.handle_line(result[1])
+          handle_screen_result(screen_result)
+        elsif result == :pass
+          screen_result = screen.handle_input(key)
+          handle_screen_result(screen_result)
+        end
+      end
+
+      def dispatch_to_screen(screen, key)
+        result = screen.handle_input(key)
+        handle_screen_result(result)
+      end
+
+      def handle_screen_result(result)
+        case result
+        when :pop_screen then @screen_manager.pop
+        when :quit then @running = false
+        end
+      end
+
+      def handle_hotkey_result(result)
+        case result
+        when :command_palette
+          active = @screen_manager.active_screen
+          active.send(:handle_palette) if active.respond_to?(:handle_palette, true)
+        when :session_picker
+          active = @screen_manager.active_screen
+          active.send(:handle_sessions_picker) if active.respond_to?(:handle_sessions_picker, true)
+        end
+      end
+
+      # --- Raw Key Reading ---
+
+      def read_raw_key(io, timeout: nil)
+        return nil unless io.wait_readable(timeout)
+
+        c = io.getc
+        return nil unless c
+
+        return c unless c == "\e"
+
+        read_escape_sequence(io)
+      end
+
+      def read_escape_sequence(io)
+        return "\e" unless io.wait_readable(0.05)
+
+        c2 = io.getc
+        return "\e" unless c2
+
+        if c2 == '['
+          read_csi_sequence(io)
+        elsif c2 == 'O'
+          c3 = io.wait_readable(0.05) ? io.getc : nil
+          c3 ? "\eO#{c3}" : "\eO"
+        else
+          "\e#{c2}"
+        end
+      end
+
+      def read_csi_sequence(io)
+        seq = +"\e["
+        loop do
+          break unless io.wait_readable(0.05)
+
+          c = io.getc
+          break unless c
+
+          seq << c
+          break if c.ord.between?(0x40, 0x7E)
+        end
+        seq
+      end
+
+      # --- Rendering ---
+
+      # rubocop:disable Metrics/AbcSize
+      def composite_overlay(lines, width, height)
+        require 'tty-box'
+        text = @screen_manager.overlay.to_s
+        box_width = (width - 4).clamp(40, width)
+        box = ::TTY::Box.frame(
+          width: box_width,
+          padding: 1,
+          title: { top_left: ' Help ' },
+          border: :round
+        ) { text }
+
+        overlay_lines = box.split("\n")
+        start_row = [(height - overlay_lines.size) / 2, 0].max
+        left_pad = [(width - box_width) / 2, 0].max
+
+        result = lines.dup
+        overlay_lines.each_with_index do |ol, i|
+          row = start_row + i
+          next if row >= height
+
+          result[row] = (' ' * left_pad) + ol
+        end
+        result
+      rescue StandardError => e
+        Legion::Logging.warn("composite_overlay failed: #{e.message}") if defined?(Legion::Logging)
+        lines
+      end
+      # rubocop:enable Metrics/AbcSize
+
+      def write_differential(lines, width)
+        lines.each_with_index do |line, row|
+          next if @prev_frame[row] == line
+
+          $stdout.print cursor.move_to(0, row)
+          $stdout.print line
+          plain_len = strip_ansi(line).length
+          $stdout.print(' ' * (width - plain_len)) if plain_len < width
+        end
+        @prev_frame = lines.dup
+      end
+
+      def strip_ansi(str)
+        str.to_s.gsub(/\e\[[0-9;]*m/, '')
+      end
+
+      def cursor
+        require 'tty-cursor'
+        ::TTY::Cursor
+      end
+
+      def terminal_width
+        require 'tty-screen'
+        ::TTY::Screen.width
+      rescue StandardError
+        80
+      end
+
+      def terminal_height
+        require 'tty-screen'
+        ::TTY::Screen.height
+      rescue StandardError
+        24
+      end
+
+      # --- Hotkeys ---
+
+      def setup_hotkeys
+        @hotkeys.register(:ctrl_d, 'Toggle dashboard (Ctrl+D)') do
+          toggle_dashboard
+          :handled
+        end
+        @hotkeys.register(:ctrl_l, 'Refresh screen (Ctrl+L)') do
+          @prev_frame = []
+          :handled
+        end
+        @hotkeys.register(:ctrl_k, 'Command palette (Ctrl+K)') { :command_palette }
+        @hotkeys.register(:ctrl_s, 'Session picker (Ctrl+S)') { :session_picker }
+      end
+
+      # --- Onboarding ---
+
       def run_onboarding
         onboarding = Screens::Onboarding.new(self, skip_rain: @skip_rain)
         data = onboarding.activate
         save_config(data)
         @config = load_config
         @credentials = load_credentials
-        run_chat
       end
 
-      def run_chat
-        rescan_environment
-        setup_llm
-        chat = Screens::Chat.new(self)
-        @screen_manager.push(chat)
-        chat.run
+      def save_config(data)
+        FileUtils.mkdir_p(@config_dir)
+        save_identity(data)
+        save_credentials(data)
       end
+
+      # --- LLM Setup ---
 
       def setup_llm
         boot_legion_subsystems
@@ -120,25 +420,10 @@ module Legion
           nil
         end
       end
-
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
-      def save_config(data)
-        FileUtils.mkdir_p(@config_dir)
-        save_identity(data)
-        save_credentials(data)
-      end
-
-      def shutdown
-        @screen_manager.teardown_all
-      end
-
-      private
 
       # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
       def boot_legion_subsystems
-        # Follow the same init order as Legion::Service:
-        # 1. logging  2. settings  3. crypt  4. resolve secrets  5. LLM merge
         require 'legion/logging'
         Legion::Logging.setup(log_level: 'error', level: 'error', trace: false)
 
@@ -197,6 +482,13 @@ module Legion
         nil
       end
 
+      # --- Config & Credentials ---
+
+      def safe_config
+        cfg = @config
+        cfg.is_a?(Hash) ? cfg : {}
+      end
+
       # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
       def save_identity(data)
         identity = {
@@ -205,7 +497,6 @@ module Legion
           created_at: Time.now.iso8601
         }
 
-        # Kerberos identity
         if data[:identity].is_a?(Hash)
           id = data[:identity]
           identity[:kerberos] = {
@@ -226,7 +517,6 @@ module Legion
           }.compact
         end
 
-        # GitHub profile
         if data[:github].is_a?(Hash) && data[:github][:username]
           gh = data[:github]
           identity[:github] = {
@@ -237,7 +527,6 @@ module Legion
           }.compact
         end
 
-        # Environment scan
         if data[:scan].is_a?(Hash)
           scan = data[:scan]
           services = scan[:services]&.values&.select { |s| s[:running] }&.map { |s| s[:name] } || []

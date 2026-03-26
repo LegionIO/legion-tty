@@ -122,7 +122,10 @@ module Legion
           def handle_palette
             require_relative '../components/command_palette'
             palette = Components::CommandPalette.new(session_store: @session_store)
-            selection = palette.select_with_prompt(output: @output)
+            selection = nil
+            @app.with_cooked_mode do
+              selection = palette.select_with_prompt(output: @output)
+            end
             return :handled unless selection
 
             if selection.start_with?('/')
@@ -176,7 +179,7 @@ module Legion
           end
 
           def handle_history
-            entries = @input_bar.history
+            entries = @app.respond_to?(:input_bar) && @app.input_bar ? @app.input_bar.history : []
             if entries.empty?
               @message_stream.add_message(role: :system, content: 'No input history.')
             else

@@ -65,7 +65,10 @@ module Legion
               current_provider: safe_config[:provider],
               current_model: @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : nil
             )
-            selection = picker.select_with_prompt(output: @output)
+            selection = nil
+            @app.with_cooked_mode do
+              selection = picker.select_with_prompt(output: @output)
+            end
             return unless selection
 
             switch_model(selection[:provider])

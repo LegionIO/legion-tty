@@ -21,6 +21,10 @@ module Legion
           :pass
         end
 
+        def needs_input_bar?
+          false
+        end
+
         def teardown; end
       end
     end

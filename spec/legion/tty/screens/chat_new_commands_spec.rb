@@ -128,12 +128,15 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands' do
     end
 
     it 'returns :handled' do
+      allow(app).to receive(:respond_to?).with(:input_bar).and_return(false)
       result = chat.handle_slash_command('/history')
       expect(result).to eq(:handled)
     end
 
     it 'shows "No input history" when history is empty' do
-      allow(input_bar).to receive(:history).and_return([])
+      mock_bar = double('input_bar', history: [])
+      allow(app).to receive(:respond_to?).with(:input_bar).and_return(true)
+      allow(app).to receive(:input_bar).and_return(mock_bar)
       result = chat.handle_slash_command('/history')
       expect(result).to eq(:handled)
       msgs = chat.message_stream.messages.select { |m| m[:role] == :system }
@@ -141,7 +144,9 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands' do
     end
 
     it 'shows numbered history entries' do
-      allow(input_bar).to receive(:history).and_return(['hello', '/help', '/clear'])
+      mock_bar = double('input_bar', history: ['hello', '/help', '/clear'])
+      allow(app).to receive(:respond_to?).with(:input_bar).and_return(true)
+      allow(app).to receive(:input_bar).and_return(mock_bar)
       chat.handle_slash_command('/history')
       msgs = chat.message_stream.messages.select { |m| m[:role] == :system }
       content = msgs.last[:content]
@@ -153,7 +158,9 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands' do
 
     it 'shows at most 20 entries' do
       entries = (1..30).map { |i| "entry #{i}" }
-      allow(input_bar).to receive(:history).and_return(entries)
+      mock_bar = double('input_bar', history: entries)
+      allow(app).to receive(:respond_to?).with(:input_bar).and_return(true)
+      allow(app).to receive(:input_bar).and_return(mock_bar)
       chat.handle_slash_command('/history')
       msgs = chat.message_stream.messages.select { |m| m[:role] == :system }
       content = msgs.last[:content]

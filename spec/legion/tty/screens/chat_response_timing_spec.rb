@@ -36,7 +36,7 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands: timing, /wc, /import, 
 
     before do
       chat.instance_variable_set(:@llm_chat, llm)
-      allow(chat).to receive(:render_screen)
+      allow(app).to receive(:respond_to?).with(:render_frame).and_return(false)
     end
 
     it 'sets @last_response_time after a successful call' do

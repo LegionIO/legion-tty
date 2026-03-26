@@ -42,7 +42,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
 
   subject(:screen) { described_class.new(app, output: output, input_bar: mock_input_bar) }
 
-  before { allow(screen).to receive(:render_screen) }
+  before { allow(app).to receive(:respond_to?).and_return(false) }
 
   describe '#daemon_available?' do
     context 'when Legion::LLM::DaemonClient is not defined' do

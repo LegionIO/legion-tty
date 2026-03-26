@@ -75,7 +75,7 @@ RSpec.describe Legion::TTY::App do
     it 'writes identity.json' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.save_config({ name: 'Matt', provider: 'claude', api_key: 'sk-test' })
+        app.send(:save_config, { name: 'Matt', provider: 'claude', api_key: 'sk-test' })
         expect(File.exist?(File.join(dir, 'identity.json'))).to be true
       end
     end
@@ -83,7 +83,7 @@ RSpec.describe Legion::TTY::App do
     it 'writes credentials.json' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.save_config({ name: 'Matt', provider: 'claude', api_key: 'sk-test' })
+        app.send(:save_config, { name: 'Matt', provider: 'claude', api_key: 'sk-test' })
         expect(File.exist?(File.join(dir, 'credentials.json'))).to be true
       end
     end
@@ -91,7 +91,7 @@ RSpec.describe Legion::TTY::App do
     it 'does not write api_key to identity.json' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.save_config({ name: 'Matt', provider: 'claude', api_key: 'sk-test' })
+        app.send(:save_config, { name: 'Matt', provider: 'claude', api_key: 'sk-test' })
         identity = JSON.parse(File.read(File.join(dir, 'identity.json')))
         expect(identity).not_to have_key('api_key')
       end
@@ -100,7 +100,7 @@ RSpec.describe Legion::TTY::App do
     it 'writes api_key to credentials.json' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.save_config({ name: 'Matt', provider: 'claude', api_key: 'sk-test' })
+        app.send(:save_config, { name: 'Matt', provider: 'claude', api_key: 'sk-test' })
         creds = JSON.parse(File.read(File.join(dir, 'credentials.json')))
         expect(creds['api_key']).to eq('sk-test')
       end
@@ -163,52 +163,43 @@ RSpec.describe Legion::TTY::App do
     it 'registers Ctrl+D for toggle dashboard' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.setup_hotkeys
+        app.send(:setup_hotkeys)
         keys = app.hotkeys.list.map { |b| b[:key] }
-        expect(keys).to include("\x04")
+        expect(keys).to include(:ctrl_d)
       end
     end
 
     it 'registers Ctrl+L for refresh' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.setup_hotkeys
+        app.send(:setup_hotkeys)
         keys = app.hotkeys.list.map { |b| b[:key] }
-        expect(keys).to include("\x0C")
+        expect(keys).to include(:ctrl_l)
       end
     end
 
     it 'registers Ctrl+K for command palette' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.setup_hotkeys
+        app.send(:setup_hotkeys)
         keys = app.hotkeys.list.map { |b| b[:key] }
-        expect(keys).to include("\x0B")
+        expect(keys).to include(:ctrl_k)
       end
     end
 
     it 'registers Ctrl+S for session picker' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.setup_hotkeys
+        app.send(:setup_hotkeys)
         keys = app.hotkeys.list.map { |b| b[:key] }
-        expect(keys).to include("\x13")
-      end
-    end
-
-    it 'registers Escape for go back' do
-      Dir.mktmpdir do |dir|
-        app = described_class.new(config_dir: dir)
-        app.setup_hotkeys
-        keys = app.hotkeys.list.map { |b| b[:key] }
-        expect(keys).to include("\e")
+        expect(keys).to include(:ctrl_s)
       end
     end
 
     it 'does NOT register ? as a hotkey' do
       Dir.mktmpdir do |dir|
         app = described_class.new(config_dir: dir)
-        app.setup_hotkeys
+        app.send(:setup_hotkeys)
         keys = app.hotkeys.list.map { |b| b[:key] }
         expect(keys).not_to include('?')
       end

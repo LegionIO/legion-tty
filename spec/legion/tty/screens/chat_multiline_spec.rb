@@ -114,49 +114,10 @@ RSpec.describe Legion::TTY::Screens::Chat, '/multiline command' do
     end
   end
 
-  describe '#read_multiline_input' do
-    it 'collects multiple lines until empty line and joins with newline' do
-      allow(reader).to receive(:read_line).and_return('line one', 'line two', '', nil)
-      chat.instance_variable_set(:@multiline_mode, true)
-      result = chat.send(:read_multiline_input)
-      expect(result).to eq("line one\nline two")
-    end
-
-    it 'returns nil when first read returns nil (Ctrl+C/EOF)' do
-      allow(reader).to receive(:read_line).and_return(nil)
-      result = chat.send(:read_multiline_input)
-      expect(result).to be_nil
-    end
-
-    it 'returns nil when only an empty line is entered' do
-      allow(reader).to receive(:read_line).and_return('')
-      result = chat.send(:read_multiline_input)
-      expect(result).to be_nil
-    end
-
-    it 'collects a single non-empty line before empty terminator' do
-      allow(reader).to receive(:read_line).and_return('hello', '')
-      result = chat.send(:read_multiline_input)
-      expect(result).to eq('hello')
-    end
-
-    it 'returns nil on Interrupt' do
-      allow(reader).to receive(:read_line).and_raise(Interrupt)
-      result = chat.send(:read_multiline_input)
-      expect(result).to be_nil
-    end
-  end
-
-  describe '#read_input routing' do
-    it 'calls read_multiline_input when multiline_mode is on' do
-      chat.instance_variable_set(:@multiline_mode, true)
-      expect(chat).to receive(:read_multiline_input).and_return('multi')
-      expect(chat.send(:read_input)).to eq('multi')
-    end
-
-    it 'calls input_bar.read_line normally when multiline_mode is off' do
-      allow(reader).to receive(:read_line).and_return('normal')
-      expect(chat.send(:read_input)).to eq('normal')
+  describe '#handle_line' do
+    it 'processes multiline toggle via slash command' do
+      chat.handle_line('/multiline')
+      expect(chat.instance_variable_get(:@multiline_mode)).to be true
     end
   end
 end

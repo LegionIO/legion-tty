@@ -102,7 +102,6 @@ RSpec.describe Legion::TTY::Screens::Chat, '/retry command' do
 
     it 'is set after handle_user_message' do
       allow(chat).to receive(:send_to_llm)
-      allow(chat).to receive(:render_screen)
       allow(chat).to receive(:check_autosave)
       chat.handle_user_message('hello world')
       expect(chat.instance_variable_get(:@last_user_input)).to eq('hello world')

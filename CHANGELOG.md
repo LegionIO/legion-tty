@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.36] - 2026-03-26
+
+### Changed
+- Rebuild rendering engine with raw-mode event loop replacing synchronous readline blocking
+- App#run_loop uses character-by-character input via IO.select + $stdin.raw with manual escape sequence parsing
+- Differential rendering compares frame buffers line-by-line to eliminate screen flicker
+- Overlay compositing renders TTY::Box frames centered over screen content, persists until Escape
+- Key normalization maps raw escape sequences and control chars to symbols for dispatch
+- InputBar rewritten with handle_key line buffer for non-blocking single-key processing
+- Chat screen uses render/handle_input contract with page_up/page_down scroll
+- Streaming flag enables 50ms refresh during LLM streaming for responsive re-rendering
+- Hotkeys now use normalized symbol keys (:ctrl_d, :ctrl_l, :ctrl_k, :ctrl_s)
+- Screens (Dashboard, Extensions, Config) driven by App event loop instead of standalone blocking loops
+
 ## [0.4.35] - 2026-03-25
 
 ### Changed
