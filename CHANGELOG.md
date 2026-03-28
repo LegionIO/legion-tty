@@ -3,7 +3,7 @@
 ## [0.4.39] - 2026-03-28
 
 ### Fixed
-- Onboarding wizard now installs GAIA cognitive extension gems when waking GAIA: after the daemon starts (or is already running), `offer_gaia_gems` checks for the 20 agentic/GAIA-tier gems via `Gem::Specification.find_by_name` and prompts the user to install any that are missing
+- Onboarding wizard now installs GAIA cognitive extension gems when waking GAIA: after the daemon starts (or is already running), `offer_gaia_gems` checks for the 21 agentic/GAIA-tier gems via `Gem::Specification.find_by_name` and prompts the user to install any that are missing
 - `LlmProbe` now returns `:configured` status (instead of `:error`) when a provider is enabled but the ping fails (e.g. Vault-injected providers unknown to `apply_provider_config`); these providers are shown with a key icon and "configured, not validated" label and are selectable as the default when no fully-validated `:ok` providers exist
 - `LlmProbe` accepts a `wait_queue:` argument so it waits for the bootstrap config thread to complete before probing, ensuring Vault-sourced provider settings are written to `~/.legionio/settings/llm.json` first
 - `select_provider_default` falls back to `:configured` providers when no `:ok` providers exist, so Vault-resolved providers are usable as the chat default
