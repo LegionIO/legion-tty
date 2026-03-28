@@ -24,13 +24,22 @@ module Legion
 
         def wait_for_bootstrap
           deadline = Time.now + 15
+          timed_out = false
           loop do
-            return unless @wait_queue.empty?
-            return if Time.now >= deadline
+            break unless @wait_queue.empty?
+
+            if Time.now >= deadline
+              timed_out = true
+              break
+            end
 
             sleep 0.2
           end
-          @log&.log('llm_probe', 'bootstrap wait complete')
+          if timed_out
+            @log&.log('llm_probe', 'bootstrap wait timed out')
+          else
+            @log&.log('llm_probe', 'bootstrap wait complete')
+          end
         rescue StandardError => e
           @log&.log('llm_probe', "bootstrap wait error: #{e.message}")
         end

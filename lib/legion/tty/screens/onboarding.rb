@@ -409,7 +409,7 @@ module Legion
 
         def store_teams_token(result)
           require 'legion/extensions/microsoft_teams/helpers/token_cache'
-          cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.new
+          cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.instance
           cache.store_delegated_token(result)
           cache.save_to_vault
         rescue StandardError => e
@@ -439,6 +439,7 @@ module Legion
         end
 
         def install_gaia_gems(gems)
+          failed = []
           gems.each do |gem_name|
             typed_output("  installing #{gem_name}...")
             @output.puts
@@ -447,8 +448,13 @@ module Legion
             @log.log('gaia_gems', "failed to install #{gem_name}: #{e.message}")
             typed_output("  failed: #{gem_name}")
             @output.puts
+            failed << gem_name
           end
-          typed_output('Cognitive extensions installed.')
+          if failed.empty?
+            typed_output('Cognitive extensions installed.')
+          else
+            typed_output("Cognitive extensions installed with #{failed.size} failure#{'s' if failed.size != 1}.")
+          end
           @output.puts
         end
 

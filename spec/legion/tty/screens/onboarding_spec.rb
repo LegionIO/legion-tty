@@ -489,6 +489,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
       allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(true)
       allow(Gem).to receive(:install)
+      allow(screen).to receive(:typed_output)
       expect(screen).to receive(:typed_output).with('Cognitive extensions installed.')
       screen.send(:offer_gaia_gems)
     end
@@ -504,7 +505,19 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
       allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(true)
       allow(Gem).to receive(:install).and_raise(StandardError, 'network error')
+      allow(screen).to receive(:typed_output)
       expect { screen.send(:offer_gaia_gems) }.not_to raise_error
+    end
+
+    it 'shows partial failure message when some gems fail to install' do
+      allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(true)
+      allow(Gem).to receive(:install).and_raise(StandardError, 'network error')
+      allow(screen).to receive(:typed_output)
+      expect(screen).to receive(:typed_output).with(
+        /cognitive extensions installed with \d+ failure/i
+      )
+      screen.send(:offer_gaia_gems)
     end
 
     it 'reports singular noun when only one gem is missing' do
