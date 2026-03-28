@@ -375,6 +375,7 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
     before do
       allow(screen).to receive(:typed_output)
       allow(screen).to receive(:sleep)
+      allow(screen).to receive(:offer_gaia_gems)
     end
 
     it 'shows GAIA is awake when daemon is running' do
@@ -382,6 +383,12 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       expect(screen).to receive(:typed_output).with('GAIA is awake.')
       expect(screen).to receive(:typed_output).with('Heuristic mesh: nominal.')
       expect(screen).to receive(:typed_output).with('Cognitive threads synchronized.')
+      screen.run_gaia_awakening
+    end
+
+    it 'calls offer_gaia_gems when daemon is already running' do
+      allow(screen).to receive(:legionio_running?).and_return(true)
+      expect(screen).to receive(:offer_gaia_gems)
       screen.run_gaia_awakening
     end
 
@@ -393,11 +400,34 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       screen.run_gaia_awakening
     end
 
+    it 'does not call offer_gaia_gems when user declines to wake GAIA' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(false)
+      expect(screen).not_to receive(:offer_gaia_gems)
+      screen.run_gaia_awakening
+    end
+
     it 'attempts to start daemon when user confirms' do
       allow(screen).to receive(:legionio_running?).and_return(false)
       allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
       allow(screen).to receive(:start_legionio_daemon).and_return(true)
       expect(screen).to receive(:typed_output).with('GAIA online. All systems nominal.')
+      screen.run_gaia_awakening
+    end
+
+    it 'calls offer_gaia_gems after successfully starting the daemon' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
+      allow(screen).to receive(:start_legionio_daemon).and_return(true)
+      expect(screen).to receive(:offer_gaia_gems)
+      screen.run_gaia_awakening
+    end
+
+    it 'does not call offer_gaia_gems when daemon start fails' do
+      allow(screen).to receive(:legionio_running?).and_return(false)
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
+      allow(screen).to receive(:start_legionio_daemon).and_return(false)
+      expect(screen).not_to receive(:offer_gaia_gems)
       screen.run_gaia_awakening
     end
 
@@ -407,6 +437,142 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
       allow(screen).to receive(:start_legionio_daemon).and_return(false)
       expect(screen).to receive(:typed_output).with("Could not start daemon. Run 'legionio start' manually.")
       screen.run_gaia_awakening
+    end
+  end
+
+  describe '#wake_gaia_daemon' do
+    before do
+      allow(screen).to receive(:typed_output)
+      allow(screen).to receive(:sleep)
+    end
+
+    it 'returns nil when user declines' do
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(false)
+      expect(screen.send(:wake_gaia_daemon)).to be_nil
+    end
+
+    it 'returns true when daemon starts successfully' do
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
+      allow(screen).to receive(:start_legionio_daemon).and_return(true)
+      expect(screen.send(:wake_gaia_daemon)).to be(true)
+    end
+
+    it 'returns false when daemon fails to start' do
+      allow(mock_wizard).to receive(:confirm).with('Shall I wake her?').and_return(true)
+      allow(screen).to receive(:start_legionio_daemon).and_return(false)
+      expect(screen.send(:wake_gaia_daemon)).to be(false)
+    end
+  end
+
+  describe '#offer_gaia_gems' do
+    before do
+      allow(screen).to receive(:typed_output)
+      allow(screen).to receive(:sleep)
+    end
+
+    it 'does nothing when all GAIA gems are already installed' do
+      allow(Gem::Specification).to receive(:find_by_name).and_return(double('spec'))
+      expect(mock_wizard).not_to receive(:confirm)
+      screen.send(:offer_gaia_gems)
+    end
+
+    it 'shows count and asks when some gems are missing' do
+      allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(false)
+      expect(screen).to receive(:typed_output).with(
+        "#{Legion::TTY::Screens::Onboarding::GAIA_GEMS.size} cognitive extensions not installed."
+      )
+      screen.send(:offer_gaia_gems)
+    end
+
+    it 'installs missing gems when user confirms' do
+      allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(true)
+      allow(Gem).to receive(:install)
+      allow(screen).to receive(:typed_output)
+      expect(screen).to receive(:typed_output).with('Cognitive extensions installed.')
+      screen.send(:offer_gaia_gems)
+    end
+
+    it 'skips install when user declines' do
+      allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(false)
+      expect(Gem).not_to receive(:install)
+      screen.send(:offer_gaia_gems)
+    end
+
+    it 'handles install errors gracefully' do
+      allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(true)
+      allow(Gem).to receive(:install).and_raise(StandardError, 'network error')
+      allow(screen).to receive(:typed_output)
+      expect { screen.send(:offer_gaia_gems) }.not_to raise_error
+    end
+
+    it 'shows partial failure message when some gems fail to install' do
+      allow(Gem::Specification).to receive(:find_by_name).and_raise(Gem::LoadError)
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(true)
+      allow(Gem).to receive(:install).and_raise(StandardError, 'network error')
+      allow(screen).to receive(:typed_output)
+      expect(screen).to receive(:typed_output).with(
+        /cognitive extensions installed with \d+ failure/i
+      )
+      screen.send(:offer_gaia_gems)
+    end
+
+    it 'reports singular noun when only one gem is missing' do
+      missing_gem = Legion::TTY::Screens::Onboarding::GAIA_GEMS.first
+      allow(Gem::Specification).to receive(:find_by_name) do |name|
+        raise Gem::LoadError if name == missing_gem
+
+        double('spec')
+      end
+      allow(mock_wizard).to receive(:confirm).with('Install cognitive extensions?').and_return(false)
+      expect(screen).to receive(:typed_output).with('1 cognitive extension not installed.')
+      screen.send(:offer_gaia_gems)
+    end
+  end
+
+  describe '#select_provider_default' do
+    before do
+      allow(screen).to receive(:typed_output)
+      allow(screen).to receive(:sleep)
+    end
+
+    it 'selects from :ok providers when available' do
+      providers = [
+        { name: 'claude', model: 'claude-3', status: :ok, latency_ms: 200 },
+        { name: 'openai', model: 'gpt-4', status: :configured, latency_ms: 100 }
+      ]
+      expect(mock_wizard).to receive(:select_default_provider).with([providers.first]).and_return('claude')
+      result = screen.send(:select_provider_default, providers)
+      expect(result).to eq('claude')
+    end
+
+    it 'falls back to :configured providers when no :ok providers exist' do
+      providers = [
+        { name: 'foundry', model: 'gpt-4o', status: :configured, latency_ms: 50 }
+      ]
+      expect(mock_wizard).to receive(:select_default_provider).with(providers).and_return('foundry')
+      result = screen.send(:select_provider_default, providers)
+      expect(result).to eq('foundry')
+    end
+
+    it 'returns nil and shows message when no providers at all' do
+      expect(screen).to receive(:typed_output).with(
+        'No AI providers detected. Configure one in ~/.legionio/settings/llm.json'
+      )
+      result = screen.send(:select_provider_default, [])
+      expect(result).to be_nil
+    end
+
+    it 'returns nil when only :error providers exist' do
+      providers = [{ name: 'openai', model: 'gpt-4', status: :error, latency_ms: 50 }]
+      expect(screen).to receive(:typed_output).with(
+        'No AI providers detected. Configure one in ~/.legionio/settings/llm.json'
+      )
+      result = screen.send(:select_provider_default, providers)
+      expect(result).to be_nil
     end
   end
 

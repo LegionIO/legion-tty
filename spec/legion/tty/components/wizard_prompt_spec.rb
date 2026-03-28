@@ -108,4 +108,41 @@ RSpec.describe Legion::TTY::Components::WizardPrompt do
       expect(wizard.ask_with_default('Username:', 'jdoe')).to eq('jsmith')
     end
   end
+
+  describe '#display_provider_results' do
+    it 'shows a checkmark for :ok providers' do
+      provider = { name: 'claude', model: 'claude-3', status: :ok, latency_ms: 120 }
+      expect(mock_prompt).to receive(:say).with(include("\u2705"))
+      wizard.display_provider_results([provider])
+    end
+
+    it 'shows a key icon for :configured providers' do
+      provider = { name: 'foundry', model: 'gpt-4o', status: :configured, latency_ms: 80, error: 'unknown provider' }
+      expect(mock_prompt).to receive(:say).with(include("\U0001F511"))
+      wizard.display_provider_results([provider])
+    end
+
+    it 'shows an X for :error providers' do
+      provider = { name: 'openai', model: 'gpt-4', status: :error, latency_ms: 50, error: 'connection refused' }
+      expect(mock_prompt).to receive(:say).with(include("\u274C"))
+      wizard.display_provider_results([provider])
+    end
+
+    it 'shows "configured, not validated" annotation for :configured providers with errors' do
+      provider = { name: 'xai', model: 'grok-1', status: :configured, latency_ms: 60,
+                   error: 'apply_provider_config failed' }
+      expect(mock_prompt).to receive(:say).with(include('configured, not validated'))
+      wizard.display_provider_results([provider])
+    end
+
+    it 'shows the error message for :error providers' do
+      provider = { name: 'openai', model: 'gpt-4', status: :error, latency_ms: 50, error: 'invalid api key' }
+      expect(mock_prompt).to receive(:say).with(include('invalid api key'))
+      wizard.display_provider_results([provider])
+    end
+
+    it 'handles an empty provider list without error' do
+      expect { wizard.display_provider_results([]) }.not_to raise_error
+    end
+  end
 end

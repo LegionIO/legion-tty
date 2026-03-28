@@ -4,12 +4,14 @@ module Legion
   module TTY
     module Background
       class LlmProbe
-        def initialize(logger: nil)
+        def initialize(logger: nil, wait_queue: nil)
           @log = logger
+          @wait_queue = wait_queue
         end
 
         def run_async(queue)
           Thread.new do
+            wait_for_bootstrap if @wait_queue
             result = probe_providers
             queue.push({ data: result })
           rescue StandardError => e
@@ -19,6 +21,28 @@ module Legion
         end
 
         private
+
+        def wait_for_bootstrap
+          deadline = Time.now + 15
+          timed_out = false
+          loop do
+            break unless @wait_queue.empty?
+
+            if Time.now >= deadline
+              timed_out = true
+              break
+            end
+
+            sleep 0.2
+          end
+          if timed_out
+            @log&.log('llm_probe', 'bootstrap wait timed out')
+          else
+            @log&.log('llm_probe', 'bootstrap wait complete')
+          end
+        rescue StandardError => e
+          @log&.log('llm_probe', "bootstrap wait error: #{e.message}")
+        end
 
         def probe_providers
           require 'legion/llm'
@@ -54,7 +78,7 @@ module Legion
         rescue StandardError => e
           latency = ((Time.now - start_time) * 1000).round
           Legion::Logging.debug("ping_provider #{name} failed: #{e.message}") if defined?(Legion::Logging)
-          { name: name, model: model, status: :error, latency_ms: latency, error: e.message }
+          { name: name, model: model, status: :configured, latency_ms: latency, error: e.message }
         end
       end
     end

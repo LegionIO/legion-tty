@@ -17,6 +17,17 @@ module Legion
       class Onboarding < Base
         TYPED_DELAY = 0.05
 
+        GAIA_GEMS = %w[
+          lex-agentic-self lex-agentic-affect lex-agentic-attention
+          lex-agentic-defense lex-agentic-executive lex-agentic-homeostasis
+          lex-agentic-imagination lex-agentic-inference lex-agentic-integration
+          lex-agentic-language lex-agentic-learning lex-agentic-memory
+          lex-agentic-social
+          lex-tick lex-extinction lex-mind-growth lex-mesh
+          lex-synapse lex-react
+          legion-gaia legion-apollo
+        ].freeze
+
         def initialize(app, wizard: nil, output: $stdout, skip_rain: false)
           super(app)
           @wizard = wizard || Components::WizardPrompt.new
@@ -119,6 +130,7 @@ module Legion
 
         def select_provider_default(providers)
           working = providers.select { |p| p[:status] == :ok }
+          working = providers.select { |p| p[:status] == :configured } if working.empty?
           if working.any?
             default = @wizard.select_default_provider(working)
             sleep 0.5
@@ -139,7 +151,7 @@ module Legion
           @kerberos_probe.run_async(@kerberos_queue)
           @github_probe.run_quick_async(@github_quick_queue)
           require_relative '../background/llm_probe'
-          @llm_probe = Background::LlmProbe.new(logger: @log)
+          @llm_probe = Background::LlmProbe.new(logger: @log, wait_queue: @bootstrap_queue)
           @llm_probe.run_async(@llm_queue)
           @bootstrap_probe = Background::BootstrapConfig.new(logger: @log)
           @bootstrap_probe.run_async(@bootstrap_queue)
@@ -196,37 +208,42 @@ module Legion
           end
         end
 
-        # rubocop:disable Metrics/AbcSize
         def run_gaia_awakening
           typed_output('Scanning for active cognition threads...')
           sleep 1.2
           @output.puts
 
-          if legionio_running?
-            typed_output('GAIA is awake.')
-            sleep 0.5
-            typed_output('Heuristic mesh: nominal.')
-            sleep 0.8
-            typed_output('Cognitive threads synchronized.')
-          else
-            typed_output('GAIA is dormant.')
-            sleep 1
-            @output.puts
-            if @wizard.confirm('Shall I wake her?')
-              started = start_legionio_daemon
-              if started
-                typed_output('... initializing cognitive substrate...')
-                sleep 1
-                typed_output('GAIA online. All systems nominal.')
-              else
-                typed_output("Could not start daemon. Run 'legionio start' manually.")
-              end
-            end
-          end
+          gaia_active = if legionio_running?
+                          typed_output('GAIA is awake.')
+                          sleep 0.5
+                          typed_output('Heuristic mesh: nominal.')
+                          sleep 0.8
+                          typed_output('Cognitive threads synchronized.')
+                          true
+                        else
+                          wake_gaia_daemon
+                        end
 
+          offer_gaia_gems if gaia_active
           @output.puts
         end
-        # rubocop:enable Metrics/AbcSize
+
+        def wake_gaia_daemon
+          typed_output('GAIA is dormant.')
+          sleep 1
+          @output.puts
+          return unless @wizard.confirm('Shall I wake her?')
+
+          started = start_legionio_daemon
+          if started
+            typed_output('... initializing cognitive substrate...')
+            sleep 1
+            typed_output('GAIA online. All systems nominal.')
+          else
+            typed_output("Could not start daemon. Run 'legionio start' manually.")
+          end
+          started
+        end
 
         def collect_background_results
           @log.log('collect', 'waiting for scanner results (10s timeout)')
@@ -392,12 +409,53 @@ module Legion
 
         def store_teams_token(result)
           require 'legion/extensions/microsoft_teams/helpers/token_cache'
-          cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.new
+          cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.instance
           cache.store_delegated_token(result)
           cache.save_to_vault
         rescue StandardError => e
           Legion::Logging.warn("store_teams_token failed: #{e.message}") if defined?(Legion::Logging)
           nil
+        end
+
+        def offer_gaia_gems
+          missing = missing_gaia_gems
+          return if missing.empty?
+
+          @output.puts
+          typed_output("#{missing.size} cognitive extension#{'s' if missing.size != 1} not installed.")
+          @output.puts
+          return unless @wizard.confirm('Install cognitive extensions?')
+
+          install_gaia_gems(missing)
+        end
+
+        def missing_gaia_gems
+          GAIA_GEMS.reject do |gem_name|
+            Gem::Specification.find_by_name(gem_name)
+            true
+          rescue Gem::LoadError
+            false
+          end
+        end
+
+        def install_gaia_gems(gems)
+          failed = []
+          gems.each do |gem_name|
+            typed_output("  installing #{gem_name}...")
+            @output.puts
+            Gem.install(gem_name)
+          rescue StandardError => e
+            @log.log('gaia_gems', "failed to install #{gem_name}: #{e.message}")
+            typed_output("  failed: #{gem_name}")
+            @output.puts
+            failed << gem_name
+          end
+          if failed.empty?
+            typed_output('Cognitive extensions installed.')
+          else
+            typed_output("Cognitive extensions installed with #{failed.size} failure#{'s' if failed.size != 1}.")
+          end
+          @output.puts
         end
 
         def detect_gem_available?

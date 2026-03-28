@@ -56,10 +56,14 @@ module Legion
 
         def display_provider_results(providers)
           providers.each do |p|
-            icon = p[:status] == :ok ? "\u2705" : "\u274C"
+            icon = case p[:status]
+                   when :ok then "\u2705"
+                   when :configured then "\U0001F511"
+                   else "\u274C"
+                   end
             latency = "#{p[:latency_ms]}ms"
             label = "#{icon} #{p[:name]} (#{p[:model]}) \u2014 #{latency}"
-            label += " [#{p[:error]}]" if p[:error]
+            label += p[:status] == :configured ? ' [configured, not validated]' : " [#{p[:error]}]" if p[:error]
             @prompt.say(label)
           end
         end
