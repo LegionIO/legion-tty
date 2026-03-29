@@ -29,44 +29,38 @@ RSpec.describe Legion::TTY::Screens::Chat, 'new commands: timing, /wc, /import, 
   subject(:chat) { described_class.new(app, output: output, input_bar: input_bar) }
 
   # ---------------------------------------------------------------------------
-  # Feature 1: Response timing
+  # Feature 1: Response timing (via daemon path)
   # ---------------------------------------------------------------------------
-  describe 'response timing via send_via_direct' do
-    let(:llm) { double('llm_chat') }
+  describe 'response timing via send_via_daemon' do
+    let(:ok_result) { { status: :ok, data: { content: 'hello', input_tokens: 5, output_tokens: 3 } } }
 
     before do
-      chat.instance_variable_set(:@llm_chat, llm)
+      allow(Legion::TTY::DaemonClient).to receive(:available?).and_return(true)
+      allow(Legion::TTY::DaemonClient).to receive(:inference).and_return(ok_result)
       allow(app).to receive(:respond_to?).with(:render_frame).and_return(false)
+      chat.message_stream.add_message(role: :assistant, content: '')
     end
 
     it 'sets @last_response_time after a successful call' do
-      allow(llm).to receive(:ask).and_yield(double(content: 'hello'))
-      chat.message_stream.add_message(role: :assistant, content: '')
-      chat.send(:send_via_direct, 'ping')
+      chat.send(:send_via_daemon, 'ping')
       expect(chat.instance_variable_get(:@last_response_time)).to be_a(Float)
     end
 
     it '@last_response_time is non-negative' do
-      allow(llm).to receive(:ask).and_yield(double(content: 'hello'))
-      chat.message_stream.add_message(role: :assistant, content: '')
-      chat.send(:send_via_direct, 'ping')
+      chat.send(:send_via_daemon, 'ping')
       expect(chat.instance_variable_get(:@last_response_time)).to be >= 0
     end
 
     it 'stores response_time on the last message' do
-      allow(llm).to receive(:ask).and_yield(double(content: 'world'))
-      chat.message_stream.add_message(role: :assistant, content: '')
-      chat.send(:send_via_direct, 'ping')
+      chat.send(:send_via_daemon, 'ping')
       expect(chat.message_stream.messages.last[:response_time]).to be_a(Float)
     end
 
     it 'notifies the status bar with the response time' do
-      allow(llm).to receive(:ask).and_yield(double(content: 'ok'))
-      chat.message_stream.add_message(role: :assistant, content: '')
       expect(chat.status_bar).to receive(:notify).with(
         hash_including(message: a_string_matching(/Response:.*s/), level: :info, ttl: 4)
       )
-      chat.send(:send_via_direct, 'ping')
+      chat.send(:send_via_daemon, 'ping')
     end
 
     it 'initializes @muted_system to false' do

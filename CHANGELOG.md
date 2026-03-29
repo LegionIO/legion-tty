@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.40] - 2026-03-28
+
+### Changed
+- All LLM calls in the chat screen now route exclusively through the LegionIO daemon API (`POST /api/llm/inference`) via `Legion::TTY::DaemonClient.inference`
+- Removed soft fallback to raw RubyLLM (`send_via_direct` / `@llm_chat.ask`) — if the daemon is not running, a clear error is displayed: "LegionIO daemon is not running. Start it with: legionio start"
+- Fixed `send_via_daemon`: was calling `Legion::LLM.ask` (which never returns `{status: :done}`) and falling through to direct on every call; now calls `DaemonClient.inference` with the full conversation history
+- Fixed `daemon_available?`: was checking `Legion::LLM::DaemonClient` (an unrelated module); now calls `Legion::TTY::DaemonClient.available?` directly
+- `try_settings_llm` in `App` no longer creates a raw `Legion::LLM.chat` session; daemon availability is logged instead
+- System prompt is now injected per-request as part of the messages array sent to `/api/llm/inference`, not pre-set on a session object
+- Added `DaemonClient.inference` method: `POST /api/llm/inference` with messages array, tools, model, provider; returns `{status: :ok/:error/:unavailable, data:}`
+- Added `build_inference_messages`: assembles system + conversation history + current message for the inference call
+- Added `track_inference_tokens`: tracks input/output tokens from the `data` hash returned by `/api/llm/inference`
+
 ## [0.4.39] - 2026-03-28
 
 ### Fixed

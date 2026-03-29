@@ -10,6 +10,7 @@ module Legion
     module DaemonClient
       SUCCESS_CODES = [200, 201, 202].freeze
 
+      # rubocop:disable Metrics/ClassLength
       class << self
         def configure(daemon_url: 'http://127.0.0.1:4567', cache_file: nil, timeout: 5)
           @daemon_url = daemon_url
@@ -89,6 +90,19 @@ module Legion
           nil
         end
 
+        def inference(messages:, tools: [], model: nil, provider: nil, timeout: 120)
+          response = post_inference(messages: messages, tools: tools, model: model,
+                                    provider: provider, timeout: timeout)
+          return inference_error_result(response) unless SUCCESS_CODES.include?(response.code.to_i)
+
+          body = Legion::JSON.load(response.body)
+          data = body[:data] || body
+          { status: :ok, data: data }
+        rescue StandardError => e
+          Legion::Logging.warn("inference failed: #{e.message}") if defined?(Legion::Logging)
+          { status: :unavailable, error: { message: e.message } }
+        end
+
         def reset!
           @daemon_url = nil
           @cache_file = nil
@@ -97,6 +111,29 @@ module Legion
         end
 
         private
+
+        def post_inference(messages:, tools:, model:, provider:, timeout:)
+          uri = URI("#{daemon_url}/api/llm/inference")
+          payload = Legion::JSON.dump({ messages: messages, tools: tools,
+                                        model: model, provider: provider }.compact)
+          http_timeout = [timeout, @timeout || 5].max
+          req = Net::HTTP::Post.new(uri)
+          req['Content-Type'] = 'application/json'
+          req.body = payload
+          Net::HTTP.start(uri.hostname, uri.port,
+                          open_timeout: @timeout || 5,
+                          read_timeout: http_timeout) { |h| h.request(req) }
+        end
+
+        def inference_error_result(response)
+          body = begin
+            Legion::JSON.load(response.body)
+          rescue StandardError
+            {}
+          end
+          err = body.dig(:error, :message) || body.dig(:data, :error, :message) || "HTTP #{response.code}"
+          { status: :error, error: { message: err } }
+        end
 
         def daemon_url
           @daemon_url || 'http://127.0.0.1:4567'
@@ -119,6 +156,7 @@ module Legion
           nil
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

@@ -18,33 +18,18 @@ module Legion
           end
 
           def switch_model(name)
-            unless @llm_chat
-              @message_stream.add_message(role: :system, content: 'No active LLM session.')
-              return
-            end
-
-            apply_model_switch(name)
+            @preferred_model = name
+            @status_bar.update(model: name)
+            @token_tracker.update_model(name)
+            @message_stream.add_message(role: :system,
+                                        content: "Model preference set to: #{name} (applied on next daemon request)")
           rescue StandardError => e
             Legion::Logging.warn("switch_model failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
           end
 
           def apply_model_switch(name)
-            new_chat = try_provider_switch(name)
-            if new_chat
-              @llm_chat = new_chat
-              @status_bar.update(model: name)
-              @token_tracker.update_model(name)
-              @message_stream.add_message(role: :system, content: "Switched to provider: #{name}")
-            elsif @llm_chat.respond_to?(:with_model)
-              @llm_chat.with_model(name)
-              @status_bar.update(model: name)
-              @token_tracker.update_model(name)
-              @message_stream.add_message(role: :system, content: "Model switched to: #{name}")
-            else
-              @status_bar.update(model: name)
-              @message_stream.add_message(role: :system, content: "Model set to: #{name}")
-            end
+            switch_model(name)
           end
 
           def try_provider_switch(name)
@@ -75,9 +60,8 @@ module Legion
           end
 
           def show_current_model
-            model = @llm_chat.respond_to?(:model) ? @llm_chat.model : nil
             provider = safe_config[:provider] || 'unknown'
-            info = model ? "#{model} (#{provider})" : provider
+            info = @preferred_model ? "#{@preferred_model} (#{provider})" : provider
             @message_stream.add_message(role: :system, content: "Current model: #{info}")
           end
 

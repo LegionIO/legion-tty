@@ -468,15 +468,16 @@ module Legion
       end
 
       def try_settings_llm
-        return nil unless defined?(Legion::LLM)
-
-        Legion::LLM.start unless Legion::LLM.started?
-        return nil unless Legion::LLM.started?
-
-        provider = Legion::LLM.settings[:default_provider]
-        return nil unless provider
-
-        Legion::LLM.chat(provider: provider, caller: { source: 'tty', screen: 'chat' })
+        # All LLM calls route through the LegionIO daemon API.
+        # No raw RubyLLM session is created here — nil signals "use daemon path".
+        if Legion::TTY::DaemonClient.available?
+          Legion::Logging.debug('TTY: daemon available, LLM routed through daemon') if defined?(Legion::Logging)
+        elsif defined?(Legion::Logging)
+          if defined?(Legion::Logging)
+            Legion::Logging.warn('TTY: daemon not running; LLM unavailable until daemon starts')
+          end
+        end
+        nil
       rescue StandardError => e
         Legion::Logging.warn("try_settings_llm failed: #{e.message}") if defined?(Legion::Logging)
         nil

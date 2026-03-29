@@ -88,23 +88,16 @@ RSpec.describe Legion::TTY::Screens::Chat do
       expect(msgs.last[:content]).to match(/Current model:/)
     end
 
-    it '/model with invalid name when with_model raises shows error and does not crash' do
-      llm = double('llm_chat')
-      allow(llm).to receive(:respond_to?).with(:with_model).and_return(true)
-      allow(llm).to receive(:with_model).and_raise(StandardError, 'model not found')
-      screen.instance_variable_set(:@llm_chat, llm)
-      result = screen.handle_slash_command('/model bad-model-name')
+    it '/model with a model name stores the preference and confirms' do
+      result = screen.handle_slash_command('/model claude-opus-4')
       expect(result).to eq(:handled)
       msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
-      expect(msgs.last[:content]).to match(/Failed to switch model:/)
+      expect(msgs.last[:content]).to include('claude-opus-4')
     end
 
-    it '/model with no llm_chat shows no active session message' do
-      screen.instance_variable_set(:@llm_chat, nil)
-      result = screen.handle_slash_command('/model some-model')
-      expect(result).to eq(:handled)
-      msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
-      expect(msgs.last[:content]).to eq('No active LLM session.')
+    it '/model preference is applied on next inference call' do
+      screen.handle_slash_command('/model custom-model')
+      expect(screen.instance_variable_get(:@preferred_model)).to eq('custom-model')
     end
 
     it 'recognizes /session with argument' do

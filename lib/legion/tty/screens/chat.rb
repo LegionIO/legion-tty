@@ -73,10 +73,10 @@ module Legion
           @output = output
           @message_stream = Components::MessageStream.new
           @status_bar = Components::StatusBar.new
-          @llm_chat = app.respond_to?(:llm_chat) ? app.llm_chat : nil
+          @llm_chat = nil
           @token_tracker = Components::TokenTracker.new(
             provider: detect_provider,
-            model: @llm_chat.respond_to?(:model) ? @llm_chat.model.to_s : nil
+            model: nil
           )
           @session_store = SessionStore.new
           @session_name = 'default'
@@ -174,16 +174,14 @@ module Legion
         end
 
         def send_to_llm(message)
-          unless @llm_chat || daemon_available?
-            @message_stream.append_streaming('LLM not configured. Use /help for commands.')
+          unless daemon_available?
+            @message_stream.append_streaming(
+              'LegionIO daemon is not running. Start it with: legionio start'
+            )
             return
           end
 
-          if daemon_available?
-            send_via_daemon(message)
-          else
-            send_via_direct(message)
-          end
+          send_via_daemon(message)
         rescue StandardError => e
           Legion::Logging.error("send_to_llm failed: #{e.message}") if defined?(Legion::Logging)
           @status_bar.update(thinking: false)
@@ -239,60 +237,47 @@ module Legion
         end
 
         def setup_system_prompt
-          cfg = safe_config
-          return unless @llm_chat && cfg.is_a?(Hash) && !cfg.empty?
-
-          prompt = build_system_prompt(cfg)
-          @llm_chat.with_instructions(prompt) if @llm_chat.respond_to?(:with_instructions)
+          # System prompt is injected per-request in build_inference_messages.
+          # Nothing to do at activation time.
         end
 
+        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
         def send_via_daemon(message)
-          result = Legion::LLM.ask(message: message)
-
-          case result&.dig(:status)
-          when :done
-            parser = build_tool_call_parser
-            parser.feed(result[:response])
-            parser.flush
-            track_daemon_tokens(result)
-          when :error
-            err = result.dig(:error, :message) || 'Unknown error'
-            @message_stream.append_streaming("\n[Daemon error: #{err}]")
-          else
-            send_via_direct(message)
-          end
-        rescue StandardError => e
-          Legion::Logging.warn("send_via_daemon failed: #{e.message}") if defined?(Legion::Logging)
-          send_via_direct(message)
-        end
-
-        # rubocop:disable Metrics/AbcSize
-        def send_via_direct(message)
-          return unless @llm_chat
-
           @status_bar.update(thinking: true)
           @streaming = true
           @app.render_frame if @app.respond_to?(:render_frame)
+
           start_time = Time.now
-          response_text = +''
-          parser = build_tool_call_parser
-          response = @llm_chat.ask(message) do |chunk|
-            @status_bar.update(thinking: false)
-            if chunk.content
-              response_text << chunk.content
-              parser.feed(chunk.content)
-            end
-            @app.render_frame if @app.respond_to?(:render_frame)
+          messages = build_inference_messages(message)
+          result = Legion::TTY::DaemonClient.inference(
+            messages: messages,
+            model: @preferred_model
+          )
+
+          case result[:status]
+          when :ok
+            data = result[:data] || {}
+            content = data[:content].to_s
+            parser = build_tool_call_parser
+            parser.feed(content)
+            parser.flush
+            record_response_time(Time.now - start_time)
+            track_inference_tokens(data)
+            speak_response(content) if @speak_mode
+          when :error
+            err = result.dig(:error, :message) || 'Unknown error'
+            @message_stream.append_streaming("\n[Daemon error: #{err}]")
+          when :unavailable
+            err = result.dig(:error, :message) || 'Daemon unavailable'
+            @message_stream.append_streaming(
+              "\nLegionIO daemon is not running. Start it with: legionio start\n[#{err}]"
+            )
           end
-          parser.flush
-          record_response_time(Time.now - start_time)
-          @status_bar.update(thinking: false)
-          track_response_tokens(response)
-          speak_response(response_text) if @speak_mode
         ensure
+          @status_bar.update(thinking: false)
           @streaming = false
         end
-        # rubocop:enable Metrics/AbcSize
+        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
         def speak_response(text)
           return unless RUBY_PLATFORM =~ /darwin/
@@ -310,7 +295,47 @@ module Legion
         end
 
         def daemon_available?
-          !!(defined?(Legion::LLM::DaemonClient) && Legion::LLM::DaemonClient.available?)
+          Legion::TTY::DaemonClient.available?
+        rescue StandardError => e
+          Legion::Logging.debug("daemon_available? check failed: #{e.message}") if defined?(Legion::Logging)
+          false
+        end
+
+        def build_inference_messages(current_message)
+          msgs = []
+          inject_system_message(msgs)
+          inject_history_messages(msgs)
+          msgs.pop if msgs.last&.dig(:role) == 'user'
+          msgs << { role: 'user', content: current_message }
+          msgs
+        end
+
+        def inject_system_message(msgs)
+          prompt = build_system_prompt(safe_config)
+          msgs << { role: 'system', content: prompt } if prompt && !prompt.strip.empty?
+        end
+
+        def inject_history_messages(msgs)
+          @message_stream.messages.each do |m|
+            next if m[:tool_panel]
+            next unless %i[user assistant].include?(m[:role])
+
+            content = m[:content].to_s
+            next if content.strip.empty?
+
+            msgs << { role: m[:role].to_s, content: content }
+          end
+        end
+
+        def track_inference_tokens(data)
+          return unless data.is_a?(Hash) && (data[:input_tokens] || data[:output_tokens])
+
+          @token_tracker.track(
+            input_tokens: data[:input_tokens].to_i,
+            output_tokens: data[:output_tokens].to_i,
+            model: data[:model]&.to_s
+          )
+          update_status_bar_tokens
         end
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
@@ -634,18 +659,6 @@ module Legion
             input_tokens: input_tokens,
             output_tokens: output_tokens,
             model: model_id
-          )
-          update_status_bar_tokens
-        end
-
-        def track_daemon_tokens(result)
-          meta = result[:meta]
-          return unless meta.is_a?(Hash) && (meta[:tokens_in] || meta[:tokens_out])
-
-          @token_tracker.track(
-            input_tokens: meta[:tokens_in].to_i,
-            output_tokens: meta[:tokens_out].to_i,
-            model: meta[:model]&.to_s
           )
           update_status_bar_tokens
         end

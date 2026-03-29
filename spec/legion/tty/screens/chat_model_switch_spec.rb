@@ -45,18 +45,11 @@ RSpec.describe Legion::TTY::Screens::Chat, 'model switching' do
       expect(result).to eq(:handled)
     end
 
-    it 'handles switch failure gracefully' do
-      llm_chat = double('llm_chat')
-      allow(llm_chat).to receive(:respond_to?).and_return(true)
-      allow(llm_chat).to receive(:model).and_return('test-model')
-      allow(llm_chat).to receive(:with_model).and_raise(StandardError.new('bad model'))
-      allow(llm_chat).to receive(:with_instructions)
-      allow(app).to receive(:llm_chat).and_return(llm_chat)
-
+    it 'sets model preference and confirms with a message' do
       chat = described_class.new(app, output: output, input_bar: input_bar)
-      result = chat.handle_slash_command('/model bad-model')
+      result = chat.handle_slash_command('/model claude-opus-4')
       expect(result).to eq(:handled)
-      expect(chat.message_stream.messages.last[:content]).to include('Failed to switch model')
+      expect(chat.message_stream.messages.last[:content]).to include('claude-opus-4')
     end
   end
 end
