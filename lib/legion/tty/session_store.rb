@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'json'
+require 'legion/json'
 require 'fileutils'
 
 module Legion
@@ -21,16 +21,16 @@ module Legion
           saved_at: Time.now.iso8601,
           version: 1
         }
-        File.write(session_path(name), ::JSON.generate(data))
+        File.write(session_path(name), Legion::JSON.generate(data))
       end
 
       def load(name)
         path = session_path(name)
         return nil unless File.exist?(path)
 
-        data = ::JSON.parse(File.read(path), symbolize_names: true)
+        data = Legion::JSON.parse(File.read(path), symbolize_names: true)
         normalize_session(data)
-      rescue ::JSON::ParserError => e
+      rescue Legion::JSON::ParseError => e
         Legion::Logging.warn("session load failed: #{e.message}") if defined?(Legion::Logging)
         nil
       end
@@ -38,7 +38,7 @@ module Legion
       def list
         entries = Dir.glob(File.join(@dir, '*.json')).map do |path|
           name = File.basename(path, '.json')
-          data = ::JSON.parse(File.read(path), symbolize_names: true)
+          data = Legion::JSON.parse(File.read(path), symbolize_names: true)
           { name: name, saved_at: data[:saved_at], message_count: data[:messages]&.size || 0 }
         rescue StandardError => e
           Legion::Logging.warn("session list entry failed: #{e.message}") if defined?(Legion::Logging)

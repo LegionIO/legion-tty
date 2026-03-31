@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'json'
+require 'legion/json'
 require 'fileutils'
 
 module Legion
@@ -105,9 +105,9 @@ module Legion
       def load_user_overrides
         return unless File.exist?(@overrides_path)
 
-        raw = ::JSON.parse(File.read(@overrides_path), symbolize_names: true)
+        raw = Legion::JSON.parse(File.read(@overrides_path), symbolize_names: true)
         raw.each { |key, cfg| apply_override(key, cfg) }
-      rescue ::JSON::ParserError => e
+      rescue Legion::JSON::ParseError => e
         Legion::Logging.warn("keybindings load failed: #{e.message}") if defined?(Legion::Logging)
       end
 

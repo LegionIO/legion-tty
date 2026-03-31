@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'tmpdir'
+require 'legion/json'
 require 'legion/tty/session_store'
 
 RSpec.describe Legion::TTY::SessionStore, 'session format compatibility' do
@@ -50,7 +51,7 @@ RSpec.describe Legion::TTY::SessionStore, 'session format compatibility' do
     end
 
     before do
-      File.write(File.join(tmpdir, 'cli-session.json'), JSON.generate(cli_session))
+      File.write(File.join(tmpdir, 'cli-session.json'), Legion::JSON.generate(cli_session))
     end
 
     it 'loads CLI format without raising' do
@@ -93,7 +94,7 @@ RSpec.describe Legion::TTY::SessionStore, 'session format compatibility' do
 
   describe '#load with missing optional fields' do
     it 'fills in defaults for a minimal session' do
-      File.write(File.join(tmpdir, 'minimal.json'), JSON.generate({ messages: [] }))
+      File.write(File.join(tmpdir, 'minimal.json'), Legion::JSON.generate({ messages: [] }))
       data = store.load('minimal')
       expect(data[:version]).to eq(1)
       expect(data[:metadata]).to eq({})

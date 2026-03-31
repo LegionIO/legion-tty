@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'tmpdir'
+require 'legion/json'
 require 'legion/tty/keybinding_manager'
 
 RSpec.describe Legion::TTY::KeybindingManager do
@@ -179,7 +180,7 @@ RSpec.describe Legion::TTY::KeybindingManager do
       overrides = {
         ctrl_d: { action: 'my_action', contexts: ['global'], description: 'My override' }
       }
-      File.write(overrides_path, JSON.generate(overrides))
+      File.write(overrides_path, Legion::JSON.generate(overrides))
       manager.load_user_overrides
       expect(manager.resolve(:ctrl_d, active_contexts: [:global])).to eq(:my_action)
     end
@@ -188,7 +189,7 @@ RSpec.describe Legion::TTY::KeybindingManager do
       overrides = {
         ctrl_r: { action: 'reload_config', contexts: ['config'], description: 'Reload config' }
       }
-      File.write(overrides_path, JSON.generate(overrides))
+      File.write(overrides_path, Legion::JSON.generate(overrides))
       manager.load_user_overrides
       expect(manager.resolve(:ctrl_r, active_contexts: [:config])).to eq(:reload_config)
     end
@@ -199,7 +200,7 @@ RSpec.describe Legion::TTY::KeybindingManager do
 
     it 'skips entries without an action key' do
       overrides = { ctrl_d: { contexts: ['global'] } }
-      File.write(overrides_path, JSON.generate(overrides))
+      File.write(overrides_path, Legion::JSON.generate(overrides))
       expect { manager.load_user_overrides }.not_to raise_error
     end
 
