@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.41] - 2026-03-31
+
+### Added
+- `KeybindingManager`: context-aware keybinding system with named contexts (`global`, `chat`, `dashboard`, `extensions`, `config`, `command_palette`, `session_picker`, `history`), chord sequence support (`@pending_chord` state machine), `resolve(key, active_contexts:)` method, and user-customizable overrides via `~/.legionio/keybindings.json` (closes #10)
+- `Legion::TTY::Notify`: OS-level terminal notification module with auto-detection of iTerm2 (OSC 9), Kitty (`kitten notify`), Ghostty (OSC 99), Linux (`notify-send`), macOS (`osascript`), and bell fallback; settings integration via `notifications.terminal.enabled` / `notifications.terminal.backend` (closes #11)
+
+### Changed
+- `SessionStore#load` now normalizes both TTY v1 format and CLI legacy format (RubyLLM `model`+`stats`+`summary` fields) into a canonical `{ role: :symbol, content:, tool_panels: [] }` shape; fills in default `version`, `metadata`, `name`, and `saved_at` when absent (closes #9)
+- `SessionStore::SESSION_DIR` confirmed as `~/.legionio/sessions/` (no legacy `~/.legion/` references)
+
 ## [0.4.40] - 2026-03-28
 
 ### Changed

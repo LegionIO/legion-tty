@@ -29,8 +29,7 @@ module Legion
         return nil unless File.exist?(path)
 
         data = ::JSON.parse(File.read(path), symbolize_names: true)
-        data[:messages] = data[:messages].map { |m| deserialize_message(m) }
-        data
+        normalize_session(data)
       rescue ::JSON::ParserError => e
         Legion::Logging.warn("session load failed: #{e.message}") if defined?(Legion::Logging)
         nil
@@ -76,6 +75,25 @@ module Legion
 
       def deserialize_message(msg)
         { role: msg[:role].to_sym, content: msg[:content], tool_panels: [] }
+      end
+
+      # Normalize a loaded session to the canonical TTY format.
+      # Handles two shapes:
+      #   - TTY format (v1): { version: 1, name:, messages: [{role:, content:}], metadata:, saved_at: }
+      #   - CLI format (legacy): { messages: [{role:, content:, model:, stats:, summary:}] }
+      def normalize_session(data)
+        data[:messages] = (data[:messages] || []).map { |m| normalize_message(m) }
+        data[:version] ||= 1
+        data[:metadata] ||= {}
+        data[:name] ||= 'imported'
+        data[:saved_at] ||= Time.now.iso8601
+        data
+      end
+
+      def normalize_message(msg)
+        role = msg[:role].to_s.to_sym
+        content = msg[:content].to_s
+        { role: role, content: content, tool_panels: [] }
       end
     end
   end
