@@ -54,6 +54,10 @@ RSpec.describe Legion::TTY::Screens::Chat, '/chain command' do
   end
 
   describe '/chain without LLM configured' do
+    before do
+      allow(Legion::TTY::DaemonClient).to receive(:available?).and_return(false)
+    end
+
     it 'returns :handled' do
       result = chat.handle_slash_command('/chain hello | world')
       expect(result).to eq(:handled)

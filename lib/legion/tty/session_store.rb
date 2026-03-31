@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'json'
+require 'legion/json'
 require 'fileutils'
 
 module Legion
@@ -21,17 +21,16 @@ module Legion
           saved_at: Time.now.iso8601,
           version: 1
         }
-        File.write(session_path(name), ::JSON.generate(data))
+        File.write(session_path(name), Legion::JSON.generate(data))
       end
 
       def load(name)
         path = session_path(name)
         return nil unless File.exist?(path)
 
-        data = ::JSON.parse(File.read(path), symbolize_names: true)
-        data[:messages] = data[:messages].map { |m| deserialize_message(m) }
-        data
-      rescue ::JSON::ParserError => e
+        data = Legion::JSON.parse(File.read(path), symbolize_names: true)
+        normalize_session(data)
+      rescue Legion::JSON::ParseError => e
         Legion::Logging.warn("session load failed: #{e.message}") if defined?(Legion::Logging)
         nil
       end
@@ -39,7 +38,7 @@ module Legion
       def list
         entries = Dir.glob(File.join(@dir, '*.json')).map do |path|
           name = File.basename(path, '.json')
-          data = ::JSON.parse(File.read(path), symbolize_names: true)
+          data = Legion::JSON.parse(File.read(path), symbolize_names: true)
           { name: name, saved_at: data[:saved_at], message_count: data[:messages]&.size || 0 }
         rescue StandardError => e
           Legion::Logging.warn("session list entry failed: #{e.message}") if defined?(Legion::Logging)
@@ -76,6 +75,25 @@ module Legion
 
       def deserialize_message(msg)
         { role: msg[:role].to_sym, content: msg[:content], tool_panels: [] }
+      end
+
+      # Normalize a loaded session to the canonical TTY format.
+      # Handles two shapes:
+      #   - TTY format (v1): { version: 1, name:, messages: [{role:, content:}], metadata:, saved_at: }
+      #   - CLI format (legacy): { messages: [{role:, content:, model:, stats:, summary:}] }
+      def normalize_session(data)
+        data[:messages] = (data[:messages] || []).map { |m| normalize_message(m) }
+        data[:version] ||= 1
+        data[:metadata] ||= {}
+        data[:name] ||= 'imported'
+        data[:saved_at] ||= Time.now.iso8601
+        data
+      end
+
+      def normalize_message(msg)
+        role = msg[:role].to_s.to_sym
+        content = msg[:content].to_s
+        { role: role, content: content, tool_panels: [] }
       end
     end
   end
