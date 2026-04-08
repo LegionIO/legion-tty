@@ -4,6 +4,7 @@ require 'net/http'
 require 'uri'
 require 'fileutils'
 require 'legion/json'
+require 'legion/logging'
 
 module Legion
   module TTY
@@ -12,11 +13,14 @@ module Legion
 
       # rubocop:disable Metrics/ClassLength
       class << self
+        include Legion::Logging::Helper
+
         def configure(daemon_url: 'http://127.0.0.1:4567', cache_file: nil, timeout: 5)
           @daemon_url = daemon_url
           @cache_file = cache_file || File.expand_path('~/.legionio/catalog.json')
           @timeout = timeout
           @manifest = nil
+          log.info { "TTY daemon client configured daemon_url=#{@daemon_url} timeout=#{@timeout}" }
         end
 
         def available?
@@ -26,7 +30,7 @@ module Legion
           end
           response.code.to_i == 200
         rescue StandardError => e
-          Legion::Logging.debug("daemon available? check failed: #{e.message}") if defined?(Legion::Logging)
+          handle_exception(e, level: :debug, operation: 'tty.daemon_client.available?', daemon_url: daemon_url)
           false
         end
 
@@ -37,12 +41,9 @@ module Legion
           end
           return nil unless response.code.to_i == 200
 
-          body = Legion::JSON.load(response.body)
-          @manifest = body[:data]
-          write_cache(@manifest)
-          @manifest
+          store_manifest(Legion::JSON.load(response.body)[:data])
         rescue StandardError => e
-          Legion::Logging.warn("fetch_manifest failed: #{e.message}") if defined?(Legion::Logging)
+          handle_exception(e, level: :warn, operation: 'tty.daemon_client.fetch_manifest', daemon_url: daemon_url)
           nil
         end
 
@@ -53,7 +54,7 @@ module Legion
 
           @manifest = Legion::JSON.load(File.read(@cache_file))
         rescue StandardError => e
-          Legion::Logging.warn("cached_manifest failed: #{e.message}") if defined?(Legion::Logging)
+          handle_exception(e, level: :warn, operation: 'tty.daemon_client.cached_manifest', cache_file: @cache_file)
           nil
         end
 
@@ -80,26 +81,28 @@ module Legion
 
           uri = URI("#{daemon_url}/api/llm/chat")
           payload = Legion::JSON.dump({ message: message, model: model, provider: provider })
+          log.debug { "TTY chat request model=#{model} provider=#{provider} message_length=#{message.to_s.length}" }
           response = post_json(uri, payload)
 
           return nil unless response && SUCCESS_CODES.include?(response.code.to_i)
 
           Legion::JSON.load(response.body)
         rescue StandardError => e
-          Legion::Logging.warn("chat failed: #{e.message}") if defined?(Legion::Logging)
+          handle_exception(e, level: :warn, operation: 'tty.daemon_client.chat',
+                              daemon_url: daemon_url, model: model, provider: provider)
           nil
         end
 
         def inference(messages:, tools: [], model: nil, provider: nil, timeout: 120)
+          log.debug { "TTY inference model=#{model} provider=#{provider} msgs=#{Array(messages).size}" }
           response = post_inference(messages: messages, tools: tools, model: model,
                                     provider: provider, timeout: timeout)
           return inference_error_result(response) unless SUCCESS_CODES.include?(response.code.to_i)
 
-          body = Legion::JSON.load(response.body)
-          data = body[:data] || body
-          { status: :ok, data: data }
+          parse_inference_response(response)
         rescue StandardError => e
-          Legion::Logging.warn("inference failed: #{e.message}") if defined?(Legion::Logging)
+          handle_exception(e, level: :warn, operation: 'tty.daemon_client.inference',
+                              daemon_url: daemon_url, model: model, provider: provider, timeout: timeout)
           { status: :unavailable, error: { message: e.message } }
         end
 
@@ -111,6 +114,19 @@ module Legion
         end
 
         private
+
+        def parse_inference_response(response)
+          body = Legion::JSON.load(response.body)
+          data = body[:data] || body
+          { status: :ok, data: data }
+        end
+
+        def store_manifest(data)
+          @manifest = data
+          write_cache(@manifest)
+          log.info { "TTY fetched daemon manifest entries=#{Array(@manifest).size}" }
+          @manifest
+        end
 
         def post_inference(messages:, tools:, model:, provider:, timeout:)
           uri = URI("#{daemon_url}/api/llm/inference")
@@ -151,8 +167,9 @@ module Legion
 
           FileUtils.mkdir_p(File.dirname(@cache_file))
           File.write(@cache_file, Legion::JSON.dump(data))
+          log.debug { "TTY daemon manifest cache updated file=#{@cache_file}" }
         rescue StandardError => e
-          Legion::Logging.warn("write_cache failed: #{e.message}") if defined?(Legion::Logging)
+          handle_exception(e, level: :warn, operation: 'tty.daemon_client.write_cache', cache_file: @cache_file)
           nil
         end
       end

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'date'
 require 'resolv'
 require 'shellwords'
 
@@ -185,7 +186,7 @@ module Legion
         # rubocop:enable Metrics/AbcSize
 
         def days_in_month(month, year)
-          Time.new(year, month, -1).day
+          Date.new(year, month, -1).day
         end
 
         def log_result(result, elapsed)
