@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.42] - 2026-04-08
+
+### Changed
+- `DaemonClient` now uses `Legion::Logging::Helper` (structured logging via `log.info`/`log.debug`) instead of inline `Legion::Logging.method if defined?` guards for all logging and exception handling
+- Bumped `legion-logging` minimum dependency from `>= 1.2.8` to `>= 1.5.0` to use `handle_exception` from `Legion::Logging::Helper`
+- Extracted `store_manifest` and `parse_inference_response` private helpers to reduce method complexity in `fetch_manifest` and `inference`
+
+### Fixed
+- `KerberosProbe#days_in_month` used `Time.new(year, month, -1)` which raises `ArgumentError` for day `-1`; replaced with `Date.new(year, month, -1).day` (correct Ruby idiom for last day of month)
+
 ## [0.4.41] - 2026-03-31
 
 ### Added

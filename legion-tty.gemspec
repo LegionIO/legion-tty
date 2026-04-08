@@ -42,7 +42,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'bootsnap', '>= 1.18'
   spec.add_dependency 'legion-json', '>= 1.2.0'
-  spec.add_dependency 'legion-logging', '>= 1.2.8'
+  spec.add_dependency 'legion-logging', '>= 1.5.0'
 
   # spec.add_dependency 'legion-rbac', '~> 0.2'
   # spec.add_dependency 'lex-kerberos', '~> 0.1'
