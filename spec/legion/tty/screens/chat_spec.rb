@@ -591,7 +591,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
 
     context 'when Legion::Tools::TriggerIndex is not defined' do
       it 'returns nil' do
-        hide_const('Legion::Tools::TriggerIndex') if defined?(Legion::Tools::TriggerIndex)
+        hide_const('Legion::Tools::TriggerIndex')
         result = screen.send(:maybe_route_to_tool, message)
         expect(result).to be_nil
       end
@@ -638,7 +638,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
         stub_const('Legion::Tools::TriggerIndex', trigger_index)
 
         tools_do = Module.new do
-          def self.call(intent:) = nil
+          def self.call(**) = nil
         end
         stub_const('Legion::Tools::Do', tools_do)
         allow(Legion::Tools::Do).to receive(:call).with(intent: message).and_return(tool_result)

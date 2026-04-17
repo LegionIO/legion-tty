@@ -1021,7 +1021,8 @@ module Legion
             return {} unless str && !str.strip.empty?
 
             Legion::JSON.load(str)
-          rescue StandardError
+          rescue StandardError => e
+            Legion::Logging.debug("parse_tool_args failed: #{e.message}") if defined?(Legion::Logging)
             {}
           end
 

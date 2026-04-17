@@ -720,7 +720,8 @@ module Legion
             { name: t.tool_name, description: t.description,
               input_schema: t.input_schema || { type: 'object', properties: {} } }
           end
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("build_tool_schemas failed: #{e.message}") if defined?(Legion::Logging)
           []
         end
 
@@ -731,8 +732,11 @@ module Legion
           matched, = Legion::Tools::TriggerIndex.match(words)
           return nil if matched.empty?
 
+          return nil unless defined?(Legion::Tools::Do)
+
           Legion::Tools::Do.call(intent: message)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("maybe_route_to_tool failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
       end
