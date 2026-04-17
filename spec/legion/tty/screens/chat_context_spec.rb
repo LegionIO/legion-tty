@@ -110,5 +110,45 @@ RSpec.describe Legion::TTY::Screens::Chat, '/context command' do
       chat.handle_slash_command('/help')
       expect(overlay_text).to include('/context')
     end
+
+    context 'when Legion::LLM::Skills::Registry is defined with auto-inject skills' do
+      before do
+        registry = Module.new do
+          def self.by_trigger(_trigger) = []
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        skill = double(namespace: 'disk', skill_name: 'my-skill')
+        allow(Legion::LLM::Skills::Registry).to receive(:by_trigger).with(:auto_inject).and_return([skill])
+      end
+
+      it 'appends auto-inject skill names to context output' do
+        chat.handle_slash_command('/context')
+        content = chat.message_stream.messages.last[:content]
+        expect(content).to include('Auto-inject Skills')
+        expect(content).to include('disk:my-skill')
+      end
+
+      it 'shows the skill count in the auto-inject header' do
+        chat.handle_slash_command('/context')
+        content = chat.message_stream.messages.last[:content]
+        expect(content).to match(/Auto-inject Skills \(1\)/)
+      end
+    end
+
+    context 'when Legion::LLM::Skills::Registry is defined but no auto-inject skills' do
+      before do
+        registry = Module.new do
+          def self.by_trigger(_trigger) = []
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        allow(Legion::LLM::Skills::Registry).to receive(:by_trigger).with(:auto_inject).and_return([])
+      end
+
+      it 'does not append auto-inject section' do
+        chat.handle_slash_command('/context')
+        content = chat.message_stream.messages.last[:content]
+        expect(content).not_to include('Auto-inject Skills')
+      end
+    end
   end
 end

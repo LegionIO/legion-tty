@@ -1133,6 +1133,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Skill loaded from: #{expanded}")
             :handled
           rescue StandardError => e
+            Legion::Logging.debug("handle_skill_load failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Skill load failed: #{e.message}")
             :handled
           end
@@ -1154,13 +1155,18 @@ module Legion
               return :handled
             end
 
+            execute_skill(klass)
+          rescue StandardError => e
+            Legion::Logging.debug("handle_skill_run failed: #{e.message}") if defined?(Legion::Logging)
+            @message_stream.add_message(role: :system, content: "Skill run failed: #{e.message}")
+            :handled
+          end
+
+          def execute_skill(klass)
             result = klass.new.run(context: { conversation_id: @session_id })
             inject = result.inject.to_s
             content = inject.empty? ? 'Skill ran (no injection).' : inject
             @message_stream.add_message(role: :system, content: content)
-            :handled
-          rescue StandardError => e
-            @message_stream.add_message(role: :system, content: "Skill run failed: #{e.message}")
             :handled
           end
 
@@ -1175,7 +1181,7 @@ module Legion
             :handled
           end
 
-          # rubocop:disable Metrics/AbcSize
+          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
           def handle_gaia_status
             unless defined?(Legion::Gaia::NotificationGate) &&
                    Legion::Gaia::NotificationGate.respond_to?(:instance)
@@ -1200,9 +1206,10 @@ module Legion
             end
             @message_stream.add_message(role: :system, content: lines.join("\n"))
           rescue StandardError => e
+            Legion::Logging.debug("handle_gaia_status failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Gaia status error: #{e.message}")
           end
-          # rubocop:enable Metrics/AbcSize
+          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
           def handle_gaia_presence(status)
             if status.nil? || status.strip.empty?
@@ -1214,6 +1221,7 @@ module Legion
             Legion::TTY::NotificationGate.update_presence(availability: status.strip)
             @message_stream.add_message(role: :system, content: "Presence set to: #{status.strip}")
           rescue StandardError => e
+            Legion::Logging.debug("handle_gaia_presence failed: #{e.message}") if defined?(Legion::Logging)
             @message_stream.add_message(role: :system, content: "Failed to set presence: #{e.message}")
           end
         end

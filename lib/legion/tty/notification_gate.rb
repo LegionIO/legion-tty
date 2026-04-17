@@ -8,7 +8,8 @@ module Legion
           return true unless gaia_gate_available?
 
           Legion::Gaia::NotificationGate.instance.should_notify?(priority: priority)
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("NotificationGate.should_deliver? failed: #{e.message}") if defined?(Legion::Logging)
           true
         end
 
@@ -18,7 +19,8 @@ module Legion
           Legion::Gaia::NotificationGate.instance.update_presence(
             availability: availability, activity: activity
           )
-        rescue StandardError
+        rescue StandardError => e
+          Legion::Logging.debug("NotificationGate.update_presence failed: #{e.message}") if defined?(Legion::Logging)
           nil
         end
 
