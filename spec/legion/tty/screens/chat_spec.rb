@@ -586,6 +586,91 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
   end
 
+  describe '#maybe_route_to_tool' do
+    let(:message) { 'search for something' }
+
+    context 'when Legion::Tools::TriggerIndex is not defined' do
+      it 'returns nil' do
+        hide_const('Legion::Tools::TriggerIndex') if defined?(Legion::Tools::TriggerIndex)
+        result = screen.send(:maybe_route_to_tool, message)
+        expect(result).to be_nil
+      end
+    end
+
+    context 'when Legion::Tools::TriggerIndex is defined but empty' do
+      before do
+        trigger_index = Module.new do
+          def self.empty? = true
+          def self.match(_words) = [Set.new, nil]
+        end
+        stub_const('Legion::Tools::TriggerIndex', trigger_index)
+      end
+
+      it 'returns nil' do
+        result = screen.send(:maybe_route_to_tool, message)
+        expect(result).to be_nil
+      end
+    end
+
+    context 'when TriggerIndex has words but no match for the message' do
+      before do
+        trigger_index = Module.new do
+          def self.empty? = false
+          def self.match(_words) = [Set.new, nil]
+        end
+        stub_const('Legion::Tools::TriggerIndex', trigger_index)
+      end
+
+      it 'returns nil when matched set is empty' do
+        result = screen.send(:maybe_route_to_tool, message)
+        expect(result).to be_nil
+      end
+    end
+
+    context 'when a match is found' do
+      let(:tool_result) { { output: 'tool ran successfully' } }
+
+      before do
+        trigger_index = Module.new do
+          def self.empty? = false
+          def self.match(_words) = [Set.new(['legion.search']), nil]
+        end
+        stub_const('Legion::Tools::TriggerIndex', trigger_index)
+
+        tools_do = Module.new do
+          def self.call(intent:) = nil
+        end
+        stub_const('Legion::Tools::Do', tools_do)
+        allow(Legion::Tools::Do).to receive(:call).with(intent: message).and_return(tool_result)
+      end
+
+      it 'calls Legion::Tools::Do.call with intent: message' do
+        screen.send(:maybe_route_to_tool, message)
+        expect(Legion::Tools::Do).to have_received(:call).with(intent: message)
+      end
+
+      it 'returns the result from Legion::Tools::Do.call' do
+        result = screen.send(:maybe_route_to_tool, message)
+        expect(result).to eq(tool_result)
+      end
+    end
+
+    context 'when StandardError is raised' do
+      before do
+        trigger_index = Module.new do
+          def self.empty? = false
+          def self.match(_words) = raise(StandardError, 'unexpected failure')
+        end
+        stub_const('Legion::Tools::TriggerIndex', trigger_index)
+      end
+
+      it 'returns nil on StandardError (rescue path)' do
+        result = screen.send(:maybe_route_to_tool, message)
+        expect(result).to be_nil
+      end
+    end
+  end
+
   describe '#build_tool_schemas' do
     context 'when Legion::Tools::Registry is defined' do
       let(:mock_tool) do
