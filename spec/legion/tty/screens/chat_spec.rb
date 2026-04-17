@@ -170,7 +170,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /about /commands /ask /define /status /prefs
                     /stopwatch /ago /goto /inject
                     /transform /concat /prefix /suffix /split /swap
-                    /timer /notify /gaia /skills]
+                    /timer /notify /gaia /skills /apollo]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 
@@ -999,6 +999,227 @@ RSpec.describe Legion::TTY::Screens::Chat do
         msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
         expect(msgs.last[:content]).to eq('Legion::LLM::Skills not available.')
       end
+    end
+  end
+
+  describe '/apollo command' do
+    def make_apollo_mod(started: true, query_result: nil, ingest_result: nil, graph_result: nil)
+      started_val = started
+      qr = query_result
+      ir = ingest_result
+      gr = graph_result
+      Module.new do
+        define_singleton_method(:started?) { started_val }
+        define_singleton_method(:transport_available?) { true }
+        define_singleton_method(:data_available?)   { true }
+        define_singleton_method(:query)             { |**_| qr } if qr
+        define_singleton_method(:ingest)            { |**_| ir } if ir
+        define_singleton_method(:graph_query)       { |**_| gr } if gr
+      end
+    end
+
+    context 'when /apollo (no sub-command) with Legion::Apollo defined' do
+      before { stub_const('Legion::Apollo', make_apollo_mod) }
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo')).to eq(:handled)
+      end
+
+      it 'shows started/transport/data status' do
+        screen.handle_slash_command('/apollo')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to match(/Apollo: started=yes/)
+        expect(msgs.last[:content]).to match(/transport=yes/)
+        expect(msgs.last[:content]).to match(/data=yes/)
+      end
+    end
+
+    context 'when /apollo status when Apollo not defined' do
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo')).to eq(:handled)
+      end
+
+      it 'shows not-available message' do
+        screen.handle_slash_command('/apollo')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Legion::Apollo not available.')
+      end
+    end
+
+    context '/apollo query <text> success' do
+      before do
+        stub_const('Legion::Apollo', make_apollo_mod(
+                                       query_result: {
+                                         success: true,
+                                         entries: [
+                                           { confidence: 0.95, content: 'Ruby is a dynamic language' },
+                                           { confidence: 0.88, content: 'Rails is built on Ruby' }
+                                         ]
+                                       }
+                                     ))
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo query ruby')).to eq(:handled)
+      end
+
+      it 'shows ranked entries with confidence' do
+        screen.handle_slash_command('/apollo query ruby')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).to include('Apollo results (2)')
+        expect(content).to include('[1]')
+        expect(content).to include('0.95')
+        expect(content).to include('Ruby is a dynamic language')
+      end
+    end
+
+    context '/apollo query <text> with empty results' do
+      before do
+        stub_const('Legion::Apollo', make_apollo_mod(query_result: { success: true, entries: [] }))
+      end
+
+      it 'shows No results found message' do
+        screen.handle_slash_command('/apollo query nothing')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('No results found.')
+      end
+    end
+
+    context '/apollo query <text> failure' do
+      before do
+        stub_const('Legion::Apollo', make_apollo_mod(
+                                       query_result: { success: false, error: 'database offline' }
+                                     ))
+      end
+
+      it 'shows error message' do
+        screen.handle_slash_command('/apollo query ruby')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo query failed: database offline')
+      end
+    end
+
+    context '/apollo query with blank text' do
+      before { stub_const('Legion::Apollo', make_apollo_mod) }
+
+      it 'shows usage message' do
+        screen.handle_slash_command('/apollo query')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Usage: /apollo query <text>')
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo query')).to eq(:handled)
+      end
+    end
+
+    context '/apollo query when Apollo not started' do
+      before { stub_const('Legion::Apollo', make_apollo_mod(started: false)) }
+
+      it 'shows Apollo not started message' do
+        screen.handle_slash_command('/apollo query hello')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo not started.')
+      end
+    end
+
+    context '/apollo ingest <text> success' do
+      before do
+        stub_const('Legion::Apollo', make_apollo_mod(
+                                       ingest_result: { success: true, mode: 'local' }
+                                     ))
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo ingest some text')).to eq(:handled)
+      end
+
+      it 'shows Ingested with mode' do
+        screen.handle_slash_command('/apollo ingest some text')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Ingested (local).')
+      end
+    end
+
+    context '/apollo ingest with blank text' do
+      before { stub_const('Legion::Apollo', make_apollo_mod) }
+
+      it 'shows usage message' do
+        screen.handle_slash_command('/apollo ingest')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Usage: /apollo ingest <text>')
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo ingest')).to eq(:handled)
+      end
+    end
+
+    context '/apollo graph <id> success' do
+      before do
+        stub_const('Legion::Apollo', make_apollo_mod(
+                                       graph_result: {
+                                         success: true,
+                                         nodes: [
+                                           { id: 1, label: 'Ruby', content: 'Ruby language' },
+                                           { id: 2, label: nil, content: 'Rails framework built on Ruby' }
+                                         ]
+                                       }
+                                     ))
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo graph 42')).to eq(:handled)
+      end
+
+      it 'shows graph node count and nodes' do
+        screen.handle_slash_command('/apollo graph 42')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).to include('Graph (2 nodes)')
+        expect(content).to include('[1]')
+        expect(content).to include('Ruby')
+      end
+    end
+
+    context '/apollo graph with invalid entity_id' do
+      before { stub_const('Legion::Apollo', make_apollo_mod) }
+
+      it 'shows invalid entity_id message' do
+        screen.handle_slash_command('/apollo graph notanumber')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Invalid entity_id:')
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo graph notanumber')).to eq(:handled)
+      end
+    end
+
+    context '/apollo autoingest toggles @apollo_autoingest' do
+      it 'starts as false' do
+        expect(screen.instance_variable_get(:@apollo_autoingest)).to be false
+      end
+
+      it 'toggles to ON on first call' do
+        screen.handle_slash_command('/apollo autoingest')
+        expect(screen.instance_variable_get(:@apollo_autoingest)).to be true
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo autoingest: ON')
+      end
+
+      it 'toggles back to OFF on second call' do
+        screen.handle_slash_command('/apollo autoingest')
+        screen.handle_slash_command('/apollo autoingest')
+        expect(screen.instance_variable_get(:@apollo_autoingest)).to be false
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo autoingest: OFF')
+      end
+    end
+
+    it 'includes /apollo in SLASH_COMMANDS' do
+      expect(described_class::SLASH_COMMANDS).to include('/apollo')
     end
   end
 end

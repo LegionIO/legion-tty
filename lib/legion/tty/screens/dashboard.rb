@@ -157,11 +157,22 @@ module Legion
           lines << "    Host:     #{Theme.c(:secondary, sys[:hostname] || 'unknown')}"
           lines << "    PID:      #{Theme.c(:secondary, sys[:pid]&.to_s || 'unknown')}"
           lines << "    Memory:   #{Theme.c(:secondary, sys[:memory] || 'unknown')}"
+          apollo_line = apollo_system_line
+          lines << apollo_line if apollo_line
           lines << ''
           lines
         end
 
         # rubocop:enable Metrics/AbcSize
+
+        def apollo_system_line
+          return unless defined?(Legion::Apollo)
+
+          transport = Legion::Apollo.transport_available? ? 'yes' : 'no'
+          data      = Legion::Apollo.data_available? ? 'yes' : 'no'
+          started   = Legion::Apollo.started? ? 'yes' : 'no'
+          "    Apollo:   #{Theme.c(:secondary, "started=#{started}  transport=#{transport}  data=#{data}")}"
+        end
 
         def render_activity_panel(_width, max_lines)
           activity = @cached_data[:activity] || []

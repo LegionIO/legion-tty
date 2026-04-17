@@ -1181,6 +1181,129 @@ module Legion
             :handled
           end
 
+          def handle_apollo(input)
+            args = input.to_s.strip.split(' ', 3)
+            sub  = args[1]
+            rest = args[2]
+            case sub
+            when 'query'      then handle_apollo_query(rest)
+            when 'ingest'     then handle_apollo_ingest(rest)
+            when 'graph'      then handle_apollo_graph(rest)
+            when 'autoingest' then handle_apollo_autoingest
+            else handle_apollo_status
+            end
+            :handled
+          end
+
+          def handle_apollo_status
+            unless defined?(Legion::Apollo)
+              @message_stream.add_message(role: :system, content: 'Legion::Apollo not available.')
+              return
+            end
+            started   = Legion::Apollo.started? ? 'yes' : 'no'
+            transport = Legion::Apollo.transport_available? ? 'yes' : 'no'
+            data      = Legion::Apollo.data_available? ? 'yes' : 'no'
+            @message_stream.add_message(role: :system,
+                                        content: "Apollo: started=#{started}  transport=#{transport}  data=#{data}")
+          rescue StandardError => e
+            Legion::Logging.debug("handle_apollo_status failed: #{e.message}") if defined?(Legion::Logging)
+            @message_stream.add_message(role: :system, content: "Apollo status error: #{e.message}")
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_apollo_query(text)
+            if text.nil? || text.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /apollo query <text>')
+              return
+            end
+            unless defined?(Legion::Apollo) && Legion::Apollo.started?
+              @message_stream.add_message(role: :system, content: 'Apollo not started.')
+              return
+            end
+            result = Legion::Apollo.query(text: text.strip, limit: 5)
+            if result[:success]
+              render_apollo_query_results(Array(result[:entries]))
+            else
+              @message_stream.add_message(role: :system, content: "Apollo query failed: #{result[:error]}")
+            end
+          rescue StandardError => e
+            Legion::Logging.debug("handle_apollo_query failed: #{e.message}") if defined?(Legion::Logging)
+            @message_stream.add_message(role: :system, content: "Apollo query error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_apollo_ingest(text)
+            if text.nil? || text.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /apollo ingest <text>')
+              return
+            end
+            unless defined?(Legion::Apollo) && Legion::Apollo.started?
+              @message_stream.add_message(role: :system, content: 'Apollo not started.')
+              return
+            end
+            result = Legion::Apollo.ingest(content: text.strip, tags: ['tty'], scope: :local)
+            mode = result[:mode] ? " (#{result[:mode]})" : ''
+            if result[:success]
+              @message_stream.add_message(role: :system, content: "Ingested#{mode}.")
+            else
+              @message_stream.add_message(role: :system, content: "Apollo ingest failed: #{result[:error]}")
+            end
+          rescue StandardError => e
+            Legion::Logging.debug("handle_apollo_ingest failed: #{e.message}") if defined?(Legion::Logging)
+            @message_stream.add_message(role: :system, content: "Apollo ingest error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_apollo_graph(input)
+            if input.nil? || input.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /apollo graph <entity_id>')
+              return
+            end
+            unless defined?(Legion::Apollo) && Legion::Apollo.started?
+              @message_stream.add_message(role: :system, content: 'Apollo not started.')
+              return
+            end
+            entity_id = Integer(input.strip)
+            result = Legion::Apollo.graph_query(entity_id: entity_id, depth: 2)
+            if result[:success]
+              nodes = Array(result[:nodes])
+              @message_stream.add_message(role: :system,
+                                          content: "Graph (#{nodes.size} nodes):\n#{render_graph_nodes(nodes)}")
+            else
+              @message_stream.add_message(role: :system, content: "Apollo graph failed: #{result[:error]}")
+            end
+          rescue ArgumentError
+            @message_stream.add_message(role: :system, content: "Invalid entity_id: #{input.strip.inspect}")
+          rescue StandardError => e
+            Legion::Logging.debug("handle_apollo_graph failed: #{e.message}") if defined?(Legion::Logging)
+            @message_stream.add_message(role: :system, content: "Apollo graph error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_apollo_autoingest
+            @apollo_autoingest = !@apollo_autoingest
+            state = @apollo_autoingest ? 'ON' : 'OFF'
+            @message_stream.add_message(role: :system, content: "Apollo autoingest: #{state}")
+          end
+
+          def render_apollo_query_results(entries)
+            if entries.empty?
+              @message_stream.add_message(role: :system, content: 'No results found.')
+            else
+              lines = entries.map.with_index(1) do |e, i|
+                "[#{i}] (#{format('%.2f', e[:confidence])}) #{e[:content].to_s[0, 120]}"
+              end
+              @message_stream.add_message(role: :system,
+                                          content: "Apollo results (#{entries.size}):\n#{lines.join("\n")}")
+            end
+          end
+
+          def render_graph_nodes(nodes)
+            nodes.first(20).map { |n| "  [#{n[:id]}] #{n[:label] || n[:content].to_s[0, 60]}" }.join("\n")
+          end
+
           # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
           def handle_gaia_status
             unless defined?(Legion::Gaia::NotificationGate) &&

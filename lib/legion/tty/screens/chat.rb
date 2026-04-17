@@ -57,7 +57,7 @@ module Legion
                             /prefix /suffix
                             /split /swap
                             /timer /notify
-                            /gaia /skills].freeze
+                            /gaia /skills /apollo].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -109,6 +109,7 @@ module Legion
           @message_prefix = nil
           @message_suffix = nil
           @streaming = false
+          @apollo_autoingest = false
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -535,6 +536,7 @@ module Legion
           when '/timer' then handle_timer(input)
           when '/notify' then handle_notify(input)
           when '/gaia' then handle_gaia(input)
+          when '/apollo' then handle_apollo(input)
           else :handled
           end
         end
