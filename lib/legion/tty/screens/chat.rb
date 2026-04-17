@@ -56,7 +56,8 @@ module Legion
                             /transform /concat
                             /prefix /suffix
                             /split /swap
-                            /timer /notify].freeze
+                            /timer /notify
+                            /gaia /skills].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -428,6 +429,7 @@ module Legion
           when '/export' then handle_export(input)
           when '/tools' then handle_tools
           when '/tool' then handle_tool(input)
+          when '/skills' then handle_skills(input)
           when '/save' then handle_save(input)
           when '/load' then handle_load(input)
           when '/sessions' then handle_sessions
@@ -532,6 +534,7 @@ module Legion
           when '/swap' then handle_swap(input)
           when '/timer' then handle_timer(input)
           when '/notify' then handle_notify(input)
+          when '/gaia' then handle_gaia(input)
           else :handled
           end
         end
@@ -635,6 +638,11 @@ module Legion
         def debug_segment
           return nil unless @debug_mode
 
+          skill_info = if defined?(Legion::LLM::Skills::Registry)
+                         " skills:#{Legion::LLM::Skills::Registry.all.size}"
+                       else
+                         ''
+                       end
           "[DEBUG] msgs:#{@message_stream.messages.size} " \
             "scroll:#{@message_stream.scroll_position&.dig(:current) || 0} " \
             "plan:#{@plan_mode} " \
@@ -644,7 +652,8 @@ module Legion
             "snippets:#{@snippets.size} " \
             "macros:#{@macros.size} " \
             "pinned:#{@pinned_messages.size} " \
-            "autosave:#{@autosave_enabled}"
+            "autosave:#{@autosave_enabled}" \
+            "#{skill_info}"
         end
 
         def build_tool_call_parser

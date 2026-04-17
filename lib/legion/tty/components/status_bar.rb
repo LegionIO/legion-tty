@@ -15,6 +15,9 @@ module Legion
         end
 
         def notify(message:, level: :info, ttl: 5)
+          priority = level_to_priority(level)
+          return if priority != :urgent && !Legion::TTY::NotificationGate.should_deliver?(priority: priority)
+
           @notifications << Notification.new(message: message, level: level, ttl: ttl)
         end
 
@@ -120,6 +123,10 @@ module Legion
           return nil unless scroll.is_a?(Hash) && scroll[:total].to_i > scroll[:visible].to_i
 
           Theme.c(:muted, "#{scroll[:current]}/#{scroll[:total]}")
+        end
+
+        def level_to_priority(level)
+          { info: :ambient, success: :low, warning: :normal, error: :urgent }[level] || :normal
         end
 
         def format_number(num)

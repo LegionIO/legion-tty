@@ -156,10 +156,21 @@ module Legion
               "  Pinned         : #{@pinned_messages.size}",
               "  Tokens         : #{@token_tracker.summary}"
             ]
+            append_auto_inject_skills(lines)
             @message_stream.add_message(role: :system, content: lines.join("\n"))
             :handled
           end
           # rubocop:enable Metrics/AbcSize
+
+          def append_auto_inject_skills(lines)
+            return unless defined?(Legion::LLM::Skills::Registry)
+
+            injected = Legion::LLM::Skills::Registry.by_trigger(:auto_inject)
+            return unless injected.any?
+
+            lines << "\nAuto-inject Skills (#{injected.size}):"
+            injected.each { |s| lines << "  #{s.namespace}:#{s.skill_name}" }
+          end
 
           def handle_stats
             @message_stream.add_message(role: :system, content: build_stats_lines.join("\n"))
@@ -1067,6 +1078,143 @@ module Legion
               @timer_end = nil
             end
             :handled
+          end
+
+          def handle_skills(input)
+            parts = input.split(nil, 3)
+            sub = parts[1]&.strip
+            rest = parts[2]&.strip || ''
+            if sub == 'load'
+              handle_skill_load(rest)
+            elsif sub == 'run'
+              handle_skill_run(rest)
+            else
+              list_skills
+            end
+          end
+
+          def list_skills
+            unless defined?(Legion::LLM::Skills::Registry)
+              @message_stream.add_message(role: :system, content: 'Legion::LLM::Skills not available.')
+              return :handled
+            end
+
+            all = Legion::LLM::Skills::Registry.all
+            if all.empty?
+              @message_stream.add_message(role: :system, content: 'No skills registered.')
+              return :handled
+            end
+
+            lines = ["LLM Skills (#{all.size}):"]
+            all.each { |klass| lines << format_skill_line(klass) }
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
+          end
+
+          def format_skill_line(klass)
+            words_tag = klass.trigger_words.any? ? " [#{klass.trigger_words.join(', ')}]" : ''
+            desc = klass.description.to_s[0, 60]
+            "  #{klass.namespace}:#{klass.skill_name} (#{klass.trigger})#{words_tag} \u2014 #{desc}"
+          end
+
+          def handle_skill_load(path)
+            unless defined?(Legion::LLM::Skills::DiskLoader)
+              @message_stream.add_message(role: :system, content: 'Legion::LLM::Skills not available.')
+              return :handled
+            end
+
+            expanded = File.expand_path(path)
+            unless File.exist?(expanded)
+              @message_stream.add_message(role: :system, content: "File not found: #{expanded}")
+              return :handled
+            end
+
+            Legion::LLM::Skills::DiskLoader.load_md_skill(expanded)
+            @message_stream.add_message(role: :system, content: "Skill loaded from: #{expanded}")
+            :handled
+          rescue StandardError => e
+            @message_stream.add_message(role: :system, content: "Skill load failed: #{e.message}")
+            :handled
+          end
+
+          def handle_skill_run(key)
+            unless defined?(Legion::LLM::Skills::Registry)
+              @message_stream.add_message(role: :system, content: 'Legion::LLM::Skills not available.')
+              return :handled
+            end
+
+            if key.nil? || key.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /skills run <namespace>:<name>')
+              return :handled
+            end
+
+            klass = Legion::LLM::Skills::Registry.find(key)
+            unless klass
+              @message_stream.add_message(role: :system, content: "Skill not found: #{key}")
+              return :handled
+            end
+
+            result = klass.new.run(context: { conversation_id: @session_id })
+            inject = result.inject.to_s
+            content = inject.empty? ? 'Skill ran (no injection).' : inject
+            @message_stream.add_message(role: :system, content: content)
+            :handled
+          rescue StandardError => e
+            @message_stream.add_message(role: :system, content: "Skill run failed: #{e.message}")
+            :handled
+          end
+
+          def handle_gaia(input)
+            args = input.to_s.strip.split(' ', 3)
+            sub  = args[1]
+            rest = args[2]
+            case sub
+            when 'presence' then handle_gaia_presence(rest)
+            else handle_gaia_status
+            end
+            :handled
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_gaia_status
+            unless defined?(Legion::Gaia::NotificationGate) &&
+                   Legion::Gaia::NotificationGate.respond_to?(:instance)
+              @message_stream.add_message(role: :system, content: 'Gaia NotificationGate not available.')
+              return
+            end
+            gate = Legion::Gaia::NotificationGate.instance
+            lines = ['Gaia NotificationGate:']
+            if gate.respond_to?(:presence_evaluator)
+              pe = gate.presence_evaluator
+              avail = pe.availability || 'unknown'
+              age = pe.updated_at ? "#{(Time.now.utc - pe.updated_at).round}s ago" : 'never'
+              lines << "  Presence  : #{avail} (updated #{age})"
+            end
+            if gate.respond_to?(:behavioral_evaluator)
+              be = gate.behavioral_evaluator
+              lines << "  Arousal   : #{format('%.2f', be.notification_score)}"
+            end
+            if gate.respond_to?(:schedule_evaluator)
+              se = gate.schedule_evaluator
+              lines << "  Quiet now : #{se.quiet? ? 'yes' : 'no'}"
+            end
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+          rescue StandardError => e
+            @message_stream.add_message(role: :system, content: "Gaia status error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_gaia_presence(status)
+            if status.nil? || status.strip.empty?
+              valid = %w[Available Busy Away BeRightBack DoNotDisturb Offline]
+              @message_stream.add_message(role: :system,
+                                          content: "Usage: /gaia presence <status>\nValid: #{valid.join(', ')}")
+              return
+            end
+            Legion::TTY::NotificationGate.update_presence(availability: status.strip)
+            @message_stream.add_message(role: :system, content: "Presence set to: #{status.strip}")
+          rescue StandardError => e
+            @message_stream.add_message(role: :system, content: "Failed to set presence: #{e.message}")
           end
         end
       end

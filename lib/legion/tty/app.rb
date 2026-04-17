@@ -4,6 +4,7 @@ require 'json'
 require 'fileutils'
 require_relative 'screen_manager'
 require_relative 'hotkeys'
+require_relative 'notification_gate'
 require_relative 'screens/onboarding'
 require_relative 'screens/chat'
 

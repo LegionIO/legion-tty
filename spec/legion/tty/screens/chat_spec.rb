@@ -170,7 +170,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
                     /about /commands /ask /define /status /prefs
                     /stopwatch /ago /goto /inject
                     /transform /concat /prefix /suffix /split /swap
-                    /timer /notify]
+                    /timer /notify /gaia /skills]
       expect(described_class::SLASH_COMMANDS).to match_array(expected)
     end
 
@@ -715,6 +715,289 @@ RSpec.describe Legion::TTY::Screens::Chat do
       it 'returns an empty array' do
         schemas = screen.send(:build_tool_schemas)
         expect(schemas).to eq([])
+      end
+    end
+  end
+
+  describe '/skills command' do
+    context 'when Registry is defined with skills' do
+      let(:skill_a) do
+        double('skill_a',
+               namespace: 'core',
+               skill_name: 'summarize',
+               trigger: :on_request,
+               trigger_words: %w[summarize recap],
+               description: 'Summarizes the conversation')
+      end
+
+      let(:skill_b) do
+        double('skill_b',
+               namespace: 'meta',
+               skill_name: 'reflect',
+               trigger: :auto_inject,
+               trigger_words: [],
+               description: 'Reflects on the context')
+      end
+
+      before do
+        registry = Module.new do
+          def self.all = []
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        allow(Legion::LLM::Skills::Registry).to receive(:all).and_return([skill_a, skill_b])
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills')).to eq(:handled)
+      end
+
+      it 'shows header with skill count' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to match(/LLM Skills \(2\)/)
+      end
+
+      it 'shows namespace:name for each skill' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).to include('core:summarize')
+        expect(content).to include('meta:reflect')
+      end
+
+      it 'shows trigger for each skill' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).to include('on_request')
+        expect(content).to include('auto_inject')
+      end
+
+      it 'shows trigger_words when non-empty' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('[summarize, recap]')
+      end
+
+      it 'omits trigger_words bracket when empty' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).not_to match(/meta:reflect.*\[/)
+      end
+
+      it 'includes truncated description' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Summarizes the conversation')
+      end
+    end
+
+    context 'when Registry is defined but empty' do
+      before do
+        registry = Module.new do
+          def self.all = []
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        allow(Legion::LLM::Skills::Registry).to receive(:all).and_return([])
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills')).to eq(:handled)
+      end
+
+      it 'shows no-skills message' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('No skills registered.')
+      end
+    end
+
+    context 'when Registry is not defined' do
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills')).to eq(:handled)
+      end
+
+      it 'shows not-available message' do
+        screen.handle_slash_command('/skills')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Legion::LLM::Skills not available.')
+      end
+    end
+  end
+
+  describe '/skills load' do
+    context 'when DiskLoader is defined and file exists' do
+      let(:path) { '/tmp/test_skill.md' }
+
+      before do
+        disk_loader = Module.new do
+          def self.load_md_skill(_path) = nil
+        end
+        stub_const('Legion::LLM::Skills::DiskLoader', disk_loader)
+        allow(Legion::LLM::Skills::DiskLoader).to receive(:load_md_skill)
+        allow(File).to receive(:exist?).and_call_original
+        allow(File).to receive(:exist?).with(path).and_return(true)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command("/skills load #{path}")).to eq(:handled)
+      end
+
+      it 'calls DiskLoader.load_md_skill with the expanded path' do
+        screen.handle_slash_command("/skills load #{path}")
+        expect(Legion::LLM::Skills::DiskLoader).to have_received(:load_md_skill).with(path)
+      end
+
+      it 'shows success message' do
+        screen.handle_slash_command("/skills load #{path}")
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Skill loaded from:')
+        expect(msgs.last[:content]).to include(path)
+      end
+
+      it 'shows error message when load_md_skill raises' do
+        allow(Legion::LLM::Skills::DiskLoader).to receive(:load_md_skill).and_raise(StandardError, 'parse error')
+        screen.handle_slash_command("/skills load #{path}")
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Skill load failed: parse error')
+      end
+    end
+
+    context 'when file does not exist' do
+      let(:missing_path) { '/tmp/nonexistent_skill_xyz.md' }
+
+      before do
+        disk_loader = Module.new do
+          def self.load_md_skill(_path) = nil
+        end
+        stub_const('Legion::LLM::Skills::DiskLoader', disk_loader)
+        allow(Legion::LLM::Skills::DiskLoader).to receive(:load_md_skill)
+        allow(File).to receive(:exist?).and_call_original
+        allow(File).to receive(:exist?).with(missing_path).and_return(false)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command("/skills load #{missing_path}")).to eq(:handled)
+      end
+
+      it 'shows file-not-found error' do
+        screen.handle_slash_command("/skills load #{missing_path}")
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('File not found:')
+      end
+
+      it 'does not call load_md_skill' do
+        screen.handle_slash_command("/skills load #{missing_path}")
+        expect(Legion::LLM::Skills::DiskLoader).not_to have_received(:load_md_skill)
+      end
+    end
+
+    context 'when DiskLoader is not defined' do
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills load /some/path.md')).to eq(:handled)
+      end
+
+      it 'shows not-available message' do
+        screen.handle_slash_command('/skills load /some/path.md')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Legion::LLM::Skills not available.')
+      end
+    end
+  end
+
+  describe '/skills run' do
+    context 'when skill is found' do
+      let(:skill_result) { double('result', inject: 'Injected context text') }
+      let(:skill_instance) { double('skill_instance', run: skill_result) }
+      let(:skill_klass) { double('skill_klass', new: skill_instance) }
+
+      before do
+        registry = Module.new do
+          def self.find(_key) = nil
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        allow(Legion::LLM::Skills::Registry).to receive(:find).with('core:summarize').and_return(skill_klass)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills run core:summarize')).to eq(:handled)
+      end
+
+      it 'calls klass.new.run with conversation context' do
+        screen.handle_slash_command('/skills run core:summarize')
+        expect(skill_instance).to have_received(:run).with(hash_including(context: hash_including(:conversation_id)))
+      end
+
+      it 'shows the inject content' do
+        screen.handle_slash_command('/skills run core:summarize')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Injected context text')
+      end
+
+      it 'shows fallback message when inject is empty' do
+        allow(skill_result).to receive(:inject).and_return('')
+        screen.handle_slash_command('/skills run core:summarize')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Skill ran (no injection).')
+      end
+
+      it 'shows error message when run raises' do
+        allow(skill_instance).to receive(:run).and_raise(StandardError, 'runtime error')
+        screen.handle_slash_command('/skills run core:summarize')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Skill run failed: runtime error')
+      end
+    end
+
+    context 'when skill is not found' do
+      before do
+        registry = Module.new do
+          def self.find(_key) = nil
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        allow(Legion::LLM::Skills::Registry).to receive(:find).and_return(nil)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills run unknown:skill')).to eq(:handled)
+      end
+
+      it 'shows skill-not-found error' do
+        screen.handle_slash_command('/skills run unknown:skill')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Skill not found: unknown:skill')
+      end
+    end
+
+    context 'when key is blank' do
+      before do
+        registry = Module.new do
+          def self.find(_key) = nil
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills run')).to eq(:handled)
+      end
+
+      it 'shows usage message' do
+        screen.handle_slash_command('/skills run')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Usage: /skills run <namespace>:<name>')
+      end
+    end
+
+    context 'when Registry is not defined' do
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/skills run core:summarize')).to eq(:handled)
+      end
+
+      it 'shows not-available message' do
+        screen.handle_slash_command('/skills run core:summarize')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Legion::LLM::Skills not available.')
       end
     end
   end
