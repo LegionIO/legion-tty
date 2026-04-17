@@ -148,9 +148,9 @@ RSpec.describe Legion::TTY::Screens::Chat do
     end
 
     it 'includes all expected commands' do
-      expected = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard /hotkeys
-                    /save /load /sessions /system /delete /plan /palette /extensions /config /theme /search /grep
-                    /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug
+      expected = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /tool /dashboard
+                    /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config /theme /search
+                    /grep /stats /personality /undo /history /pin /pins /rename /context /alias /snippet /debug
                     /uptime /time /bookmark /welcome /tips /wc /import /mute /autosave /react /macro /tag /tags
                     /repeat /count /template /fav /favs /log /version
                     /focus /retry /merge /sort
@@ -420,6 +420,217 @@ RSpec.describe Legion::TTY::Screens::Chat do
   describe '#streaming?' do
     it 'defaults to false' do
       expect(screen.streaming?).to be false
+    end
+  end
+
+  describe '/tools command' do
+    context 'when Legion::Tools::Registry is defined' do
+      let(:tool_a) do
+        double('tool_a',
+               tool_name: 'legion.search',
+               description: 'Search for things',
+               mcp_tier: 1,
+               deferred?: false)
+          .tap { |t| allow(t).to receive(:respond_to?).with(:mcp_tier).and_return(true) }
+          .tap { |t| allow(t).to receive(:respond_to?).with(:deferred?).and_return(true) }
+      end
+
+      let(:tool_b) do
+        double('tool_b',
+               tool_name: 'legion.infer',
+               description: 'Run inference',
+               mcp_tier: nil,
+               deferred?: true)
+          .tap { |t| allow(t).to receive(:respond_to?).with(:mcp_tier).and_return(true) }
+          .tap { |t| allow(t).to receive(:respond_to?).with(:deferred?).and_return(true) }
+      end
+
+      before do
+        registry = Module.new do
+          def self.all_tools = []
+          def self.tools = []
+          def self.deferred_tools = []
+        end
+        stub_const('Legion::Tools::Registry', registry)
+        allow(Legion::Tools::Registry).to receive(:all_tools).and_return([tool_a, tool_b])
+        allow(Legion::Tools::Registry).to receive(:tools).and_return([tool_a])
+        allow(Legion::Tools::Registry).to receive(:deferred_tools).and_return([tool_b])
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/tools')).to eq(:handled)
+      end
+
+      it 'shows tool names in the message' do
+        screen.handle_slash_command('/tools')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).to include('legion.search')
+        expect(content).to include('legion.infer')
+      end
+
+      it 'shows always and deferred counts in header' do
+        screen.handle_slash_command('/tools')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        content = msgs.last[:content]
+        expect(content).to match(/always=1/)
+        expect(content).to match(/deferred=1/)
+      end
+
+      it 'shows tier tag for tools with mcp_tier' do
+        screen.handle_slash_command('/tools')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('[T1]')
+      end
+
+      it 'shows deferred tag for deferred tools' do
+        screen.handle_slash_command('/tools')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('(deferred)')
+      end
+
+      it 'includes tool count in header' do
+        screen.handle_slash_command('/tools')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to match(/Legion Tools \(2\)/)
+      end
+    end
+
+    context 'when Legion::Tools::Registry is not defined' do
+      it 'falls back to gem scan (no lex- gems found in test env)' do
+        result = screen.handle_slash_command('/tools')
+        expect(result).to eq(:handled)
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to satisfy('contain lex info') do |content|
+          content.include?('No lex-* extensions found') || content.include?('LEX Extensions')
+        end
+      end
+    end
+  end
+
+  describe '/tool command' do
+    context 'when Legion::Tools::Registry is defined and tool is found' do
+      let(:mock_tool) { double('tool', call: { output: 'result value' }) }
+
+      before do
+        registry = Module.new do
+          def self.find(_name) = nil
+        end
+        stub_const('Legion::Tools::Registry', registry)
+        allow(Legion::Tools::Registry).to receive(:find).with('legion.search').and_return(mock_tool)
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/tool legion.search')).to eq(:handled)
+      end
+
+      it 'calls the tool locally and shows result' do
+        screen.handle_slash_command('/tool legion.search')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).not_to be_empty
+      end
+    end
+
+    context 'when Legion::Tools::Registry is defined but tool not found' do
+      before do
+        registry = Module.new do
+          def self.find(_name) = nil
+        end
+        stub_const('Legion::Tools::Registry', registry)
+        allow(Legion::Tools::Registry).to receive(:find).and_return(nil)
+        allow(Legion::TTY::DaemonClient).to receive(:run_tool).and_return({ status: :ok, data: { result: 'ok' } })
+      end
+
+      it 'falls back to DaemonClient.run_tool' do
+        screen.handle_slash_command('/tool unknown.tool')
+        expect(Legion::TTY::DaemonClient).to have_received(:run_tool).with(hash_including(name: 'unknown.tool'))
+      end
+    end
+
+    context 'when Legion::Tools::Registry is not defined' do
+      before do
+        allow(Legion::TTY::DaemonClient).to receive(:run_tool).and_return({ status: :ok, data: { result: 'ok' } })
+      end
+
+      it 'calls DaemonClient.run_tool' do
+        screen.handle_slash_command('/tool some.tool')
+        expect(Legion::TTY::DaemonClient).to have_received(:run_tool).with(hash_including(name: 'some.tool'))
+      end
+
+      it 'shows unavailable message when daemon not reachable' do
+        allow(Legion::TTY::DaemonClient).to receive(:run_tool).and_return({ status: :unavailable })
+        screen.handle_slash_command('/tool some.tool')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('unavailable')
+      end
+
+      it 'shows error message on error status' do
+        allow(Legion::TTY::DaemonClient).to receive(:run_tool)
+          .and_return({ status: :error, error: 'HTTP 422' })
+        screen.handle_slash_command('/tool some.tool')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Error:')
+      end
+    end
+
+    context 'when name is blank' do
+      it 'shows usage message' do
+        screen.handle_slash_command('/tool')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to include('Usage:')
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/tool')).to eq(:handled)
+      end
+    end
+  end
+
+  describe '#build_tool_schemas' do
+    context 'when Legion::Tools::Registry is defined' do
+      let(:mock_tool) do
+        double('tool',
+               tool_name: 'legion.search',
+               description: 'Search docs',
+               input_schema: { type: 'object', properties: { query: { type: 'string' } } })
+      end
+
+      before do
+        registry = Module.new do
+          def self.tools = []
+        end
+        stub_const('Legion::Tools::Registry', registry)
+        allow(Legion::Tools::Registry).to receive(:tools).and_return([mock_tool])
+      end
+
+      it 'returns an array of hashes' do
+        schemas = screen.send(:build_tool_schemas)
+        expect(schemas).to be_an(Array)
+        expect(schemas.size).to eq(1)
+      end
+
+      it 'includes :name, :description, :input_schema keys' do
+        schema = screen.send(:build_tool_schemas).first
+        expect(schema).to include(:name, :description, :input_schema)
+      end
+
+      it 'uses the tool_name for :name' do
+        schema = screen.send(:build_tool_schemas).first
+        expect(schema[:name]).to eq('legion.search')
+      end
+
+      it 'falls back to empty object schema when input_schema is nil' do
+        allow(mock_tool).to receive(:input_schema).and_return(nil)
+        schema = screen.send(:build_tool_schemas).first
+        expect(schema[:input_schema]).to eq({ type: 'object', properties: {} })
+      end
+    end
+
+    context 'when Legion::Tools::Registry is not defined' do
+      it 'returns an empty array' do
+        schemas = screen.send(:build_tool_schemas)
+        expect(schemas).to eq([])
+      end
     end
   end
 end

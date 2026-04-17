@@ -983,6 +983,48 @@ module Legion
             :handled
           end
 
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+          def handle_tool(input)
+            rest = input.split(nil, 2)[1]&.strip
+            unless rest && !rest.empty?
+              @message_stream.add_message(role: :system,
+                                          content: 'Usage: /tool <name> [JSON args]')
+              return :handled
+            end
+
+            parts = rest.split(nil, 2)
+            name = parts[0]
+            args_str = parts[1]
+
+            if defined?(Legion::Tools::Registry)
+              tool = Legion::Tools::Registry.find(name)
+              if tool
+                result = tool.call(parse_tool_args(args_str))
+                content = result.is_a?(Hash) ? Legion::JSON.dump(result) : result.to_s
+                @message_stream.add_message(role: :system, content: content)
+                return :handled
+              end
+            end
+
+            result = Legion::TTY::DaemonClient.run_tool(name: name, args: parse_tool_args(args_str))
+            content = case result[:status]
+                      when :ok then Legion::JSON.dump(result[:data] || {})
+                      when :error then "Error: #{result[:error]}"
+                      else 'Tool unavailable (daemon not reachable).'
+                      end
+            @message_stream.add_message(role: :system, content: content)
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+          def parse_tool_args(str)
+            return {} unless str && !str.strip.empty?
+
+            Legion::JSON.load(str)
+          rescue StandardError
+            {}
+          end
+
           def timer_status
             if @timer_thread&.alive?
               remaining = @timer_end - Time.now

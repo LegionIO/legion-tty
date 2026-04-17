@@ -26,7 +26,8 @@ module Legion
         include ModelCommands
         include CustomCommands
 
-        SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
+        SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /tool
+                            /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
@@ -241,8 +242,19 @@ module Legion
           # Nothing to do at activation time.
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
         def send_via_daemon(message)
+          tool_result = maybe_route_to_tool(message)
+          if tool_result
+            content = if tool_result.is_a?(Hash) && tool_result[:content]
+                        tool_result[:content].map { |c| c[:text] }.join
+                      else
+                        tool_result.to_s
+                      end
+            @message_stream.add_message(role: :assistant, content: content)
+            return
+          end
+
           @status_bar.update(thinking: true)
           @streaming = true
           @app.render_frame if @app.respond_to?(:render_frame)
@@ -251,6 +263,7 @@ module Legion
           messages = build_inference_messages(message)
           result = Legion::TTY::DaemonClient.inference(
             messages: messages,
+            tools: build_tool_schemas,
             model: @preferred_model
           )
 
@@ -277,7 +290,7 @@ module Legion
           @status_bar.update(thinking: false)
           @streaming = false
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
 
         def speak_response(text)
           return unless RUBY_PLATFORM =~ /darwin/
@@ -414,6 +427,7 @@ module Legion
           when '/cost' then handle_cost
           when '/export' then handle_export(input)
           when '/tools' then handle_tools
+          when '/tool' then handle_tool(input)
           when '/save' then handle_save(input)
           when '/load' then handle_load(input)
           when '/sessions' then handle_sessions
@@ -537,8 +551,32 @@ module Legion
           :handled
         end
 
-        # rubocop:disable Metrics/AbcSize
         def handle_tools
+          if defined?(Legion::Tools::Registry)
+            handle_tools_registry
+          else
+            handle_tools_gem_scan
+          end
+          :handled
+        end
+
+        def handle_tools_registry
+          all = Legion::Tools::Registry.all_tools
+          always_count = Legion::Tools::Registry.tools.size
+          deferred_count = Legion::Tools::Registry.deferred_tools.size
+          header = "Legion Tools (#{all.size}):  always=#{always_count}  deferred=#{deferred_count}"
+          lines = all.map { |tool| format_tool_line(tool) }
+          @message_stream.add_message(role: :system, content: "#{header}\n#{lines.join("\n")}")
+        end
+
+        def format_tool_line(tool)
+          tier_tag = tool.respond_to?(:mcp_tier) && tool.mcp_tier ? " [T#{tool.mcp_tier}]" : ''
+          deferred_tag = tool.respond_to?(:deferred?) && tool.deferred? ? ' (deferred)' : ''
+          "  #{tool.tool_name}#{tier_tag}#{deferred_tag} — #{tool.description.to_s[0, 80]}"
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def handle_tools_gem_scan
           lex_gems = Gem::Specification.select { |s| s.name.start_with?('lex-') }
           if lex_gems.empty?
             @message_stream.add_message(role: :system, content: 'No lex-* extensions found in loaded gems.')
@@ -551,9 +589,7 @@ module Legion
             @message_stream.add_message(role: :system,
                                         content: "LEX Extensions (#{lex_gems.size}):\n#{lines.join("\n")}")
           end
-          :handled
         end
-
         # rubocop:enable Metrics/AbcSize
 
         def handle_plan
@@ -675,6 +711,29 @@ module Legion
           result = "#{@message_prefix}#{result}" if @message_prefix
           result = "#{result}#{@message_suffix}" if @message_suffix
           result
+        end
+
+        def build_tool_schemas
+          return [] unless defined?(Legion::Tools::Registry)
+
+          Legion::Tools::Registry.tools.map do |t|
+            { name: t.tool_name, description: t.description,
+              input_schema: t.input_schema || { type: 'object', properties: {} } }
+          end
+        rescue StandardError
+          []
+        end
+
+        def maybe_route_to_tool(message)
+          return nil unless defined?(Legion::Tools::TriggerIndex) && !Legion::Tools::TriggerIndex.empty?
+
+          words = message.downcase.split(/\W+/).reject(&:empty?)
+          matched, = Legion::Tools::TriggerIndex.match(words)
+          return nil if matched.empty?
+
+          Legion::Tools::Do.call(intent: message)
+        rescue StandardError
+          nil
         end
       end
       # rubocop:enable Metrics/ClassLength

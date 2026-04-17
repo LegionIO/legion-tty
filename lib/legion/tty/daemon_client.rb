@@ -106,6 +106,22 @@ module Legion
           { status: :unavailable, error: { message: e.message } }
         end
 
+        def run_tool(name:, args: {})
+          uri = URI("#{daemon_url}/api/tools/run")
+          payload = Legion::JSON.dump({ name: name, args: args })
+          response = post_json(uri, payload)
+          if SUCCESS_CODES.include?(response.code.to_i)
+            body = Legion::JSON.load(response.body)
+            { status: :ok, data: body[:data] || body }
+          else
+            { status: :error, error: "HTTP #{response.code}" }
+          end
+        rescue StandardError => e
+          handle_exception(e, level: :warn, operation: 'tty.daemon_client.run_tool',
+                              daemon_url: daemon_url, name: name)
+          { status: :unavailable }
+        end
+
         def reset!
           @daemon_url = nil
           @cache_file = nil
