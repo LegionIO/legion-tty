@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.0] - 2026-04-17
+
+### Added
+- **`Legion::Tools::Registry` integration** — `/tools` now queries `Legion::Tools::Registry.all_tools` to display registered tool names, descriptions, MCP tiers, and deferred status; falls back to gem scan when Registry is unavailable (closes #15)
+- **`/tool <name> [json-args]`** — new slash command to invoke any registered tool directly from chat; tries local Registry first, falls back to `DaemonClient.run_tool` (closes #15)
+- **Tool schemas in inference** — `build_tool_schemas` passes always-loaded tool schemas to every `DaemonClient.inference` call so the LLM can use registered tools (closes #15)
+- **TriggerIndex intent routing** — when `Legion::Tools::TriggerIndex` is non-empty and a user message matches a registered trigger word, routes to `Legion::Tools::Do.call` directly without an LLM round-trip (closes #15)
+- **`DaemonClient.run_tool`** — new method: `POST /api/tools/run`; returns `{status: :ok/:error/:unavailable}` (closes #15)
+- **`/skills`** — new slash command: lists all registered `Legion::LLM::Skills` with namespace, trigger type, trigger words, and description (closes #16)
+- **`/skills load <path>`** — loads a `.md` skill file at runtime via `Legion::LLM::Skills::DiskLoader` (closes #16)
+- **`/skills run <namespace>:<name>`** — invokes a registered skill and shows its injected content (closes #16)
+- **`/apollo query/ingest/graph/status/autoingest`** — new slash command family for the `Legion::Apollo` knowledge store: semantic query with confidence-ranked results, content ingestion, graph traversal by entity ID, and live status (closes #17)
+- **Apollo dashboard panel** — System Info panel on the dashboard now shows `Apollo: started/transport/data` availability (closes #17)
+- **`Legion::TTY::NotificationGate`** — new module wrapping `Legion::Gaia::NotificationGate`; `status_bar.notify` now gates `info`/`success`/`warning` notifications through Gaia's presence, behavioral, and schedule evaluators; `error` level always delivers (closes #18)
+- **`/gaia status`** — shows Gaia NotificationGate evaluator state: presence, arousal score, and quiet-hours status (closes #18)
+- **`/gaia presence <status>`** — sets user presence (`Available`, `DoNotDisturb`, `Away`, etc.) for the session, controlling notification threshold (closes #18)
+- **`/context` auto-inject skills** — `/context` output now includes auto-inject skill names when `Legion::LLM::Skills::Registry` is available (closes #16)
+- **Debug mode skill count** — status bar debug segment shows `skills:N` when `Legion::LLM::Skills::Registry` is available (closes #16)
+
+### Changed
+- `handle_tools` refactored into `handle_tools_registry` + `handle_tools_gem_scan` helpers for clarity
+
 ## [0.4.42] - 2026-04-08
 
 ### Changed
