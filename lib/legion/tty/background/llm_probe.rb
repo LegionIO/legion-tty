@@ -1,11 +1,15 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Background
       class LlmProbe
+        include Legion::Logging::Helper
+
         def initialize(logger: nil, wait_queue: nil)
-          @log = logger
+          @boot_log = logger
           @wait_queue = wait_queue
         end
 
@@ -15,7 +19,7 @@ module Legion
             result = probe_providers
             queue.push({ data: result })
           rescue StandardError => e
-            @log&.log('llm_probe', "error: #{e.message}")
+            @boot_log&.log('llm_probe', "error: #{e.message}")
             queue.push({ data: { providers: [], error: e.message } })
           end
         end
@@ -36,12 +40,12 @@ module Legion
             sleep 0.2
           end
           if timed_out
-            @log&.log('llm_probe', 'bootstrap wait timed out')
+            @boot_log&.log('llm_probe', 'bootstrap wait timed out')
           else
-            @log&.log('llm_probe', 'bootstrap wait complete')
+            @boot_log&.log('llm_probe', 'bootstrap wait complete')
           end
         rescue StandardError => e
-          @log&.log('llm_probe', "bootstrap wait error: #{e.message}")
+          @boot_log&.log('llm_probe', "bootstrap wait error: #{e.message}")
         end
 
         def probe_providers
@@ -55,7 +59,7 @@ module Legion
         def start_llm
           Legion::LLM.start unless Legion::LLM.started?
         rescue StandardError => e
-          @log&.log('llm_probe', "LLM start failed: #{e.message}")
+          @boot_log&.log('llm_probe', "LLM start failed: #{e.message}")
         end
 
         def collect_provider_results
@@ -64,7 +68,7 @@ module Legion
             next unless config[:enabled]
 
             result = ping_provider(name, config)
-            @log&.log('llm_probe', "#{name}: #{result[:status]} (#{result[:latency_ms]}ms)")
+            @boot_log&.log('llm_probe', "#{name}: #{result[:status]} (#{result[:latency_ms]}ms)")
             result
           end
         end
@@ -77,7 +81,7 @@ module Legion
           { name: name, model: model, status: :ok, latency_ms: latency }
         rescue StandardError => e
           latency = ((Time.now - start_time) * 1000).round
-          Legion::Logging.debug("ping_provider #{name} failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "ping_provider #{name} failed: #{e.message}" }
           { name: name, model: model, status: :configured, latency_ms: latency, error: e.message }
         end
       end

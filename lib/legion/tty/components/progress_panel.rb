@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative '../theme'
 
 module Legion
   module TTY
     module Components
       class ProgressPanel
+        include Legion::Logging::Helper
+
         attr_reader :title, :total, :current
 
         def initialize(title:, total:, output: $stdout)
@@ -62,7 +65,7 @@ module Legion
             width: 40
           )
         rescue LoadError => e
-          Legion::Logging.debug("tty-progressbar not available: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "tty-progressbar not available: #{e.message}" }
           nil
         end
       end

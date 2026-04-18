@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Screens
       class Chat < Base
         module ModelCommands
+          include Legion::Logging::Helper
+
           private
 
           def handle_model(input)
@@ -24,7 +28,7 @@ module Legion
             @message_stream.add_message(role: :system,
                                         content: "Model preference set to: #{name} (applied on next daemon request)")
           rescue StandardError => e
-            Legion::Logging.warn("switch_model failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "switch_model failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Failed to switch model: #{e.message}")
           end
 
@@ -40,7 +44,7 @@ module Legion
 
             Legion::LLM.chat(provider: name)
           rescue StandardError => e
-            Legion::Logging.warn("try_provider_switch failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "try_provider_switch failed: #{e.message}" }
             nil
           end
 

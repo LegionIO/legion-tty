@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative '../screens/base'
 require_relative '../components/message_stream'
 require_relative '../components/status_bar'
@@ -19,6 +20,7 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
+        include Legion::Logging::Helper
         include SessionCommands
         include ExportCommands
         include MessageCommands
@@ -186,7 +188,7 @@ module Legion
 
           send_via_daemon(message)
         rescue StandardError => e
-          Legion::Logging.error("send_to_llm failed: #{e.message}") if defined?(Legion::Logging)
+          log.error { "send_to_llm failed: #{e.message}" }
           @status_bar.update(thinking: false)
           @message_stream.append_streaming("\n[Error: #{e.message}]")
         end
@@ -299,7 +301,7 @@ module Legion
 
           ::Process.spawn('say', text[0..500], err: '/dev/null', out: '/dev/null')
         rescue StandardError => e
-          Legion::Logging.debug("speak_response failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "speak_response failed: #{e.message}" }
           nil
         end
 
@@ -312,7 +314,7 @@ module Legion
         def daemon_available?
           Legion::TTY::DaemonClient.available?
         rescue StandardError => e
-          Legion::Logging.debug("daemon_available? check failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "daemon_available? check failed: #{e.message}" }
           false
         end
 
@@ -398,9 +400,7 @@ module Legion
                 lines << narrative
               end
             rescue StandardError => e
-              if defined?(Legion::Logging)
-                Legion::Logging.warn("Metacognition.self_narrative failed: #{e.class}: #{e.message}")
-              end
+              log.warn { "Metacognition.self_narrative failed: #{e.class}: #{e.message}" }
             end
           end
 
@@ -675,7 +675,7 @@ module Legion
           require 'tty-screen'
           ::TTY::Screen.width
         rescue StandardError => e
-          Legion::Logging.debug("terminal_width failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "terminal_width failed: #{e.message}" }
           80
         end
 
@@ -683,7 +683,7 @@ module Legion
           require 'tty-screen'
           ::TTY::Screen.height
         rescue StandardError => e
-          Legion::Logging.debug("terminal_height failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "terminal_height failed: #{e.message}" }
           24
         end
 
@@ -732,7 +732,7 @@ module Legion
               input_schema: t.input_schema || { type: 'object', properties: {} } }
           end
         rescue StandardError => e
-          Legion::Logging.debug("build_tool_schemas failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "build_tool_schemas failed: #{e.message}" }
           []
         end
 
@@ -747,7 +747,7 @@ module Legion
 
           Legion::Tools::Do.call(intent: message)
         rescue StandardError => e
-          Legion::Logging.debug("maybe_route_to_tool failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "maybe_route_to_tool failed: #{e.message}" }
           nil
         end
       end

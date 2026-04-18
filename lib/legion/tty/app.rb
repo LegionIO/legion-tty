@@ -2,6 +2,7 @@
 
 require 'json'
 require 'fileutils'
+require 'legion/logging'
 require_relative 'screen_manager'
 require_relative 'hotkeys'
 require_relative 'notification_gate'
@@ -12,6 +13,12 @@ module Legion
   module TTY
     # rubocop:disable Metrics/ClassLength
     class App
+      include Legion::Logging::Helper
+
+      class << self
+        include Legion::Logging::Helper
+      end
+
       CONFIG_DIR = File.expand_path('~/.legionio/settings')
 
       # Key normalization: raw escape sequences and control chars to symbols
@@ -35,7 +42,7 @@ module Legion
         app = new(**opts)
         app.start
       rescue Interrupt => e
-        Legion::Logging.debug("app interrupted: #{e.message}") if defined?(Legion::Logging)
+        log.debug { "app interrupted: #{e.message}" }
         app&.shutdown
       end
 
@@ -71,7 +78,7 @@ module Legion
       end
 
       # Public: called by screens (e.g., Chat during LLM streaming) to force a re-render
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
       def render_frame
         width = terminal_width
         height = terminal_height
@@ -98,9 +105,9 @@ module Legion
 
         $stdout.flush
       rescue StandardError => e
-        Legion::Logging.warn("render_frame failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "render_frame failed: #{e.message}" }
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
       # Temporarily exit raw mode for blocking prompts (TTY::Prompt, etc.)
       def with_cooked_mode(&)
@@ -317,7 +324,7 @@ module Legion
         end
         result
       rescue StandardError => e
-        Legion::Logging.warn("composite_overlay failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "composite_overlay failed: #{e.message}" }
         lines
       end
       # rubocop:enable Metrics/AbcSize
@@ -394,7 +401,7 @@ module Legion
         boot_legion_subsystems
         @llm_chat = try_settings_llm
       rescue StandardError => e
-        Legion::Logging.warn("setup_llm failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "setup_llm failed: #{e.message}" }
         @llm_chat = nil
       end
 
@@ -417,13 +424,13 @@ module Legion
           File.write(identity_path, ::JSON.generate(identity))
           @config = load_config
         rescue StandardError => e
-          Legion::Logging.warn("rescan_environment failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "rescan_environment failed: #{e.message}" }
           nil
         end
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def boot_legion_subsystems
         require 'legion/logging'
         Legion::Logging.setup(log_level: 'error', level: 'error', trace: false)
@@ -439,10 +446,10 @@ module Legion
           Legion::Crypt.start unless Legion::Crypt.instance_variable_get(:@started)
           Legion::Settings.resolve_secrets! if Legion::Settings.respond_to?(:resolve_secrets!)
         rescue LoadError => e
-          Legion::Logging.debug("legion/crypt not available: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "legion/crypt not available: #{e.message}" }
           nil
         rescue StandardError => e
-          Legion::Logging.warn("crypt/secrets setup failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "crypt/secrets setup failed: #{e.message}" }
           nil
         end
 
@@ -450,14 +457,14 @@ module Legion
           require 'legion/llm'
           Legion::Settings.merge_settings(:llm, Legion::LLM::Settings.default)
         rescue LoadError => e
-          Legion::Logging.debug("legion/llm not available: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "legion/llm not available: #{e.message}" }
           nil
         end
       rescue LoadError => e
-        Legion::Logging.debug("legion subsystem load failed: #{e.message}") if defined?(Legion::Logging)
+        log.debug { "legion subsystem load failed: #{e.message}" }
         nil
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
       def settings_search_path
         [
@@ -472,15 +479,13 @@ module Legion
         # All LLM calls route through the LegionIO daemon API.
         # No raw RubyLLM session is created here — nil signals "use daemon path".
         if Legion::TTY::DaemonClient.available?
-          Legion::Logging.debug('TTY: daemon available, LLM routed through daemon') if defined?(Legion::Logging)
-        elsif defined?(Legion::Logging)
-          if defined?(Legion::Logging)
-            Legion::Logging.warn('TTY: daemon not running; LLM unavailable until daemon starts')
-          end
+          log.debug { 'TTY: daemon available, LLM routed through daemon' }
+        else
+          log.warn { 'TTY: daemon not running; LLM unavailable until daemon starts' }
         end
         nil
       rescue StandardError => e
-        Legion::Logging.warn("try_settings_llm failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "try_settings_llm failed: #{e.message}" }
         nil
       end
 
@@ -550,7 +555,7 @@ module Legion
 
         deep_symbolize(::JSON.parse(File.read(path)))
       rescue ::JSON::ParserError, Errno::ENOENT => e
-        Legion::Logging.warn("load_credentials failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "load_credentials failed: #{e.message}" }
         {}
       end
 
@@ -567,7 +572,7 @@ module Legion
 
         deep_symbolize(::JSON.parse(File.read(path)))
       rescue ::JSON::ParserError, Errno::ENOENT => e
-        Legion::Logging.warn("load_config failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "load_config failed: #{e.message}" }
         {}
       end
 

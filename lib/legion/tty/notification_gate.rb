@@ -1,15 +1,19 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module NotificationGate
       class << self
+        include Legion::Logging::Helper
+
         def should_deliver?(priority: :normal)
           return true unless gaia_gate_available?
 
           Legion::Gaia::NotificationGate.instance.should_notify?(priority: priority)
         rescue StandardError => e
-          Legion::Logging.debug("NotificationGate.should_deliver? failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "NotificationGate.should_deliver? failed: #{e.message}" }
           true
         end
 
@@ -20,7 +24,7 @@ module Legion
             availability: availability, activity: activity
           )
         rescue StandardError => e
-          Legion::Logging.debug("NotificationGate.update_presence failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "NotificationGate.update_presence failed: #{e.message}" }
           nil
         end
 

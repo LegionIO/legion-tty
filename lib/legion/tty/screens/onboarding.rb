@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative '../screens/base'
 require_relative '../components/digital_rain'
 require_relative '../components/wizard_prompt'
@@ -15,6 +16,8 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Onboarding < Base
+        include Legion::Logging::Helper
+
         TYPED_DELAY = 0.05
 
         GAIA_GEMS = %w[
@@ -38,17 +41,17 @@ module Legion
           @github_quick = nil
           @vault_results = nil
           @bootstrap_data = nil
-          @log = BootLogger.new
+          @boot_log = BootLogger.new
         end
 
         # rubocop:disable Metrics/AbcSize
         def activate
-          @log.log('onboarding', 'activate started')
+          @boot_log.log('onboarding', 'activate started')
           start_background_threads
           run_rain unless @skip_rain
           run_intro
           config = run_wizard
-          @log.log('wizard', "name=#{config[:name]} provider=#{config[:provider]}")
+          @boot_log.log('wizard', "name=#{config[:name]} provider=#{config[:provider]}")
           collect_bootstrap_result
           run_vault_auth
           scan_data, github_data = collect_background_results
@@ -57,7 +60,7 @@ module Legion
           run_extension_detection
           run_service_auth
           run_reveal(name: config[:name], scan_data: scan_data, github_data: github_data)
-          @log.log('onboarding', 'activate complete')
+          @boot_log.log('onboarding', 'activate complete')
           build_onboarding_result(config, scan_data, github_data)
         end
         # rubocop:enable Metrics/AbcSize
@@ -143,17 +146,17 @@ module Legion
         end
 
         def start_background_threads
-          @log.log('threads', 'launching scanner, kerberos probe, github quick probe')
-          @scanner = Background::Scanner.new(logger: @log)
-          @github_probe = Background::GitHubProbe.new(logger: @log)
-          @kerberos_probe = Background::KerberosProbe.new(logger: @log)
+          @boot_log.log('threads', 'launching scanner, kerberos probe, github quick probe')
+          @scanner = Background::Scanner.new(logger: @boot_log)
+          @github_probe = Background::GitHubProbe.new(logger: @boot_log)
+          @kerberos_probe = Background::KerberosProbe.new(logger: @boot_log)
           @scanner.run_async(@scan_queue)
           @kerberos_probe.run_async(@kerberos_queue)
           @github_probe.run_quick_async(@github_quick_queue)
           require_relative '../background/llm_probe'
-          @llm_probe = Background::LlmProbe.new(logger: @log, wait_queue: @bootstrap_queue)
+          @llm_probe = Background::LlmProbe.new(logger: @boot_log, wait_queue: @bootstrap_queue)
           @llm_probe.run_async(@llm_queue)
-          @bootstrap_probe = Background::BootstrapConfig.new(logger: @log)
+          @bootstrap_probe = Background::BootstrapConfig.new(logger: @boot_log)
           @bootstrap_probe.run_async(@bootstrap_queue)
           start_detect_probe
         end
@@ -161,12 +164,12 @@ module Legion
         def start_detect_probe
           return unless detect_gem_available?
 
-          @log.log('detect', 'launching environment scan')
+          @boot_log.log('detect', 'launching environment scan')
           Thread.new do
             results = Legion::Extensions::Detect.scan
             @detect_queue.push({ type: :detect_complete, data: results })
           rescue StandardError => e
-            @log.log('detect', "ERROR: #{e.message}")
+            @boot_log.log('detect', "ERROR: #{e.message}")
             @detect_queue.push({ type: :detect_error, error: e.message })
           end
         end
@@ -246,14 +249,14 @@ module Legion
         end
 
         def collect_background_results
-          @log.log('collect', 'waiting for scanner results (10s timeout)')
+          @boot_log.log('collect', 'waiting for scanner results (10s timeout)')
           scan_result = drain_with_timeout(@scan_queue, timeout: 10)
           scan_data = scan_result&.dig(:data) || { services: {}, repos: [], tools: {} }
           log_scan_data(scan_data)
 
           # Now launch GitHub probe with discovered remotes
           remotes = scan_data[:repos]&.filter_map { |r| r[:remote] } || []
-          @log.log('collect', "launching github probe with #{remotes.size} remotes")
+          @boot_log.log('collect', "launching github probe with #{remotes.size} remotes")
           @github_probe.run_async(@github_queue, remotes: remotes, quick_profile: @github_quick)
           github_result = drain_with_timeout(@github_queue, timeout: 8)
           github_data = github_result&.dig(:data)
@@ -313,7 +316,7 @@ module Legion
           results = result&.dig(:data) || []
           return if results.empty?
 
-          @log.log('detect', "detected #{results.size} services")
+          @boot_log.log('detect', "detected #{results.size} services")
           display_detected_extensions(results)
           offer_missing_extensions(results)
           @output.puts
@@ -377,7 +380,7 @@ module Legion
           results = detect_result[:data] || []
           results.any? { |d| d[:name] == 'Microsoft Teams' }
         rescue StandardError => e
-          Legion::Logging.debug("teams_detected? failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "teams_detected? failed: #{e.message}" }
           false
         end
 
@@ -385,7 +388,7 @@ module Legion
           Gem::Specification.find_by_name('lex-microsoft_teams')
           true
         rescue Gem::MissingSpecError => e
-          Legion::Logging.debug("lex-microsoft_teams not installed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "lex-microsoft_teams not installed: #{e.message}" }
           false
         end
 
@@ -398,7 +401,7 @@ module Legion
           settings = begin
             Legion::Settings.dig(:microsoft_teams, :auth) || {}
           rescue StandardError => e
-            Legion::Logging.warn("build_teams_browser_auth settings failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "build_teams_browser_auth settings failed: #{e.message}" }
             {}
           end
           Legion::Extensions::MicrosoftTeams::Helpers::BrowserAuth.new(
@@ -413,7 +416,7 @@ module Legion
           cache.store_delegated_token(result)
           cache.save_to_vault
         rescue StandardError => e
-          Legion::Logging.warn("store_teams_token failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "store_teams_token failed: #{e.message}" }
           nil
         end
 
@@ -445,7 +448,7 @@ module Legion
             @output.puts
             Gem.install(gem_name)
           rescue StandardError => e
-            @log.log('gaia_gems', "failed to install #{gem_name}: #{e.message}")
+            @boot_log.log('gaia_gems', "failed to install #{gem_name}: #{e.message}")
             typed_output("  failed: #{gem_name}")
             @output.puts
             failed << gem_name
@@ -462,7 +465,7 @@ module Legion
           require 'legion/extensions/detect'
           true
         rescue LoadError
-          @log.log('detect', 'lex-detect gem not available, skipping')
+          @boot_log.log('detect', 'lex-detect gem not available, skipping')
           false
         end
 
@@ -472,7 +475,7 @@ module Legion
           return unless @bootstrap_data
 
           files = @bootstrap_data[:files] || []
-          @log.log('bootstrap', "imported #{files.size} config files: #{files.join(', ')}")
+          @boot_log.log('bootstrap', "imported #{files.size} config files: #{files.join(', ')}")
           typed_output('Configuration loaded.')
           @output.puts
         end
@@ -508,14 +511,14 @@ module Legion
           clusters = Legion::Settings.dig(:crypt, :vault, :clusters)
           clusters.is_a?(Hash) && clusters.any?
         rescue StandardError => e
-          Legion::Logging.warn("vault_clusters_configured? failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "vault_clusters_configured? failed: #{e.message}" }
           false
         end
 
         def vault_cluster_count
           Legion::Settings.dig(:crypt, :vault, :clusters)&.size || 0
         rescue StandardError => e
-          Legion::Logging.warn("vault_cluster_count failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "vault_cluster_count failed: #{e.message}" }
           0
         end
 
@@ -532,7 +535,7 @@ module Legion
 
           Legion::Crypt.ldap_login_all(username: username, password: password)
         rescue StandardError => e
-          @log.log('vault', "LDAP auth failed: #{e.message}")
+          @boot_log.log('vault', "LDAP auth failed: #{e.message}")
           {}
         end
 
@@ -559,15 +562,15 @@ module Legion
         end
 
         def collect_github_quick
-          @log.log('github', 'collecting quick profile (3s timeout)')
+          @boot_log.log('github', 'collecting quick profile (3s timeout)')
           result = drain_with_timeout(@github_quick_queue, timeout: 3)
           @github_quick = result&.dig(:data)
           if @github_quick
-            @log.log('github', "quick profile: #{@github_quick[:username]} " \
-                               "commits_week=#{@github_quick[:commits_this_week]} " \
-                               "commits_month=#{@github_quick[:commits_this_month]}")
+            @boot_log.log('github', "quick profile: #{@github_quick[:username]} " \
+                                    "commits_week=#{@github_quick[:commits_this_week]} " \
+                                    "commits_month=#{@github_quick[:commits_this_month]}")
           else
-            @log.log('github', 'no quick profile available')
+            @boot_log.log('github', 'no quick profile available')
           end
         end
 
@@ -598,13 +601,13 @@ module Legion
         # rubocop:enable Metrics/AbcSize
 
         def collect_kerberos_identity
-          @log.log('kerberos', 'collecting identity (2s timeout)')
+          @boot_log.log('kerberos', 'collecting identity (2s timeout)')
           result = drain_with_timeout(@kerberos_queue, timeout: 2)
           @kerberos_identity = result&.dig(:data)
           if @kerberos_identity
-            @log.log_hash('kerberos', 'identity found', @kerberos_identity)
+            @boot_log.log_hash('kerberos', 'identity found', @kerberos_identity)
           else
-            @log.log('kerberos', 'no identity found (klist failed or no ticket)')
+            @boot_log.log('kerberos', 'no identity found (klist failed or no ticket)')
           end
         end
 
@@ -818,45 +821,46 @@ module Legion
           services = scan_data[:services] || {}
           running = services.values.select { |s| s[:running] }.map { |s| s[:name] }
           stopped = services.values.reject { |s| s[:running] }.map { |s| s[:name] }
-          @log.log('scanner', "services running: #{running.join(', ').then { |s| s.empty? ? 'none' : s }}")
-          @log.log('scanner', "services stopped: #{stopped.join(', ').then { |s| s.empty? ? 'none' : s }}")
+          @boot_log.log('scanner', "services running: #{running.join(', ').then { |s| s.empty? ? 'none' : s }}")
+          @boot_log.log('scanner', "services stopped: #{stopped.join(', ').then { |s| s.empty? ? 'none' : s }}")
 
           repos = scan_data[:repos] || []
-          @log.log('scanner', "git repos found: #{repos.size}")
+          @boot_log.log('scanner', "git repos found: #{repos.size}")
           repos.each do |r|
-            @log.log('scanner', "  repo: #{r[:name]} branch=#{r[:branch]} lang=#{r[:language]} remote=#{r[:remote]}")
+            @boot_log.log('scanner',
+                          "  repo: #{r[:name]} branch=#{r[:branch]} lang=#{r[:language]} remote=#{r[:remote]}")
           end
 
           tools = scan_data[:tools] || {}
-          @log.log('scanner', "top shell commands: #{tools.first(10).map { |k, v| "#{k}(#{v})" }.join(', ')}")
+          @boot_log.log('scanner', "top shell commands: #{tools.first(10).map { |k, v| "#{k}(#{v})" }.join(', ')}")
 
           configs = scan_data[:configs] || []
-          @log.log('scanner', "config files: #{configs.join(', ').then { |s| s.empty? ? 'none' : s }}")
+          @boot_log.log('scanner', "config files: #{configs.join(', ').then { |s| s.empty? ? 'none' : s }}")
         end
         # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         # rubocop:disable Metrics/AbcSize
         def log_github_data(github_data)
           unless github_data.is_a?(Hash)
-            @log.log('github', 'no data returned')
+            @boot_log.log('github', 'no data returned')
             return
           end
-          @log.log('github', "username: #{github_data[:username] || 'unknown'}")
-          @log.log('github', "authenticated: #{github_data[:authenticated]}")
+          @boot_log.log('github', "username: #{github_data[:username] || 'unknown'}")
+          @boot_log.log('github', "authenticated: #{github_data[:authenticated]}")
 
           profile = github_data[:profile]
           if profile.is_a?(Hash)
-            @log.log('github', "  name: #{profile[:name]}")
-            @log.log('github', "  email: #{profile[:email]}")
-            @log.log('github', "  company: #{profile[:company]}")
-            @log.log('github', "  location: #{profile[:location]}")
-            @log.log('github', "  public_repos: #{profile[:public_repos]}")
-            @log.log('github', "  private_repos: #{profile[:private_repos]}")
-            @log.log('github', "  followers: #{profile[:followers]} following: #{profile[:following]}")
+            @boot_log.log('github', "  name: #{profile[:name]}")
+            @boot_log.log('github', "  email: #{profile[:email]}")
+            @boot_log.log('github', "  company: #{profile[:company]}")
+            @boot_log.log('github', "  location: #{profile[:location]}")
+            @boot_log.log('github', "  public_repos: #{profile[:public_repos]}")
+            @boot_log.log('github', "  private_repos: #{profile[:private_repos]}")
+            @boot_log.log('github', "  followers: #{profile[:followers]} following: #{profile[:following]}")
           end
 
           orgs = github_data[:orgs] || []
-          @log.log('github', "orgs: #{orgs.map { |o| o[:login] }.join(', ').then { |s| s.empty? ? 'none' : s }}")
+          @boot_log.log('github', "orgs: #{orgs.map { |o| o[:login] }.join(', ').then { |s| s.empty? ? 'none' : s }}")
 
           log_github_repos(github_data)
           log_github_activity(github_data)
@@ -866,40 +870,40 @@ module Legion
         # rubocop:disable Metrics/AbcSize
         def log_github_repos(github_data)
           public_repos = github_data[:public_repos] || []
-          @log.log('github', "public repos: #{public_repos.size}")
+          @boot_log.log('github', "public repos: #{public_repos.size}")
           public_repos.first(5).each do |r|
-            @log.log('github', "  #{r[:full_name]} (#{r[:language]}) updated=#{r[:updated_at]}")
+            @boot_log.log('github', "  #{r[:full_name]} (#{r[:language]}) updated=#{r[:updated_at]}")
           end
 
           private_repos = github_data[:private_repos] || []
-          @log.log('github', "private repos: #{private_repos.size}")
+          @boot_log.log('github', "private repos: #{private_repos.size}")
           private_repos.first(5).each do |r|
-            @log.log('github', "  #{r[:full_name]} (#{r[:language]}) updated=#{r[:updated_at]}")
+            @boot_log.log('github', "  #{r[:full_name]} (#{r[:language]}) updated=#{r[:updated_at]}")
           end
 
           starred = github_data[:starred] || []
-          @log.log('github', "recently starred: #{starred.size}")
+          @boot_log.log('github', "recently starred: #{starred.size}")
         end
         # rubocop:enable Metrics/AbcSize
 
         # rubocop:disable Metrics/AbcSize
         def log_github_activity(github_data)
           prs = github_data[:recent_prs] || []
-          @log.log('github', "recent PRs: #{prs.size}")
+          @boot_log.log('github', "recent PRs: #{prs.size}")
           prs.first(5).each do |pr|
-            @log.log('github', "  [#{pr[:state]}] #{pr[:repo]}: #{pr[:title]}")
+            @boot_log.log('github', "  [#{pr[:state]}] #{pr[:repo]}: #{pr[:title]}")
           end
 
           events = github_data[:events] || []
-          @log.log('github', "recent events: #{events.size}")
+          @boot_log.log('github', "recent events: #{events.size}")
           events.first(5).each do |e|
-            @log.log('github', "  #{e[:type]} on #{e[:repo]} at #{e[:created_at]}")
+            @boot_log.log('github', "  #{e[:type]} on #{e[:repo]} at #{e[:created_at]}")
           end
 
           notifs = github_data[:notifications] || []
-          @log.log('github', "notifications: #{notifs.size}")
+          @boot_log.log('github', "notifications: #{notifs.size}")
           notifs.first(5).each do |n|
-            @log.log('github', "  [#{n[:reason]}] #{n[:repo]}: #{n[:title]}")
+            @boot_log.log('github', "  [#{n[:reason]}] #{n[:repo]}: #{n[:title]}")
           end
         end
         # rubocop:enable Metrics/AbcSize
@@ -913,7 +917,7 @@ module Legion
             sleep 0.1
           end
         rescue ThreadError => e
-          Legion::Logging.debug("drain_with_timeout interrupted: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "drain_with_timeout interrupted: #{e.message}" }
           nil
         end
 
@@ -926,12 +930,12 @@ module Legion
         end
 
         def start_cache_service(service_name)
-          @log.log('cache', "starting #{service_name} via brew services")
+          @boot_log.log('cache', "starting #{service_name} via brew services")
           result = system("brew services start #{service_name} > /dev/null 2>&1")
-          @log.log('cache', "brew services start #{service_name}: #{result ? 'ok' : 'failed'}")
+          @boot_log.log('cache', "brew services start #{service_name}: #{result ? 'ok' : 'failed'}")
           result
         rescue StandardError => e
-          @log.log('cache', "failed to start #{service_name}: #{e.message}")
+          @boot_log.log('cache', "failed to start #{service_name}: #{e.message}")
           false
         end
 
@@ -951,34 +955,34 @@ module Legion
               ::Process.kill(0, pid)
               return true
             rescue Errno::ESRCH => e
-              Legion::Logging.debug("pid #{pid} not running: #{e.message}") if defined?(Legion::Logging)
+              log.debug { "pid #{pid} not running: #{e.message}" }
               next
             rescue Errno::EPERM => e
-              Legion::Logging.debug("pid #{pid} exists (no permission): #{e.message}") if defined?(Legion::Logging)
+              log.debug { "pid #{pid} exists (no permission): #{e.message}" }
               return true
             end
           end
           system('pgrep -x legionio > /dev/null 2>&1')
         rescue StandardError => e
-          Legion::Logging.warn("legionio_running? failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "legionio_running? failed: #{e.message}" }
           false
         end
         # rubocop:enable Metrics/AbcSize
 
         def start_legionio_daemon
-          @log.log('gaia', 'attempting to start legionio daemon')
+          @boot_log.log('gaia', 'attempting to start legionio daemon')
           if system('brew services start legionio > /dev/null 2>&1')
-            @log.log('gaia', 'started via brew services')
+            @boot_log.log('gaia', 'started via brew services')
             true
           elsif system('legionio start -d > /dev/null 2>&1')
-            @log.log('gaia', 'started via legionio start -d')
+            @boot_log.log('gaia', 'started via legionio start -d')
             true
           else
-            @log.log('gaia', 'failed to start daemon')
+            @boot_log.log('gaia', 'failed to start daemon')
             false
           end
         rescue StandardError => e
-          @log.log('gaia', "start failed: #{e.message}")
+          @boot_log.log('gaia', "start failed: #{e.message}")
           false
         end
 
@@ -986,7 +990,7 @@ module Legion
           require 'tty-screen'
           ::TTY::Screen.width
         rescue StandardError => e
-          Legion::Logging.debug("terminal_width failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "terminal_width failed: #{e.message}" }
           80
         end
 
@@ -994,7 +998,7 @@ module Legion
           require 'tty-screen'
           ::TTY::Screen.height
         rescue StandardError => e
-          Legion::Logging.debug("terminal_height failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "terminal_height failed: #{e.message}" }
           24
         end
       end

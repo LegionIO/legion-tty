@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Screens
       class Chat < Base
         module UiCommands
+          include Legion::Logging::Helper
+
           TIPS = [
             'Press Tab after / to auto-complete commands',
             'Use /alias to create shortcuts (e.g., /alias s /save)',
@@ -103,7 +107,7 @@ module Legion
             @app.screen_manager.push(screen)
             :handled
           rescue LoadError => e
-            Legion::Logging.debug("extensions screen not available: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "extensions screen not available: #{e.message}" }
             @message_stream.add_message(role: :system, content: 'Extensions screen not available.')
             :handled
           end
@@ -114,7 +118,7 @@ module Legion
             @app.screen_manager.push(screen)
             :handled
           rescue LoadError => e
-            Legion::Logging.debug("config screen not available: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "config screen not available: #{e.message}" }
             @message_stream.add_message(role: :system, content: 'Config screen not available.')
             :handled
           end
@@ -495,7 +499,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "= #{result}")
             :handled
           rescue SyntaxError, ZeroDivisionError, Math::DomainError => e
-            Legion::Logging.warn("handle_calc error: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_calc error: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Error: #{e.message}")
             :handled
           end
@@ -658,7 +662,7 @@ module Legion
             end
             result.to_s.chomp
           rescue StandardError => e
-            Legion::Logging.warn("pipe_through_command failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "pipe_through_command failed: #{e.message}" }
             raise "command failed: #{e.message}"
           end
 
@@ -670,7 +674,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "#{path}:\n#{entries.join("\n")}")
             :handled
           rescue Errno::ENOENT, Errno::EACCES => e
-            Legion::Logging.warn("handle_ls failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_ls failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "ls: #{e.message}")
             :handled
           end
@@ -857,7 +861,7 @@ module Legion
             require 'json'
             ::JSON.parse(File.read(prefs_path))
           rescue ::JSON::ParserError => e
-            Legion::Logging.warn("load_prefs failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "load_prefs failed: #{e.message}" }
             {}
           end
 
@@ -1033,7 +1037,7 @@ module Legion
 
             Legion::JSON.load(str)
           rescue StandardError => e
-            Legion::Logging.debug("parse_tool_args failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "parse_tool_args failed: #{e.message}" }
             {}
           end
 
@@ -1133,7 +1137,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Skill loaded from: #{expanded}")
             :handled
           rescue StandardError => e
-            Legion::Logging.debug("handle_skill_load failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_skill_load failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Skill load failed: #{e.message}")
             :handled
           end
@@ -1157,7 +1161,7 @@ module Legion
 
             execute_skill(klass)
           rescue StandardError => e
-            Legion::Logging.debug("handle_skill_run failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_skill_run failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Skill run failed: #{e.message}")
             :handled
           end
@@ -1206,7 +1210,7 @@ module Legion
             @message_stream.add_message(role: :system,
                                         content: "Apollo: started=#{started}  transport=#{transport}  data=#{data}")
           rescue StandardError => e
-            Legion::Logging.debug("handle_apollo_status failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_apollo_status failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Apollo status error: #{e.message}")
           end
 
@@ -1227,7 +1231,7 @@ module Legion
               @message_stream.add_message(role: :system, content: "Apollo query failed: #{result[:error]}")
             end
           rescue StandardError => e
-            Legion::Logging.debug("handle_apollo_query failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_apollo_query failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Apollo query error: #{e.message}")
           end
           # rubocop:enable Metrics/AbcSize
@@ -1250,7 +1254,7 @@ module Legion
               @message_stream.add_message(role: :system, content: "Apollo ingest failed: #{result[:error]}")
             end
           rescue StandardError => e
-            Legion::Logging.debug("handle_apollo_ingest failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_apollo_ingest failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Apollo ingest error: #{e.message}")
           end
           # rubocop:enable Metrics/AbcSize
@@ -1275,12 +1279,10 @@ module Legion
               @message_stream.add_message(role: :system, content: "Apollo graph failed: #{result[:error]}")
             end
           rescue ArgumentError
-            if defined?(Legion::Logging)
-              Legion::Logging.debug("handle_apollo_graph invalid entity_id: #{input.strip.inspect}")
-            end
+            log.debug { "handle_apollo_graph invalid entity_id: #{input.strip.inspect}" }
             @message_stream.add_message(role: :system, content: "Invalid entity_id: #{input.strip.inspect}")
           rescue StandardError => e
-            Legion::Logging.debug("handle_apollo_graph failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_apollo_graph failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Apollo graph error: #{e.message}")
           end
           # rubocop:enable Metrics/AbcSize
@@ -1307,7 +1309,7 @@ module Legion
             nodes.first(20).map { |n| "  [#{n[:id]}] #{n[:label] || n[:content].to_s[0, 60]}" }.join("\n")
           end
 
-          # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+          # rubocop:disable Metrics/AbcSize
           def handle_gaia_status
             unless defined?(Legion::Gaia::NotificationGate) &&
                    Legion::Gaia::NotificationGate.respond_to?(:instance)
@@ -1332,10 +1334,10 @@ module Legion
             end
             @message_stream.add_message(role: :system, content: lines.join("\n"))
           rescue StandardError => e
-            Legion::Logging.debug("handle_gaia_status failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_gaia_status failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Gaia status error: #{e.message}")
           end
-          # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+          # rubocop:enable Metrics/AbcSize
 
           def handle_gaia_presence(status)
             if status.nil? || status.strip.empty?
@@ -1347,7 +1349,7 @@ module Legion
             Legion::TTY::NotificationGate.update_presence(availability: status.strip)
             @message_stream.add_message(role: :system, content: "Presence set to: #{status.strip}")
           rescue StandardError => e
-            Legion::Logging.debug("handle_gaia_presence failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "handle_gaia_presence failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Failed to set presence: #{e.message}")
           end
         end

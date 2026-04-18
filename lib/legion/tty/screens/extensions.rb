@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative 'base'
 require_relative '../theme'
 
@@ -8,6 +9,8 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Extensions < Base
+        include Legion::Logging::Helper
+
         CORE = %w[lex-node lex-tasker lex-scheduler lex-conditioner lex-transformer
                   lex-synapse lex-health lex-log lex-ping lex-metering lex-llm-gateway
                   lex-codegen lex-exec lex-lex lex-telemetry lex-audit lex-detect].freeze
@@ -172,7 +175,7 @@ module Legion
 
           system_open(entry[:homepage])
         rescue StandardError => e
-          Legion::Logging.warn("open_homepage failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "open_homepage failed: #{e.message}" }
           nil
         end
 
