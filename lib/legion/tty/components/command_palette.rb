@@ -1,9 +1,13 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Components
       class CommandPalette
+        include Legion::Logging::Helper
+
         COMMANDS = %w[/help /quit /clear /model /session /cost /export /tools
                       /dashboard /hotkeys /save /load /sessions /system /delete /plan
                       /palette /extensions /config].freeze
@@ -36,7 +40,7 @@ module Legion
           choices = entries.map { |e| { name: "#{e[:label]} (#{e[:category]})", value: e[:label] } }
           prompt.select('Command:', choices, filter: true, per_page: 15)
         rescue ::TTY::Reader::InputInterrupt, Interrupt => e
-          Legion::Logging.debug("command palette cancelled: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "command palette cancelled: #{e.message}" }
           nil
         end
       end

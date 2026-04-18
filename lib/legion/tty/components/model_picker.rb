@@ -1,9 +1,13 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Components
       class ModelPicker
+        include Legion::Logging::Helper
+
         def initialize(current_provider: nil, current_model: nil)
           @current_provider = current_provider
           @current_model = current_model
@@ -38,7 +42,7 @@ module Legion
           end
           prompt.select('Select model:', choices, per_page: 10)
         rescue ::TTY::Reader::InputInterrupt, Interrupt => e
-          Legion::Logging.debug("model picker cancelled: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "model picker cancelled: #{e.message}" }
           nil
         end
       end

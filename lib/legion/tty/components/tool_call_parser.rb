@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
 require 'legion/json'
+require 'legion/logging'
 
 module Legion
   module TTY
     module Components
       class ToolCallParser
+        include Legion::Logging::Helper
+
         OPEN_TAG = '<tool_call>'
         CLOSE_TAG = '</tool_call>'
         MAX_BUFFER = 4096
@@ -97,7 +100,7 @@ module Legion
 
           @on_tool_call.call(name: name, args: args)
         rescue StandardError => e
-          Legion::Logging.warn("emit_tool_call failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "emit_tool_call failed: #{e.message}" }
           @on_text.call("#{OPEN_TAG}#{json_str}#{CLOSE_TAG}")
         end
 

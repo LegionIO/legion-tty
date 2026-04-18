@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Screens
       class Chat < Base
         module UiCommands
+          include Legion::Logging::Helper
+
           TIPS = [
             'Press Tab after / to auto-complete commands',
             'Use /alias to create shortcuts (e.g., /alias s /save)',
@@ -103,7 +107,7 @@ module Legion
             @app.screen_manager.push(screen)
             :handled
           rescue LoadError => e
-            Legion::Logging.debug("extensions screen not available: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "extensions screen not available: #{e.message}" }
             @message_stream.add_message(role: :system, content: 'Extensions screen not available.')
             :handled
           end
@@ -114,7 +118,7 @@ module Legion
             @app.screen_manager.push(screen)
             :handled
           rescue LoadError => e
-            Legion::Logging.debug("config screen not available: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "config screen not available: #{e.message}" }
             @message_stream.add_message(role: :system, content: 'Config screen not available.')
             :handled
           end
@@ -156,10 +160,21 @@ module Legion
               "  Pinned         : #{@pinned_messages.size}",
               "  Tokens         : #{@token_tracker.summary}"
             ]
+            append_auto_inject_skills(lines)
             @message_stream.add_message(role: :system, content: lines.join("\n"))
             :handled
           end
           # rubocop:enable Metrics/AbcSize
+
+          def append_auto_inject_skills(lines)
+            return unless defined?(Legion::LLM::Skills::Registry)
+
+            injected = Legion::LLM::Skills::Registry.by_trigger(:auto_inject)
+            return unless injected.any?
+
+            lines << "\nAuto-inject Skills (#{injected.size}):"
+            injected.each { |s| lines << "  #{s.namespace}:#{s.skill_name}" }
+          end
 
           def handle_stats
             @message_stream.add_message(role: :system, content: build_stats_lines.join("\n"))
@@ -484,7 +499,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "= #{result}")
             :handled
           rescue SyntaxError, ZeroDivisionError, Math::DomainError => e
-            Legion::Logging.warn("handle_calc error: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_calc error: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Error: #{e.message}")
             :handled
           end
@@ -647,7 +662,7 @@ module Legion
             end
             result.to_s.chomp
           rescue StandardError => e
-            Legion::Logging.warn("pipe_through_command failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "pipe_through_command failed: #{e.message}" }
             raise "command failed: #{e.message}"
           end
 
@@ -659,7 +674,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "#{path}:\n#{entries.join("\n")}")
             :handled
           rescue Errno::ENOENT, Errno::EACCES => e
-            Legion::Logging.warn("handle_ls failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_ls failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "ls: #{e.message}")
             :handled
           end
@@ -846,7 +861,7 @@ module Legion
             require 'json'
             ::JSON.parse(File.read(prefs_path))
           rescue ::JSON::ParserError => e
-            Legion::Logging.warn("load_prefs failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "load_prefs failed: #{e.message}" }
             {}
           end
 
@@ -983,6 +998,49 @@ module Legion
             :handled
           end
 
+          # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+          def handle_tool(input)
+            rest = input.split(nil, 2)[1]&.strip
+            unless rest && !rest.empty?
+              @message_stream.add_message(role: :system,
+                                          content: 'Usage: /tool <name> [JSON args]')
+              return :handled
+            end
+
+            parts = rest.split(nil, 2)
+            name = parts[0]
+            args_str = parts[1]
+
+            if defined?(Legion::Tools::Registry)
+              tool = Legion::Tools::Registry.find(name)
+              if tool
+                result = tool.call(parse_tool_args(args_str))
+                content = result.is_a?(Hash) ? Legion::JSON.dump(result) : result.to_s
+                @message_stream.add_message(role: :system, content: content)
+                return :handled
+              end
+            end
+
+            result = Legion::TTY::DaemonClient.run_tool(name: name, args: parse_tool_args(args_str))
+            content = case result[:status]
+                      when :ok then Legion::JSON.dump(result[:data] || {})
+                      when :error then "Error: #{result[:error]}"
+                      else 'Tool unavailable (daemon not reachable).'
+                      end
+            @message_stream.add_message(role: :system, content: content)
+            :handled
+          end
+          # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+          def parse_tool_args(str)
+            return {} unless str && !str.strip.empty?
+
+            Legion::JSON.load(str)
+          rescue StandardError => e
+            log.debug { "parse_tool_args failed: #{e.message}" }
+            {}
+          end
+
           def timer_status
             if @timer_thread&.alive?
               remaining = @timer_end - Time.now
@@ -1024,6 +1082,275 @@ module Legion
               @timer_end = nil
             end
             :handled
+          end
+
+          def handle_skills(input)
+            parts = input.split(nil, 3)
+            sub = parts[1]&.strip
+            rest = parts[2]&.strip || ''
+            if sub == 'load'
+              handle_skill_load(rest)
+            elsif sub == 'run'
+              handle_skill_run(rest)
+            else
+              list_skills
+            end
+          end
+
+          def list_skills
+            unless defined?(Legion::LLM::Skills::Registry)
+              @message_stream.add_message(role: :system, content: 'Legion::LLM::Skills not available.')
+              return :handled
+            end
+
+            all = Legion::LLM::Skills::Registry.all
+            if all.empty?
+              @message_stream.add_message(role: :system, content: 'No skills registered.')
+              return :handled
+            end
+
+            lines = ["LLM Skills (#{all.size}):"]
+            all.each { |klass| lines << format_skill_line(klass) }
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+            :handled
+          end
+
+          def format_skill_line(klass)
+            words_tag = klass.trigger_words.any? ? " [#{klass.trigger_words.join(', ')}]" : ''
+            desc = klass.description.to_s[0, 60]
+            "  #{klass.namespace}:#{klass.skill_name} (#{klass.trigger})#{words_tag} \u2014 #{desc}"
+          end
+
+          def handle_skill_load(path)
+            unless defined?(Legion::LLM::Skills::DiskLoader)
+              @message_stream.add_message(role: :system, content: 'Legion::LLM::Skills not available.')
+              return :handled
+            end
+
+            expanded = File.expand_path(path)
+            unless File.exist?(expanded)
+              @message_stream.add_message(role: :system, content: "File not found: #{expanded}")
+              return :handled
+            end
+
+            Legion::LLM::Skills::DiskLoader.load_md_skill(expanded)
+            @message_stream.add_message(role: :system, content: "Skill loaded from: #{expanded}")
+            :handled
+          rescue StandardError => e
+            log.debug { "handle_skill_load failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Skill load failed: #{e.message}")
+            :handled
+          end
+
+          def handle_skill_run(key)
+            unless defined?(Legion::LLM::Skills::Registry)
+              @message_stream.add_message(role: :system, content: 'Legion::LLM::Skills not available.')
+              return :handled
+            end
+
+            if key.nil? || key.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /skills run <namespace>:<name>')
+              return :handled
+            end
+
+            klass = Legion::LLM::Skills::Registry.find(key)
+            unless klass
+              @message_stream.add_message(role: :system, content: "Skill not found: #{key}")
+              return :handled
+            end
+
+            execute_skill(klass)
+          rescue StandardError => e
+            log.debug { "handle_skill_run failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Skill run failed: #{e.message}")
+            :handled
+          end
+
+          def execute_skill(klass)
+            result = klass.new.run(context: { conversation_id: @session_id })
+            inject = result.inject.to_s
+            content = inject.empty? ? 'Skill ran (no injection).' : inject
+            @message_stream.add_message(role: :system, content: content)
+            :handled
+          end
+
+          def handle_gaia(input)
+            args = input.to_s.strip.split(' ', 3)
+            sub  = args[1]
+            rest = args[2]
+            case sub
+            when 'presence' then handle_gaia_presence(rest)
+            else handle_gaia_status
+            end
+            :handled
+          end
+
+          def handle_apollo(input)
+            args = input.to_s.strip.split(' ', 3)
+            sub  = args[1]
+            rest = args[2]
+            case sub
+            when 'query'      then handle_apollo_query(rest)
+            when 'ingest'     then handle_apollo_ingest(rest)
+            when 'graph'      then handle_apollo_graph(rest)
+            when 'autoingest' then handle_apollo_autoingest
+            else handle_apollo_status
+            end
+            :handled
+          end
+
+          def handle_apollo_status
+            unless defined?(Legion::Apollo)
+              @message_stream.add_message(role: :system, content: 'Legion::Apollo not available.')
+              return
+            end
+            started   = Legion::Apollo.started? ? 'yes' : 'no'
+            transport = Legion::Apollo.transport_available? ? 'yes' : 'no'
+            data      = Legion::Apollo.data_available? ? 'yes' : 'no'
+            @message_stream.add_message(role: :system,
+                                        content: "Apollo: started=#{started}  transport=#{transport}  data=#{data}")
+          rescue StandardError => e
+            log.debug { "handle_apollo_status failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Apollo status error: #{e.message}")
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_apollo_query(text)
+            if text.nil? || text.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /apollo query <text>')
+              return
+            end
+            unless defined?(Legion::Apollo) && Legion::Apollo.started?
+              @message_stream.add_message(role: :system, content: 'Apollo not started.')
+              return
+            end
+            result = Legion::Apollo.query(text: text.strip, limit: 5)
+            if result[:success]
+              render_apollo_query_results(Array(result[:entries]))
+            else
+              @message_stream.add_message(role: :system, content: "Apollo query failed: #{result[:error]}")
+            end
+          rescue StandardError => e
+            log.debug { "handle_apollo_query failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Apollo query error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_apollo_ingest(text)
+            if text.nil? || text.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /apollo ingest <text>')
+              return
+            end
+            unless defined?(Legion::Apollo) && Legion::Apollo.started?
+              @message_stream.add_message(role: :system, content: 'Apollo not started.')
+              return
+            end
+            result = Legion::Apollo.ingest(content: text.strip, tags: ['tty'], scope: :local)
+            mode = result[:mode] ? " (#{result[:mode]})" : ''
+            if result[:success]
+              @message_stream.add_message(role: :system, content: "Ingested#{mode}.")
+            else
+              @message_stream.add_message(role: :system, content: "Apollo ingest failed: #{result[:error]}")
+            end
+          rescue StandardError => e
+            log.debug { "handle_apollo_ingest failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Apollo ingest error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_apollo_graph(input)
+            if input.nil? || input.strip.empty?
+              @message_stream.add_message(role: :system, content: 'Usage: /apollo graph <entity_id>')
+              return
+            end
+            unless defined?(Legion::Apollo) && Legion::Apollo.started?
+              @message_stream.add_message(role: :system, content: 'Apollo not started.')
+              return
+            end
+            entity_id = Integer(input.strip)
+            result = Legion::Apollo.graph_query(entity_id: entity_id, depth: 2)
+            if result[:success]
+              nodes = Array(result[:nodes])
+              @message_stream.add_message(role: :system,
+                                          content: "Graph (#{nodes.size} nodes):\n#{render_graph_nodes(nodes)}")
+            else
+              @message_stream.add_message(role: :system, content: "Apollo graph failed: #{result[:error]}")
+            end
+          rescue ArgumentError
+            log.debug { "handle_apollo_graph invalid entity_id: #{input.strip.inspect}" }
+            @message_stream.add_message(role: :system, content: "Invalid entity_id: #{input.strip.inspect}")
+          rescue StandardError => e
+            log.debug { "handle_apollo_graph failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Apollo graph error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_apollo_autoingest
+            @apollo_autoingest = !@apollo_autoingest
+            state = @apollo_autoingest ? 'ON' : 'OFF'
+            @message_stream.add_message(role: :system, content: "Apollo autoingest: #{state}")
+          end
+
+          def render_apollo_query_results(entries)
+            if entries.empty?
+              @message_stream.add_message(role: :system, content: 'No results found.')
+            else
+              lines = entries.map.with_index(1) do |e, i|
+                "[#{i}] (#{format('%.2f', e[:confidence])}) #{e[:content].to_s[0, 120]}"
+              end
+              @message_stream.add_message(role: :system,
+                                          content: "Apollo results (#{entries.size}):\n#{lines.join("\n")}")
+            end
+          end
+
+          def render_graph_nodes(nodes)
+            nodes.first(20).map { |n| "  [#{n[:id]}] #{n[:label] || n[:content].to_s[0, 60]}" }.join("\n")
+          end
+
+          # rubocop:disable Metrics/AbcSize
+          def handle_gaia_status
+            unless defined?(Legion::Gaia::NotificationGate) &&
+                   Legion::Gaia::NotificationGate.respond_to?(:instance)
+              @message_stream.add_message(role: :system, content: 'Gaia NotificationGate not available.')
+              return
+            end
+            gate = Legion::Gaia::NotificationGate.instance
+            lines = ['Gaia NotificationGate:']
+            if gate.respond_to?(:presence_evaluator)
+              pe = gate.presence_evaluator
+              avail = pe.availability || 'unknown'
+              age = pe.updated_at ? "#{(Time.now.utc - pe.updated_at).round}s ago" : 'never'
+              lines << "  Presence  : #{avail} (updated #{age})"
+            end
+            if gate.respond_to?(:behavioral_evaluator)
+              be = gate.behavioral_evaluator
+              lines << "  Arousal   : #{format('%.2f', be.notification_score)}"
+            end
+            if gate.respond_to?(:schedule_evaluator)
+              se = gate.schedule_evaluator
+              lines << "  Quiet now : #{se.quiet? ? 'yes' : 'no'}"
+            end
+            @message_stream.add_message(role: :system, content: lines.join("\n"))
+          rescue StandardError => e
+            log.debug { "handle_gaia_status failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Gaia status error: #{e.message}")
+          end
+          # rubocop:enable Metrics/AbcSize
+
+          def handle_gaia_presence(status)
+            if status.nil? || status.strip.empty?
+              valid = %w[Available Busy Away BeRightBack DoNotDisturb Offline]
+              @message_stream.add_message(role: :system,
+                                          content: "Usage: /gaia presence <status>\nValid: #{valid.join(', ')}")
+              return
+            end
+            Legion::TTY::NotificationGate.update_presence(availability: status.strip)
+            @message_stream.add_message(role: :system, content: "Presence set to: #{status.strip}")
+          rescue StandardError => e
+            log.debug { "handle_gaia_presence failed: #{e.message}" }
+            @message_stream.add_message(role: :system, content: "Failed to set presence: #{e.message}")
           end
         end
       end

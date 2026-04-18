@@ -139,6 +139,30 @@ RSpec.describe Legion::TTY::Screens::Chat, '/debug command' do
       segment = chat.send(:debug_segment)
       expect(segment).to include('pinned:1')
     end
+
+    context 'when Legion::LLM::Skills::Registry is defined' do
+      before do
+        registry = Module.new do
+          def self.all = []
+        end
+        stub_const('Legion::LLM::Skills::Registry', registry)
+        allow(Legion::LLM::Skills::Registry).to receive(:all).and_return([double, double])
+      end
+
+      it 'includes skills count in debug segment' do
+        chat.instance_variable_set(:@debug_mode, true)
+        segment = chat.send(:debug_segment)
+        expect(segment).to include('skills:2')
+      end
+    end
+
+    context 'when Legion::LLM::Skills::Registry is not defined' do
+      it 'omits the skills segment' do
+        chat.instance_variable_set(:@debug_mode, true)
+        segment = chat.send(:debug_segment)
+        expect(segment).not_to include('skills:')
+      end
+    end
   end
 
   describe '#render with debug mode' do

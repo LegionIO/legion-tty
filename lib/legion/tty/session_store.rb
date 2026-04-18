@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
 require 'legion/json'
+require 'legion/logging'
 require 'fileutils'
 
 module Legion
   module TTY
     class SessionStore
+      include Legion::Logging::Helper
+
       SESSION_DIR = File.expand_path('~/.legionio/sessions')
 
       def initialize(dir: SESSION_DIR)
@@ -31,17 +34,17 @@ module Legion
         data = Legion::JSON.parse(File.read(path), symbolize_names: true)
         normalize_session(data)
       rescue Legion::JSON::ParseError => e
-        Legion::Logging.warn("session load failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "session load failed: #{e.message}" }
         nil
       end
 
-      def list
+      def list # rubocop:disable Metrics/AbcSize
         entries = Dir.glob(File.join(@dir, '*.json')).map do |path|
           name = File.basename(path, '.json')
           data = Legion::JSON.parse(File.read(path), symbolize_names: true)
           { name: name, saved_at: data[:saved_at], message_count: data[:messages]&.size || 0 }
         rescue StandardError => e
-          Legion::Logging.warn("session list entry failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "session list entry failed: #{e.message}" }
           { name: name, saved_at: nil, message_count: 0 }
         end
         entries.sort_by { |s| s[:saved_at] || '' }.reverse

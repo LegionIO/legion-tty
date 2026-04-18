@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative '../screens/base'
 require_relative '../components/message_stream'
 require_relative '../components/status_bar'
@@ -19,6 +20,7 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Chat < Base
+        include Legion::Logging::Helper
         include SessionCommands
         include ExportCommands
         include MessageCommands
@@ -26,7 +28,8 @@ module Legion
         include ModelCommands
         include CustomCommands
 
-        SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /dashboard
+        SLASH_COMMANDS = %w[/help /quit /clear /compact /copy /diff /model /session /cost /export /tools /tool
+                            /dashboard
                             /hotkeys /save /load /sessions /system /delete /plan /palette /extensions /config
                             /theme /search /grep /stats /personality /undo /history /pin /pins /rename
                             /context /alias /snippet /debug /uptime /time /bookmark /welcome /tips
@@ -55,7 +58,8 @@ module Legion
                             /transform /concat
                             /prefix /suffix
                             /split /swap
-                            /timer /notify].freeze
+                            /timer /notify
+                            /gaia /skills /apollo].freeze
 
         PERSONALITIES = {
           'default' => 'You are Legion, an async cognition engine and AI assistant. Be helpful and concise.',
@@ -107,6 +111,7 @@ module Legion
           @message_prefix = nil
           @message_suffix = nil
           @streaming = false
+          @apollo_autoingest = false
         end
 
         # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -183,7 +188,7 @@ module Legion
 
           send_via_daemon(message)
         rescue StandardError => e
-          Legion::Logging.error("send_to_llm failed: #{e.message}") if defined?(Legion::Logging)
+          log.error { "send_to_llm failed: #{e.message}" }
           @status_bar.update(thinking: false)
           @message_stream.append_streaming("\n[Error: #{e.message}]")
         end
@@ -241,8 +246,19 @@ module Legion
           # Nothing to do at activation time.
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
         def send_via_daemon(message)
+          tool_result = maybe_route_to_tool(message)
+          if tool_result
+            content = if tool_result.is_a?(Hash) && tool_result[:content]
+                        tool_result[:content].map { |c| c[:text] }.join
+                      else
+                        tool_result.to_s
+                      end
+            @message_stream.add_message(role: :assistant, content: content)
+            return
+          end
+
           @status_bar.update(thinking: true)
           @streaming = true
           @app.render_frame if @app.respond_to?(:render_frame)
@@ -251,6 +267,7 @@ module Legion
           messages = build_inference_messages(message)
           result = Legion::TTY::DaemonClient.inference(
             messages: messages,
+            tools: build_tool_schemas,
             model: @preferred_model
           )
 
@@ -277,14 +294,14 @@ module Legion
           @status_bar.update(thinking: false)
           @streaming = false
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
 
         def speak_response(text)
           return unless RUBY_PLATFORM =~ /darwin/
 
           ::Process.spawn('say', text[0..500], err: '/dev/null', out: '/dev/null')
         rescue StandardError => e
-          Legion::Logging.debug("speak_response failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "speak_response failed: #{e.message}" }
           nil
         end
 
@@ -297,7 +314,7 @@ module Legion
         def daemon_available?
           Legion::TTY::DaemonClient.available?
         rescue StandardError => e
-          Legion::Logging.debug("daemon_available? check failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "daemon_available? check failed: #{e.message}" }
           false
         end
 
@@ -383,9 +400,7 @@ module Legion
                 lines << narrative
               end
             rescue StandardError => e
-              if defined?(Legion::Logging)
-                Legion::Logging.warn("Metacognition.self_narrative failed: #{e.class}: #{e.message}")
-              end
+              log.warn { "Metacognition.self_narrative failed: #{e.class}: #{e.message}" }
             end
           end
 
@@ -414,6 +429,8 @@ module Legion
           when '/cost' then handle_cost
           when '/export' then handle_export(input)
           when '/tools' then handle_tools
+          when '/tool' then handle_tool(input)
+          when '/skills' then handle_skills(input)
           when '/save' then handle_save(input)
           when '/load' then handle_load(input)
           when '/sessions' then handle_sessions
@@ -518,6 +535,8 @@ module Legion
           when '/swap' then handle_swap(input)
           when '/timer' then handle_timer(input)
           when '/notify' then handle_notify(input)
+          when '/gaia' then handle_gaia(input)
+          when '/apollo' then handle_apollo(input)
           else :handled
           end
         end
@@ -537,8 +556,32 @@ module Legion
           :handled
         end
 
-        # rubocop:disable Metrics/AbcSize
         def handle_tools
+          if defined?(Legion::Tools::Registry)
+            handle_tools_registry
+          else
+            handle_tools_gem_scan
+          end
+          :handled
+        end
+
+        def handle_tools_registry
+          all = Legion::Tools::Registry.all_tools
+          always_count = Legion::Tools::Registry.tools.size
+          deferred_count = Legion::Tools::Registry.deferred_tools.size
+          header = "Legion Tools (#{all.size}):  always=#{always_count}  deferred=#{deferred_count}"
+          lines = all.map { |tool| format_tool_line(tool) }
+          @message_stream.add_message(role: :system, content: "#{header}\n#{lines.join("\n")}")
+        end
+
+        def format_tool_line(tool)
+          tier_tag = tool.respond_to?(:mcp_tier) && tool.mcp_tier ? " [T#{tool.mcp_tier}]" : ''
+          deferred_tag = tool.respond_to?(:deferred?) && tool.deferred? ? ' (deferred)' : ''
+          "  #{tool.tool_name}#{tier_tag}#{deferred_tag} — #{tool.description.to_s[0, 80]}"
+        end
+
+        # rubocop:disable Metrics/AbcSize
+        def handle_tools_gem_scan
           lex_gems = Gem::Specification.select { |s| s.name.start_with?('lex-') }
           if lex_gems.empty?
             @message_stream.add_message(role: :system, content: 'No lex-* extensions found in loaded gems.')
@@ -551,9 +594,7 @@ module Legion
             @message_stream.add_message(role: :system,
                                         content: "LEX Extensions (#{lex_gems.size}):\n#{lines.join("\n")}")
           end
-          :handled
         end
-
         # rubocop:enable Metrics/AbcSize
 
         def handle_plan
@@ -599,6 +640,11 @@ module Legion
         def debug_segment
           return nil unless @debug_mode
 
+          skill_info = if defined?(Legion::LLM::Skills::Registry)
+                         " skills:#{Legion::LLM::Skills::Registry.all.size}"
+                       else
+                         ''
+                       end
           "[DEBUG] msgs:#{@message_stream.messages.size} " \
             "scroll:#{@message_stream.scroll_position&.dig(:current) || 0} " \
             "plan:#{@plan_mode} " \
@@ -608,7 +654,8 @@ module Legion
             "snippets:#{@snippets.size} " \
             "macros:#{@macros.size} " \
             "pinned:#{@pinned_messages.size} " \
-            "autosave:#{@autosave_enabled}"
+            "autosave:#{@autosave_enabled}" \
+            "#{skill_info}"
         end
 
         def build_tool_call_parser
@@ -628,7 +675,7 @@ module Legion
           require 'tty-screen'
           ::TTY::Screen.width
         rescue StandardError => e
-          Legion::Logging.debug("terminal_width failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "terminal_width failed: #{e.message}" }
           80
         end
 
@@ -636,7 +683,7 @@ module Legion
           require 'tty-screen'
           ::TTY::Screen.height
         rescue StandardError => e
-          Legion::Logging.debug("terminal_height failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "terminal_height failed: #{e.message}" }
           24
         end
 
@@ -675,6 +722,33 @@ module Legion
           result = "#{@message_prefix}#{result}" if @message_prefix
           result = "#{result}#{@message_suffix}" if @message_suffix
           result
+        end
+
+        def build_tool_schemas
+          return [] unless defined?(Legion::Tools::Registry)
+
+          Legion::Tools::Registry.tools.map do |t|
+            { name: t.tool_name, description: t.description,
+              input_schema: t.input_schema || { type: 'object', properties: {} } }
+          end
+        rescue StandardError => e
+          log.debug { "build_tool_schemas failed: #{e.message}" }
+          []
+        end
+
+        def maybe_route_to_tool(message)
+          return nil unless defined?(Legion::Tools::TriggerIndex) && !Legion::Tools::TriggerIndex.empty?
+
+          words = message.downcase.split(/\W+/).reject(&:empty?)
+          matched, = Legion::Tools::TriggerIndex.match(words)
+          return nil if matched.empty?
+
+          return nil unless defined?(Legion::Tools::Do)
+
+          Legion::Tools::Do.call(intent: message)
+        rescue StandardError => e
+          log.debug { "maybe_route_to_tool failed: #{e.message}" }
+          nil
         end
       end
       # rubocop:enable Metrics/ClassLength

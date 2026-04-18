@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Screens
       class Chat < Base
         module ExportCommands
+          include Legion::Logging::Helper
+
           private
 
           def handle_export(input)
@@ -15,7 +19,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Exported to: #{path}")
             :handled
           rescue StandardError => e
-            Legion::Logging.warn("handle_export failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_export failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Export failed: #{e.message}")
             :handled
           end
@@ -129,7 +133,7 @@ module Legion
             @message_stream.add_message(role: :system, content: "Bookmarks exported to: #{path}")
             :handled
           rescue StandardError => e
-            Legion::Logging.warn("handle_bookmark failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_bookmark failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Bookmark export failed: #{e.message}")
             :handled
           end
@@ -152,7 +156,7 @@ module Legion
             end
             :handled
           rescue StandardError => e
-            Legion::Logging.warn("handle_tee failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_tee failed: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Tee error: #{e.message}")
             :handled
           end
@@ -162,7 +166,7 @@ module Legion
 
             File.open(@tee_path, 'a') { |f| f.puts(line) }
           rescue StandardError => e
-            Legion::Logging.warn("tee_message failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "tee_message failed: #{e.message}" }
             nil
           end
         end

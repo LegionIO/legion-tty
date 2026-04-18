@@ -130,5 +130,34 @@ RSpec.describe Legion::TTY::Components::StatusBar do
       notifications = bar.instance_variable_get(:@notifications)
       expect(notifications.first.level).to eq(:info)
     end
+
+    describe 'NotificationGate gating' do
+      it 'suppresses :info notification when NotificationGate.should_deliver? returns false' do
+        allow(Legion::TTY::NotificationGate).to receive(:should_deliver?).and_return(false)
+        bar.notify(message: 'suppressed', level: :info, ttl: 5)
+        expect(bar.instance_variable_get(:@notifications)).to be_empty
+      end
+
+      it 'always delivers :error level notification regardless of gate' do
+        allow(Legion::TTY::NotificationGate).to receive(:should_deliver?).and_return(false)
+        bar.notify(message: 'critical error', level: :error, ttl: 5)
+        notifications = bar.instance_variable_get(:@notifications)
+        expect(notifications.size).to eq(1)
+        expect(notifications.first.level).to eq(:error)
+      end
+
+      it 'delivers :info notification when NotificationGate.should_deliver? returns true' do
+        allow(Legion::TTY::NotificationGate).to receive(:should_deliver?).and_return(true)
+        bar.notify(message: 'delivered', level: :info, ttl: 5)
+        notifications = bar.instance_variable_get(:@notifications)
+        expect(notifications.size).to eq(1)
+      end
+
+      it 'suppresses :warning notification when gate returns false' do
+        allow(Legion::TTY::NotificationGate).to receive(:should_deliver?).and_return(false)
+        bar.notify(message: 'warning msg', level: :warning, ttl: 5)
+        expect(bar.instance_variable_get(:@notifications)).to be_empty
+      end
+    end
   end
 end

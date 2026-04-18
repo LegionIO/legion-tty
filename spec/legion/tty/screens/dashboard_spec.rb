@@ -240,4 +240,72 @@ RSpec.describe Legion::TTY::Screens::Dashboard do
       expect { dashboard.render(80, 24) }.not_to raise_error
     end
   end
+
+  describe 'Apollo system panel' do
+    context 'when Legion::Apollo is defined' do
+      before do
+        apollo_mod = Module.new
+        apollo_mod.define_singleton_method(:started?) { true }
+        apollo_mod.define_singleton_method(:transport_available?) { false }
+        apollo_mod.define_singleton_method(:data_available?) { true }
+        stub_const('Legion::Apollo', apollo_mod)
+        dashboard.activate
+      end
+
+      it 'includes Apollo status in system info' do
+        result = dashboard.render(80, 50)
+        joined = result.join("\n")
+        expect(joined).to include('Apollo:')
+      end
+
+      it 'shows started=yes when Apollo is started' do
+        result = dashboard.render(80, 50)
+        joined = result.join("\n")
+        expect(joined).to include('started=yes')
+      end
+
+      it 'shows transport=no when transport is unavailable' do
+        result = dashboard.render(80, 50)
+        joined = result.join("\n")
+        expect(joined).to include('transport=no')
+      end
+
+      it 'shows data=yes when data is available' do
+        result = dashboard.render(80, 50)
+        joined = result.join("\n")
+        expect(joined).to include('data=yes')
+      end
+    end
+
+    context 'when Legion::Apollo is not defined' do
+      it 'does not include Apollo line' do
+        hide_const('Legion::Apollo') if defined?(Legion::Apollo)
+        dashboard.activate
+        result = dashboard.render(80, 50)
+        joined = result.join("\n")
+        expect(joined).not_to include('Apollo:')
+      end
+    end
+
+    context 'when Legion::Apollo methods raise' do
+      before do
+        apollo_mod = Module.new
+        apollo_mod.define_singleton_method(:started?) { raise StandardError, 'probe failed' }
+        apollo_mod.define_singleton_method(:transport_available?) { raise StandardError, 'probe failed' }
+        apollo_mod.define_singleton_method(:data_available?) { raise StandardError, 'probe failed' }
+        stub_const('Legion::Apollo', apollo_mod)
+        dashboard.activate
+      end
+
+      it 'does not raise and renders without Apollo line' do
+        expect { dashboard.render(80, 50) }.not_to raise_error
+      end
+
+      it 'omits Apollo line on error' do
+        result = dashboard.render(80, 50)
+        joined = result.join("\n")
+        expect(joined).not_to include('Apollo:')
+      end
+    end
+  end
 end

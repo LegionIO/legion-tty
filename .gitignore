@@ -6,3 +6,5 @@
 Gemfile.lock
 .idea/
 *.db
+.worktrees/
+docs/

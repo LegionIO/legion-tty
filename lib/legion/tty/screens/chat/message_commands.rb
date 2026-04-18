@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Screens
       class Chat < Base
         module MessageCommands
+          include Legion::Logging::Helper
+
           INJECT_VALID_ROLES = %w[user assistant system].freeze
           TRANSFORM_OPS = %w[upcase downcase reverse strip squeeze].freeze
 
@@ -98,7 +102,7 @@ module Legion
             display_grep_results(results, pattern_str)
             :handled
           rescue RegexpError => e
-            Legion::Logging.warn("handle_grep regex error: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "handle_grep regex error: #{e.message}" }
             @message_stream.add_message(role: :system, content: "Invalid regex: #{e.message}")
             :handled
           end
@@ -302,11 +306,11 @@ module Legion
           def copy_to_clipboard(text)
             IO.popen('pbcopy', 'w') { |io| io.write(text) }
           rescue Errno::ENOENT => e
-            Legion::Logging.debug("pbcopy not available: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "pbcopy not available: #{e.message}" }
             begin
               IO.popen('xclip -selection clipboard', 'w') { |io| io.write(text) }
             rescue Errno::ENOENT => e
-              Legion::Logging.debug("xclip not available: #{e.message}") if defined?(Legion::Logging)
+              log.debug { "xclip not available: #{e.message}" }
               nil
             end
           end
@@ -398,7 +402,7 @@ module Legion
             parsed = ::JSON.parse(raw, symbolize_names: true)
             parsed.is_a?(Array) ? parsed : []
           rescue StandardError => e
-            Legion::Logging.warn("load_favorites failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "load_favorites failed: #{e.message}" }
             []
           end
 

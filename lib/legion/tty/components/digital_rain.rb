@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative '../theme'
 
 module Legion
@@ -7,6 +8,11 @@ module Legion
     module Components
       # rubocop:disable Metrics/ClassLength
       class DigitalRain
+        include Legion::Logging::Helper
+
+        class << self
+          include Legion::Logging::Helper
+        end
         # rubocop:disable Naming/VariableNumber
         FADE_SHADES = %i[
           purple_12 purple_11 purple_10 purple_9 purple_8
@@ -40,7 +46,7 @@ module Legion
                                    .map { |s| s.name.sub(/^lex-/, '') }
           gems.empty? ? FALLBACK_NAMES : gems
         rescue StandardError => e
-          Legion::Logging.debug("extension_names failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "extension_names failed: #{e.message}" }
           FALLBACK_NAMES
         end
 

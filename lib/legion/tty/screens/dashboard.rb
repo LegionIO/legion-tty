@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require_relative '../screens/base'
 require_relative '../theme'
 
@@ -8,6 +9,8 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Dashboard < Base
+        include Legion::Logging::Helper
+
         PANELS = %i[services llm extensions system activity].freeze
 
         def initialize(app)
@@ -157,11 +160,25 @@ module Legion
           lines << "    Host:     #{Theme.c(:secondary, sys[:hostname] || 'unknown')}"
           lines << "    PID:      #{Theme.c(:secondary, sys[:pid]&.to_s || 'unknown')}"
           lines << "    Memory:   #{Theme.c(:secondary, sys[:memory] || 'unknown')}"
+          apollo_line = apollo_system_line
+          lines << apollo_line if apollo_line
           lines << ''
           lines
         end
 
         # rubocop:enable Metrics/AbcSize
+
+        def apollo_system_line
+          return unless defined?(Legion::Apollo)
+
+          transport = Legion::Apollo.transport_available? ? 'yes' : 'no'
+          data      = Legion::Apollo.data_available? ? 'yes' : 'no'
+          started   = Legion::Apollo.started? ? 'yes' : 'no'
+          "    Apollo:   #{Theme.c(:secondary, "started=#{started}  transport=#{transport}  data=#{data}")}"
+        rescue StandardError => e
+          log.debug { "apollo_system_line failed: #{e.message}" }
+          nil
+        end
 
         def render_activity_panel(_width, max_lines)
           activity = @cached_data[:activity] || []
@@ -216,11 +233,11 @@ module Legion
             :pass
           end
         rescue LoadError, StandardError => e
-          Legion::Logging.debug("extensions_shortcut failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "extensions_shortcut failed: #{e.message}" }
           :pass
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:disable Metrics/AbcSize
         def llm_info
           info = { provider: 'none', model: nil, started: false, daemon: false }
           if defined?(Legion::LLM)
@@ -235,11 +252,11 @@ module Legion
           end
           info
         rescue StandardError => e
-          Legion::Logging.warn("llm_info failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "llm_info failed: #{e.message}" }
           info
         end
 
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def probe_services
           require 'socket'
@@ -255,14 +272,14 @@ module Legion
         def port_open?(port)
           ::Socket.tcp('127.0.0.1', port, connect_timeout: 0.5) { true }
         rescue StandardError => e
-          Legion::Logging.debug("port_open? #{port} failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "port_open? #{port} failed: #{e.message}" }
           false
         end
 
         def discover_extensions
           Gem::Specification.select { |s| s.name.start_with?('lex-') }.map(&:name).sort
         rescue StandardError => e
-          Legion::Logging.warn("discover_extensions failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "discover_extensions failed: #{e.message}" }
           []
         end
 
@@ -275,7 +292,7 @@ module Legion
             memory: format_memory
           }
         rescue StandardError => e
-          Legion::Logging.warn("system_info failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "system_info failed: #{e.message}" }
           {}
         end
 
@@ -289,7 +306,7 @@ module Legion
             "#{(rss_kb / 1024.0).round(1)} MB"
           end
         rescue StandardError => e
-          Legion::Logging.debug("format_memory failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "format_memory failed: #{e.message}" }
           'unknown'
         end
 
@@ -299,7 +316,7 @@ module Legion
 
           File.readlines(log_path, chomp: true).last(20)
         rescue StandardError => e
-          Legion::Logging.warn("recent_activity failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "recent_activity failed: #{e.message}" }
           []
         end
       end

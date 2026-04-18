@@ -69,4 +69,69 @@ RSpec.describe Legion::TTY::DaemonClient do
       expect(result).to be_nil
     end
   end
+
+  describe '.run_tool' do
+    let(:ok_response) do
+      instance_double(Net::HTTPResponse,
+                      code: '200',
+                      body: Legion::JSON.dump({ data: { result: 'tool output' } }))
+    end
+
+    let(:error_response) do
+      instance_double(Net::HTTPResponse,
+                      code: '422',
+                      body: Legion::JSON.dump({ error: 'unprocessable' }))
+    end
+
+    context 'on a 200 response' do
+      before do
+        allow(Net::HTTP).to receive(:start).and_yield(
+          double('http', request: ok_response)
+        )
+      end
+
+      it 'returns status :ok' do
+        result = described_class.run_tool(name: 'legion.search', args: { query: 'test' })
+        expect(result[:status]).to eq(:ok)
+      end
+
+      it 'includes data in the result' do
+        result = described_class.run_tool(name: 'legion.search', args: {})
+        expect(result[:data]).to be_a(Hash)
+      end
+    end
+
+    context 'on a 422 response' do
+      before do
+        allow(Net::HTTP).to receive(:start).and_yield(
+          double('http', request: error_response)
+        )
+      end
+
+      it 'returns status :error' do
+        result = described_class.run_tool(name: 'legion.search', args: {})
+        expect(result[:status]).to eq(:error)
+      end
+
+      it 'includes the HTTP status code in the error' do
+        result = described_class.run_tool(name: 'legion.search', args: {})
+        expect(result[:error]).to include('422')
+      end
+    end
+
+    context 'when a StandardError is raised' do
+      before do
+        allow(Net::HTTP).to receive(:start).and_raise(Errno::ECONNREFUSED)
+      end
+
+      it 'returns status :unavailable' do
+        result = described_class.run_tool(name: 'legion.search', args: {})
+        expect(result[:status]).to eq(:unavailable)
+      end
+
+      it 'does not raise' do
+        expect { described_class.run_tool(name: 'legion.search') }.not_to raise_error
+      end
+    end
+  end
 end

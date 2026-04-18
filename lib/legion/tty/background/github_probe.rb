@@ -3,17 +3,20 @@
 require 'net/http'
 require 'json'
 require 'uri'
+require 'legion/logging'
 
 module Legion
   module TTY
     module Background
       # rubocop:disable Metrics/ClassLength
       class GitHubProbe
+        include Legion::Logging::Helper
+
         API_BASE = 'https://api.github.com'
         USER_AGENT = 'legion-tty/github-probe'
 
         def initialize(token: nil, logger: nil)
-          @log = logger
+          @boot_log = logger
           @token = token || resolve_token
         end
 
@@ -21,19 +24,19 @@ module Legion
         def run_quick_async(queue)
           Thread.new do
             unless @token
-              @log&.log('github', 'quick probe skipped (no token)')
+              @boot_log&.log('github', 'quick probe skipped (no token)')
               queue.push({ type: :github_quick_complete, data: nil })
               return
             end
 
-            @log&.log('github', 'quick probe: fetching /user + recent commits')
+            @boot_log&.log('github', 'quick probe: fetching /user + recent commits')
             t0 = Time.now
             result = fetch_quick_profile
             elapsed = ((Time.now - t0) * 1000).round
-            @log&.log('github', "quick probe complete in #{elapsed}ms")
+            @boot_log&.log('github', "quick probe complete in #{elapsed}ms")
             queue.push({ type: :github_quick_complete, data: result })
           rescue StandardError => e
-            @log&.log('github', "quick probe ERROR: #{e.class}: #{e.message}")
+            @boot_log&.log('github', "quick probe ERROR: #{e.class}: #{e.message}")
             queue.push({ type: :github_quick_error, error: e.message })
           end
         end
@@ -42,9 +45,9 @@ module Legion
         # rubocop:disable Metrics/AbcSize
         def run_async(queue, remotes: [], quick_profile: nil)
           Thread.new do
-            @log&.log('github', "probing with #{remotes.size} remotes: #{remotes.first(5).inspect}")
-            @log&.log('github', "token: #{@token ? 'present' : 'NONE'}")
-            @log&.log('github', "quick_profile: #{quick_profile ? 'reusing' : 'none'}")
+            @boot_log&.log('github', "probing with #{remotes.size} remotes: #{remotes.first(5).inspect}")
+            @boot_log&.log('github', "token: #{@token ? 'present' : 'NONE'}")
+            @boot_log&.log('github', "quick_profile: #{quick_profile ? 'reusing' : 'none'}")
             t0 = Time.now
             result = if @token
                        build_authenticated_result(remotes, quick_profile: quick_profile)
@@ -52,10 +55,10 @@ module Legion
                        build_public_result(remotes)
                      end
             elapsed = ((Time.now - t0) * 1000).round
-            @log&.log('github', "probe complete in #{elapsed}ms")
+            @boot_log&.log('github', "probe complete in #{elapsed}ms")
             queue.push({ type: :github_probe_complete, data: result })
           rescue StandardError => e
-            @log&.log('github', "ERROR: #{e.class}: #{e.message}")
+            @boot_log&.log('github', "ERROR: #{e.class}: #{e.message}")
             queue.push({ type: :github_error, error: e.message })
           end
         end
@@ -71,14 +74,14 @@ module Legion
           return nil unless user_data.is_a?(Hash) && user_data['login']
 
           username = user_data['login']
-          @log&.log('github', "quick: authenticated as #{username}")
+          @boot_log&.log('github', "quick: authenticated as #{username}")
 
           week_ago = (Time.now - (7 * 86_400)).strftime('%Y-%m-%d')
           month_ago = (Time.now - (30 * 86_400)).strftime('%Y-%m-%d')
 
           commits_week = count_commits(username, since: week_ago)
           commits_month = count_commits(username, since: month_ago)
-          @log&.log('github', "quick: commits this week=#{commits_week} this month=#{commits_month}")
+          @boot_log&.log('github', "quick: commits this week=#{commits_week} this month=#{commits_month}")
 
           {
             username: username,
@@ -105,7 +108,7 @@ module Legion
 
           data['total_count'] || 0
         rescue StandardError => e
-          Legion::Logging.debug("count_commits failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "count_commits failed: #{e.message}" }
           0
         end
 
@@ -115,16 +118,16 @@ module Legion
         def build_authenticated_result(remotes, quick_profile: nil)
           if quick_profile
             username = quick_profile[:username]
-            @log&.log('github', "reusing quick profile for: #{username}")
+            @boot_log&.log('github', "reusing quick profile for: #{username}")
             profile = quick_profile
           else
             user_data = api_get('/user')
             unless user_data.is_a?(Hash) && user_data['login']
-              @log&.log('github', 'authenticated /user failed, falling back to public')
+              @boot_log&.log('github', 'authenticated /user failed, falling back to public')
               return build_public_result(remotes)
             end
             username = user_data['login']
-            @log&.log('github', "authenticated as: #{username}")
+            @boot_log&.log('github', "authenticated as: #{username}")
             profile = extract_profile(user_data)
           end
           orgs = fetch_orgs
@@ -227,7 +230,7 @@ module Legion
 
         def build_public_result(remotes)
           username = remotes.filter_map { |r| infer_username(r) }.first
-          @log&.log('github', "inferred username: #{username || 'none'}")
+          @boot_log&.log('github', "inferred username: #{username || 'none'}")
           return { username: nil } unless username
 
           profile_data = api_get("/users/#{username}")
@@ -288,17 +291,17 @@ module Legion
                       ENV.fetch('GH_TOKEN', nil) ||
                       ENV.fetch('GITHUB_PERSONAL_ACCESS_TOKEN', nil)
           if env_token
-            @log&.log('github', 'token source: environment variable')
+            @boot_log&.log('github', 'token source: environment variable')
             return env_token
           end
 
           gh_token = token_from_gh_cli
           if gh_token
-            @log&.log('github', 'token source: gh CLI')
+            @boot_log&.log('github', 'token source: gh CLI')
             return gh_token
           end
 
-          @log&.log('github', 'no token found (no env var, no gh CLI)')
+          @boot_log&.log('github', 'no token found (no env var, no gh CLI)')
           nil
         end
 
@@ -306,10 +309,10 @@ module Legion
           gh_path = `which gh 2>/dev/null`.strip
           return nil if gh_path.empty?
 
-          @log&.log('github', "found gh CLI at #{gh_path}")
+          @boot_log&.log('github', "found gh CLI at #{gh_path}")
 
           status = `gh auth status 2>&1`
-          @log&.log('github', "gh auth status: #{status.lines.first&.strip}")
+          @boot_log&.log('github', "gh auth status: #{status.lines.first&.strip}")
           return nil unless $CHILD_STATUS&.success?
 
           token = `gh auth token 2>/dev/null`.strip
@@ -317,7 +320,7 @@ module Legion
 
           token
         rescue StandardError => e
-          @log&.log('github', "gh CLI error: #{e.message}")
+          @boot_log&.log('github', "gh CLI error: #{e.message}")
           nil
         end
         # --- HTTP ---
@@ -328,7 +331,7 @@ module Legion
           response = http.request(build_request(uri))
           ::JSON.parse(response.body)
         rescue StandardError => e
-          Legion::Logging.debug("api_get failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "api_get failed: #{e.message}" }
           nil
         end
 

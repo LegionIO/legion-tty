@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     module Screens
       class Chat < Base
         module SessionCommands
+          include Legion::Logging::Helper
+
           private
 
           def handle_save(input)
@@ -142,7 +146,7 @@ module Legion
             @last_autosave = Time.now
             @status_bar.notify(message: 'Autosaved', level: :info, ttl: 2)
           rescue StandardError => e
-            Legion::Logging.warn("check_autosave failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "check_autosave failed: #{e.message}" }
             nil
           end
 
@@ -154,7 +158,7 @@ module Legion
             end
             @session_store.save(@session_name, messages: @message_stream.messages)
           rescue StandardError => e
-            Legion::Logging.warn("auto_save_session failed: #{e.message}") if defined?(Legion::Logging)
+            log.warn { "auto_save_session failed: #{e.message}" }
             nil
           end
 

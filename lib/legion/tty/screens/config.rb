@@ -2,6 +2,7 @@
 
 require 'fileutils'
 require 'json'
+require 'legion/logging'
 require_relative 'base'
 require_relative '../theme'
 
@@ -10,6 +11,8 @@ module Legion
     module Screens
       # rubocop:disable Metrics/ClassLength
       class Config < Base
+        include Legion::Logging::Helper
+
         MASKED_PATTERNS = %w[vault:// env://].freeze
 
         def initialize(app, output: $stdout, config_dir: nil)
@@ -101,7 +104,7 @@ module Legion
           @viewing_file = true
           @selected_key = 0
         rescue ::JSON::ParserError, Errno::ENOENT => e
-          Legion::Logging.warn("open_file failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "open_file failed: #{e.message}" }
           @file_data = { 'error' => 'Failed to parse file' }
           @viewing_file = true
         end
@@ -125,7 +128,7 @@ module Legion
 
           save_current_file
         rescue ::TTY::Reader::InputInterrupt, Interrupt => e
-          Legion::Logging.debug("edit_selected_key cancelled: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "edit_selected_key cancelled: #{e.message}" }
           nil
         end
 
@@ -133,7 +136,7 @@ module Legion
           ::JSON.generate(data)
           true
         rescue StandardError => e
-          Legion::Logging.warn("validate_config failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "validate_config failed: #{e.message}" }
           @messages = ["Invalid JSON: #{e.message}"]
           false
         end

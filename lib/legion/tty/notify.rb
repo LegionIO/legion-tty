@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
+
 module Legion
   module TTY
     # Notify — OS-level terminal notification dispatcher with auto-detection.
@@ -20,6 +22,8 @@ module Legion
       BACKENDS = %w[iterm2 kitty ghostty notify_send osascript bell].freeze
 
       class << self
+        include Legion::Logging::Helper
+
         # Send a notification.
         # @param message [String] notification body
         # @param title [String] notification title
@@ -82,7 +86,7 @@ module Legion
           else notify_bell
           end
         rescue StandardError => e
-          Legion::Logging.warn("Notify dispatch failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "Notify dispatch failed: #{e.message}" }
           notify_bell
         end
 

@@ -2,12 +2,15 @@
 
 require 'socket'
 require 'fileutils'
+require 'legion/logging'
 
 module Legion
   module TTY
     module Background
       # rubocop:disable Metrics/ClassLength
       class Scanner
+        include Legion::Logging::Helper
+
         MAX_DEPTH = 3
 
         SERVICES = {
@@ -34,7 +37,7 @@ module Legion
 
         def initialize(base_dirs: nil, logger: nil)
           @base_dirs = base_dirs || [File.expand_path('~')]
-          @log = logger
+          @boot_log = logger
         end
 
         def scan_services
@@ -73,14 +76,14 @@ module Legion
 
         def run_async(queue)
           Thread.new do
-            @log&.log('scanner', "starting scan of #{@base_dirs.join(', ')}")
+            @boot_log&.log('scanner', "starting scan of #{@base_dirs.join(', ')}")
             t0 = Time.now
             data = scan_all
             elapsed = ((Time.now - t0) * 1000).round
-            @log&.log('scanner', "scan complete in #{elapsed}ms")
+            @boot_log&.log('scanner', "scan complete in #{elapsed}ms")
             queue.push({ type: :scan_complete, data: data })
           rescue StandardError => e
-            @log&.log('scanner', "ERROR: #{e.class}: #{e.message}")
+            @boot_log&.log('scanner', "ERROR: #{e.class}: #{e.message}")
             queue.push({ type: :scan_error, error: e.message })
           end
         end
@@ -90,11 +93,11 @@ module Legion
         def port_open?(host, port)
           ::Socket.tcp(host, port, connect_timeout: 1) { true }
         rescue StandardError => e
-          Legion::Logging.debug("port_open? #{host}:#{port} failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "port_open? #{host}:#{port} failed: #{e.message}" }
           false
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:disable Metrics/AbcSize
         def collect_repos(base, depth = 0)
           return [] unless File.directory?(base)
           return [build_repo_entry(base)] if File.directory?(File.join(base, '.git'))
@@ -106,14 +109,14 @@ module Legion
             child_path = File.join(base, child)
             acc.concat(collect_repos(child_path, depth + 1)) if File.directory?(child_path)
           rescue StandardError => e
-            Legion::Logging.debug("collect_repos child failed: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "collect_repos child failed: #{e.message}" }
             next
           end
         rescue StandardError => e
-          Legion::Logging.debug("collect_repos failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "collect_repos failed: #{e.message}" }
           []
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+        # rubocop:enable Metrics/AbcSize
 
         def build_repo_entry(path)
           { path: path, name: File.basename(path), remote: git_remote(path),
@@ -124,7 +127,7 @@ module Legion
           out = `git -C #{path.shellescape} remote get-url origin 2>/dev/null`.strip
           out.empty? ? nil : out
         rescue StandardError => e
-          Legion::Logging.debug("git_remote failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "git_remote failed: #{e.message}" }
           nil
         end
 
@@ -132,7 +135,7 @@ module Legion
           out = `git -C #{path.shellescape} rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
           out.empty? ? nil : out
         rescue StandardError => e
-          Legion::Logging.debug("git_branch failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "git_branch failed: #{e.message}" }
           nil
         end
 
@@ -152,7 +155,7 @@ module Legion
 
             File.readlines(full, encoding: 'utf-8', chomp: true).last(500)
           rescue StandardError => e
-            Legion::Logging.debug("read_history_lines failed for #{path}: #{e.message}") if defined?(Legion::Logging)
+            log.debug { "read_history_lines failed for #{path}: #{e.message}" }
             []
           end
         end
@@ -178,11 +181,11 @@ module Legion
           result[:signing_key] = signing_key unless signing_key.empty?
           result
         rescue StandardError => e
-          Legion::Logging.debug("scan_gitconfig failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "scan_gitconfig failed: #{e.message}" }
           nil
         end
 
-        def scan_jfrog
+        def scan_jfrog # rubocop:disable Metrics/AbcSize
           config_path = File.expand_path('~/.jfrog/jfrog-cli.conf.v6')
           return nil unless File.exist?(config_path)
 
@@ -195,7 +198,7 @@ module Legion
             { server_id: s[:serverId], url: s[:url], user: s[:user] }
           end
         rescue StandardError => e
-          Legion::Logging.debug("scan_jfrog failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "scan_jfrog failed: #{e.message}" }
           nil
         end
 
@@ -210,7 +213,7 @@ module Legion
 
           { hosts: hosts.map(&:to_s) }
         rescue StandardError => e
-          Legion::Logging.debug("scan_terraform failed: #{e.message}") if defined?(Legion::Logging)
+          log.debug { "scan_terraform failed: #{e.message}" }
           nil
         end
       end

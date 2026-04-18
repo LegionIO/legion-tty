@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'legion/json'
+require 'legion/logging'
 require 'fileutils'
 
 module Legion
@@ -15,6 +16,8 @@ module Legion
     #
     # User overrides loaded from ~/.legionio/keybindings.json at boot.
     class KeybindingManager
+      include Legion::Logging::Helper
+
       CONTEXTS = %i[global chat dashboard extensions config command_palette session_picker history].freeze
 
       OVERRIDES_PATH = File.expand_path('~/.legionio/keybindings.json')
@@ -108,7 +111,7 @@ module Legion
         raw = Legion::JSON.parse(File.read(@overrides_path), symbolize_names: true)
         raw.each { |key, cfg| apply_override(key, cfg) }
       rescue Legion::JSON::ParseError => e
-        Legion::Logging.warn("keybindings load failed: #{e.message}") if defined?(Legion::Logging)
+        log.warn { "keybindings load failed: #{e.message}" }
       end
 
       private

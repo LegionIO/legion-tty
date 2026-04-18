@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'English'
+require 'legion/logging'
 require_relative '../theme'
 
 module Legion
@@ -8,6 +9,8 @@ module Legion
     module Components
       # rubocop:disable Metrics/ClassLength
       class MessageStream
+        include Legion::Logging::Helper
+
         attr_reader :messages, :scroll_offset
         attr_accessor :mute_system, :silent_mode, :highlights, :filter, :truncate_limit, :wrap_width, :show_numbers,
                       :colorize, :show_timestamps
@@ -183,7 +186,7 @@ module Legion
           require_relative 'markdown_view'
           MarkdownView.render(text, width: width)
         rescue StandardError => e
-          Legion::Logging.warn("render_markdown failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "render_markdown failed: #{e.message}" }
           text
         end
 
@@ -208,7 +211,7 @@ module Legion
             result.gsub(pattern) { "#{HIGHLIGHT_COLOR}#{$LAST_MATCH_INFO}#{HIGHLIGHT_RESET}" }
           end
         rescue StandardError => e
-          Legion::Logging.warn("apply_highlights failed: #{e.message}") if defined?(Legion::Logging)
+          log.warn { "apply_highlights failed: #{e.message}" }
           text
         end
 
