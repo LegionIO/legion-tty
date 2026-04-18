@@ -172,6 +172,9 @@ module Legion
           data      = Legion::Apollo.data_available? ? 'yes' : 'no'
           started   = Legion::Apollo.started? ? 'yes' : 'no'
           "    Apollo:   #{Theme.c(:secondary, "started=#{started}  transport=#{transport}  data=#{data}")}"
+        rescue StandardError => e
+          Legion::Logging.debug("apollo_system_line failed: #{e.message}") if defined?(Legion::Logging)
+          nil
         end
 
         def render_activity_panel(_width, max_lines)

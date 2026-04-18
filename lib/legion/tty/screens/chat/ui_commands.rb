@@ -1275,6 +1275,9 @@ module Legion
               @message_stream.add_message(role: :system, content: "Apollo graph failed: #{result[:error]}")
             end
           rescue ArgumentError
+            if defined?(Legion::Logging)
+              Legion::Logging.debug("handle_apollo_graph invalid entity_id: #{input.strip.inspect}")
+            end
             @message_stream.add_message(role: :system, content: "Invalid entity_id: #{input.strip.inspect}")
           rescue StandardError => e
             Legion::Logging.debug("handle_apollo_graph failed: #{e.message}") if defined?(Legion::Logging)

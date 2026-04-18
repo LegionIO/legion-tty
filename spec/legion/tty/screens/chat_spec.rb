@@ -1156,6 +1156,53 @@ RSpec.describe Legion::TTY::Screens::Chat do
       end
     end
 
+    context '/apollo ingest when Apollo not started' do
+      it 'shows Apollo not started' do
+        stub_const('Legion::Apollo', make_apollo_mod(started: false))
+        screen.handle_slash_command('/apollo ingest some text')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo not started.')
+      end
+
+      it 'returns :handled' do
+        stub_const('Legion::Apollo', make_apollo_mod(started: false))
+        expect(screen.handle_slash_command('/apollo ingest some text')).to eq(:handled)
+      end
+    end
+
+    context '/apollo ingest failure' do
+      before do
+        stub_const('Legion::Apollo', make_apollo_mod(
+                                       started: true,
+                                       ingest_result: { success: false, error: 'db_error' }
+                                     ))
+      end
+
+      it 'shows failure message when ingest fails' do
+        screen.handle_slash_command('/apollo ingest some text')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo ingest failed: db_error')
+      end
+
+      it 'returns :handled' do
+        expect(screen.handle_slash_command('/apollo ingest some text')).to eq(:handled)
+      end
+    end
+
+    context '/apollo graph when Apollo not started' do
+      it 'shows Apollo not started' do
+        stub_const('Legion::Apollo', make_apollo_mod(started: false))
+        screen.handle_slash_command('/apollo graph 42')
+        msgs = screen.message_stream.messages.select { |m| m[:role] == :system }
+        expect(msgs.last[:content]).to eq('Apollo not started.')
+      end
+
+      it 'returns :handled' do
+        stub_const('Legion::Apollo', make_apollo_mod(started: false))
+        expect(screen.handle_slash_command('/apollo graph 42')).to eq(:handled)
+      end
+    end
+
     context '/apollo graph <id> success' do
       before do
         stub_const('Legion::Apollo', make_apollo_mod(
