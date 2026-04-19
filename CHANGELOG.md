@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1] - 2026-04-18
+
+### Fixed
+- **Alternate screen buffer** — `App#run_loop` now enables `\e[?1049h` on startup and `\e[?1049l` on shutdown so the TUI no longer pollutes shell scrollback and the prior shell session is restored on exit (closes #20)
+- **Mouse wheel scroll** — enabled SGR mouse tracking (`\e[?1000h` + `\e[?1006h`) and routed wheel-up/wheel-down events to `MessageStream#scroll_up` / `#scroll_down` with 3-line increments (closes #20)
+- **Vim-style scroll bindings** — added `Ctrl+B` (half-page up) and `Ctrl+F` (half-page down) on the Chat screen; wired `Home` / `End` to jump-to-top / jump-to-bottom when the input bar is empty (closes #20)
+- **Scroll hint in status bar** — `scroll_segment` now shows directional arrows (`↑↓ scroll` or `↑ scroll`) alongside the position counter when content overflows the viewport (closes #20)
+- **Help text updated** — added scroll binding reference line to the help overlay
+
 ## [0.5.0] - 2026-04-17
 
 ### Added
