@@ -17,7 +17,10 @@ RSpec.describe Legion::TTY::Components::InputBar, 'Home/End passthrough' do
   end
 
   describe ':home when buffer has text' do
-    before { bar.handle_key('h'); bar.handle_key('i') }
+    before do
+      bar.handle_key('h')
+      bar.handle_key('i')
+    end
 
     it 'returns :handled and moves cursor to start' do
       expect(bar.handle_key(:home)).to eq(:handled)
@@ -32,7 +35,10 @@ RSpec.describe Legion::TTY::Components::InputBar, 'Home/End passthrough' do
   end
 
   describe ':end when buffer has text' do
-    before { bar.handle_key('h'); bar.handle_key('i') }
+    before do
+      bar.handle_key('h')
+      bar.handle_key('i')
+    end
 
     it 'returns :handled and moves cursor to end' do
       bar.handle_key(:home)
