@@ -122,7 +122,8 @@ module Legion
           scroll = @state[:scroll]
           return nil unless scroll.is_a?(Hash) && scroll[:total].to_i > scroll[:visible].to_i
 
-          Theme.c(:muted, "#{scroll[:current]}/#{scroll[:total]}")
+          hint = scroll[:current].to_i.positive? ? "\u2191\u2193 scroll" : "\u2191 scroll"
+          Theme.c(:muted, "#{scroll[:current]}/#{scroll[:total]} #{hint}")
         end
 
         def level_to_priority(level)

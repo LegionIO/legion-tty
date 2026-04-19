@@ -30,7 +30,8 @@ module Legion
         "\e[1~" => :home, "\e[4~" => :end,
         "\x7f" => :backspace, "\b" => :backspace, "\t" => :tab,
         "\x03" => :ctrl_c, "\x04" => :ctrl_d,
-        "\x01" => :ctrl_a, "\x05" => :ctrl_e,
+        "\x01" => :ctrl_a, "\x02" => :ctrl_b,
+        "\x05" => :ctrl_e, "\x06" => :ctrl_f,
         "\x0B" => :ctrl_k, "\x0C" => :ctrl_l, "\x13" => :ctrl_s,
         "\x15" => :ctrl_u
       }.freeze
@@ -151,12 +152,19 @@ module Legion
 
       # --- Event Loop ---
 
+      ENABLE_ALT_SCREEN = "\e[?1049h"
+      DISABLE_ALT_SCREEN = "\e[?1049l"
+      ENABLE_MOUSE = "\e[?1000h\e[?1006h"
+      DISABLE_MOUSE = "\e[?1000h\e[?1006l"
+
       # rubocop:disable Metrics/AbcSize
       def run_loop
         require 'io/console'
 
         @running = true
         @raw_mode = true
+        $stdout.print ENABLE_ALT_SCREEN
+        $stdout.print ENABLE_MOUSE
         $stdout.print cursor.hide
         $stdout.print cursor.clear_screen
 
@@ -175,9 +183,9 @@ module Legion
         nil
       ensure
         @raw_mode = false
+        $stdout.print DISABLE_MOUSE
         $stdout.print cursor.show
-        $stdout.print cursor.move_to(0, terminal_height - 1)
-        $stdout.puts
+        $stdout.print DISABLE_ALT_SCREEN
         shutdown
       end
       # rubocop:enable Metrics/AbcSize
@@ -188,11 +196,15 @@ module Legion
       end
 
       def normalize_key(raw)
+        mouse = parse_sgr_mouse(raw)
+        return mouse if mouse
+
         KEY_MAP[raw] || raw
       end
 
       # --- Key Dispatch ---
 
+      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def dispatch_key(key)
         if key == :ctrl_c
           @running = false
@@ -213,12 +225,18 @@ module Legion
         active = @screen_manager.active_screen
         return unless active
 
+        if %i[scroll_up scroll_down].include?(key)
+          dispatch_to_screen(active, key)
+          return
+        end
+
         if active.respond_to?(:needs_input_bar?) && active.needs_input_bar? && @input_bar
           dispatch_to_input_screen(active, key)
         else
           dispatch_to_screen(active, key)
         end
       end
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       def dispatch_to_input_screen(screen, key)
         result = @input_bar.handle_key(key)
@@ -295,6 +313,19 @@ module Legion
           break if c.ord.between?(0x40, 0x7E)
         end
         seq
+      end
+
+      SGR_MOUSE_RE = /\A\e\[<(\d+);(\d+);(\d+)([Mm])\z/
+
+      def parse_sgr_mouse(raw)
+        match = SGR_MOUSE_RE.match(raw)
+        return nil unless match
+
+        button = match[1].to_i
+        return :scroll_up if button == 64
+        return :scroll_down if button == 65
+
+        nil
       end
 
       # --- Rendering ---

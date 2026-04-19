@@ -207,12 +207,34 @@ module Legion
           when :page_down
             @message_stream.scroll_down(10)
             :handled
+          when :scroll_up
+            @message_stream.scroll_up(3)
+            :handled
+          when :scroll_down
+            @message_stream.scroll_down(3)
+            :handled
+          when :ctrl_b
+            @message_stream.scroll_up(half_page_lines)
+            :handled
+          when :ctrl_f
+            @message_stream.scroll_down(half_page_lines)
+            :handled
+          when :home
+            @message_stream.scroll_up(@message_stream.messages.size * 5)
+            :handled
+          when :end
+            @message_stream.scroll_down(@message_stream.scroll_offset)
+            :handled
           else
             :pass
           end
         end
 
         private
+
+        def half_page_lines
+          [(terminal_height - 3) / 2, 1].max
+        end
 
         def render_focus(width, height)
           stream_lines = @message_stream.render(width: width, height: [height, 1].max)
