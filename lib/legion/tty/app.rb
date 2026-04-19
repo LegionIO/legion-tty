@@ -36,6 +36,12 @@ module Legion
         "\x15" => :ctrl_u
       }.freeze
 
+      ENABLE_ALT_SCREEN = "\e[?1049h"
+      DISABLE_ALT_SCREEN = "\e[?1049l"
+      ENABLE_MOUSE = "\e[?1000h\e[?1006h"
+      DISABLE_MOUSE = "\e[?1000h\e[?1006l"
+      SGR_MOUSE_RE = /\A\e\[<(\d+);(\d+);(\d+)([Mm])\z/
+
       attr_reader :config, :credentials, :screen_manager, :hotkeys, :llm_chat, :input_bar
 
       def self.run(argv = [])
@@ -152,11 +158,6 @@ module Legion
 
       # --- Event Loop ---
 
-      ENABLE_ALT_SCREEN = "\e[?1049h"
-      DISABLE_ALT_SCREEN = "\e[?1049l"
-      ENABLE_MOUSE = "\e[?1000h\e[?1006h"
-      DISABLE_MOUSE = "\e[?1000h\e[?1006l"
-
       # rubocop:disable Metrics/AbcSize
       def run_loop
         require 'io/console'
@@ -204,7 +205,6 @@ module Legion
 
       # --- Key Dispatch ---
 
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def dispatch_key(key)
         if key == :ctrl_c
           @running = false
@@ -236,7 +236,6 @@ module Legion
           dispatch_to_screen(active, key)
         end
       end
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       def dispatch_to_input_screen(screen, key)
         result = @input_bar.handle_key(key)
@@ -314,8 +313,6 @@ module Legion
         end
         seq
       end
-
-      SGR_MOUSE_RE = /\A\e\[<(\d+);(\d+);(\d+)([Mm])\z/
 
       def parse_sgr_mouse(raw)
         match = SGR_MOUSE_RE.match(raw)
