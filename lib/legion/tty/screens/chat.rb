@@ -200,19 +200,32 @@ module Legion
         end
 
         def handle_input(key)
+          scroll = handle_scroll_key(key)
+          return scroll if scroll
+
+          :pass
+        end
+
+        def handle_scroll_key(key)
           case key
-          when :page_up
-            @message_stream.scroll_up(10)
-            :handled
-          when :page_down
-            @message_stream.scroll_down(10)
-            :handled
-          else
-            :pass
+          when :page_up      then @message_stream.scroll_up(10)
+          when :page_down    then @message_stream.scroll_down(10)
+          when :scroll_up    then @message_stream.scroll_up(3)
+          when :scroll_down  then @message_stream.scroll_down(3)
+          when :ctrl_b       then @message_stream.scroll_up(half_page_lines)
+          when :ctrl_f       then @message_stream.scroll_down(half_page_lines)
+          when :home         then @message_stream.scroll_up(@message_stream.messages.size * 5)
+          when :end          then @message_stream.scroll_down(@message_stream.scroll_offset)
+          else return nil
           end
+          :handled
         end
 
         private
+
+        def half_page_lines
+          [(terminal_height - 3) / 2, 1].max
+        end
 
         def render_focus(width, height)
           stream_lines = @message_stream.render(width: width, height: [height, 1].max)

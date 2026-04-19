@@ -36,7 +36,8 @@ module Legion
             'TOOLS   : /tools /export /bookmark /pin /pins /alias /snippet /history',
             'UTILS   : /calc /rand',
             '',
-            'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back'
+            'Hotkeys: Ctrl+D=dashboard  Ctrl+K=palette  Ctrl+S=sessions  Esc=back',
+            'Scroll : Mouse wheel  PgUp/PgDn  Ctrl+B/F (half-page)  Home/End (top/bottom)'
           ].freeze
 
           CALC_SAFE_PATTERN = %r{\A[\d\s+\-*/.()%]*\z}

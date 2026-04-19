@@ -49,10 +49,20 @@ module Legion
           when :left
             @cursor_pos = [@cursor_pos - 1, 0].max
             :handled
-          when :home, :ctrl_a
+          when :home
+            return :pass if @buffer.empty?
+
             @cursor_pos = 0
             :handled
-          when :end, :ctrl_e
+          when :ctrl_a
+            @cursor_pos = 0
+            :handled
+          when :end
+            return :pass if @buffer.empty?
+
+            @cursor_pos = @buffer.length
+            :handled
+          when :ctrl_e
             @cursor_pos = @buffer.length
             :handled
           when :ctrl_u
