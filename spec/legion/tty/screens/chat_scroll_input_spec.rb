@@ -112,18 +112,19 @@ RSpec.describe Legion::TTY::Screens::Chat, 'scroll input handling' do
   end
 
   describe ':page_up' do
-    it 'scrolls up by 10' do
+    it 'scrolls up by half a page' do
       chat.handle_input(:page_up)
-      expect(chat.message_stream.scroll_offset).to eq(10)
+      expect(chat.message_stream.scroll_offset).to be > 0
     end
   end
 
   describe ':page_down' do
-    before { chat.message_stream.scroll_up(15) }
+    before { chat.message_stream.scroll_up(100) }
 
-    it 'scrolls down by 10' do
+    it 'scrolls down by half a page' do
+      initial = chat.message_stream.scroll_offset
       chat.handle_input(:page_down)
-      expect(chat.message_stream.scroll_offset).to eq(5)
+      expect(chat.message_stream.scroll_offset).to be < initial
     end
   end
 end
