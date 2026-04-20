@@ -40,6 +40,8 @@ module Legion
       DISABLE_ALT_SCREEN = "\e[?1049l"
       ENABLE_MOUSE = "\e[?1000h\e[?1006h"
       DISABLE_MOUSE = "\e[?1000h\e[?1006l"
+      ENABLE_BRACKETED_PASTE = "\e[?2004h"
+      DISABLE_BRACKETED_PASTE = "\e[?2004l"
       SGR_MOUSE_RE = /\A\e\[<(\d+);(\d+);(\d+)([Mm])\z/
 
       attr_reader :config, :credentials, :screen_manager, :hotkeys, :llm_chat, :input_bar
@@ -158,7 +160,7 @@ module Legion
 
       # --- Event Loop ---
 
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def run_loop
         require 'io/console'
 
@@ -166,6 +168,7 @@ module Legion
         @raw_mode = true
         $stdout.print ENABLE_ALT_SCREEN
         $stdout.print ENABLE_MOUSE
+        $stdout.print ENABLE_BRACKETED_PASTE
         $stdout.print cursor.hide
         $stdout.print cursor.clear_screen
 
@@ -178,22 +181,33 @@ module Legion
 
             key = normalize_key(raw_key)
             dispatch_key(key)
+            drain_burst_keys(raw_in)
           end
         end
       rescue Interrupt
         nil
       ensure
         @raw_mode = false
+        $stdout.print DISABLE_BRACKETED_PASTE
         $stdout.print DISABLE_MOUSE
         $stdout.print cursor.show
         $stdout.print DISABLE_ALT_SCREEN
         shutdown
       end
-      # rubocop:enable Metrics/AbcSize
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
       def needs_refresh?
         active = @screen_manager.active_screen
         active.respond_to?(:streaming?) && active.streaming?
+      end
+
+      def drain_burst_keys(raw_in)
+        while @running && raw_in.wait_readable(0)
+          burst_key = read_raw_key(raw_in, timeout: 0)
+          break unless burst_key
+
+          dispatch_key(normalize_key(burst_key))
+        end
       end
 
       def normalize_key(raw)
@@ -205,6 +219,7 @@ module Legion
 
       # --- Key Dispatch ---
 
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
       def dispatch_key(key)
         if key == :ctrl_c
           @running = false
@@ -225,7 +240,7 @@ module Legion
         active = @screen_manager.active_screen
         return unless active
 
-        if %i[scroll_up scroll_down].include?(key)
+        if key.is_a?(Symbol) && %i[scroll_up scroll_down].include?(key)
           dispatch_to_screen(active, key)
           return
         end
@@ -236,6 +251,7 @@ module Legion
           dispatch_to_screen(active, key)
         end
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
       def dispatch_to_input_screen(screen, key)
         result = @input_bar.handle_key(key)
