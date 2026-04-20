@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2] - 2026-04-20
+
+### Fixed
+- **Bracketed paste support** — `App#run_loop` now enables bracketed paste mode (`\e[?2004h`) on startup and disables (`\e[?2004l`) on shutdown; `read_csi_sequence` detects `\e[200~` / `\e[201~` paste markers and buffers the full pasted text into a `{ paste: text }` event (closes #22)
+- **InputBar paste handling** — `handle_key` recognizes paste Hash events and inserts the full pasted text at the cursor position, replacing newlines with spaces, without triggering submit (closes #22)
+- **Non-symbol key guard** — `dispatch_key` checks `key.is_a?(Symbol)` before the scroll-event include check, preventing `NoMethodError` on Hash paste events (closes #22)
+- **`normalize_key` paste passthrough** — Hash events (paste) pass through without KEY_MAP lookup (closes #22)
+
 ## [0.5.1] - 2026-04-18
 
 ### Fixed
