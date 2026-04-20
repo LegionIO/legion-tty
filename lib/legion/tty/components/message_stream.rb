@@ -28,10 +28,13 @@ module Legion
           @show_numbers = false
           @colorize = true
           @show_timestamps = true
+          @line_cache = {}
+          @cache_options_hash = nil
         end
 
         def add_message(role:, content:)
           @messages << { role: role, content: content, tool_panels: [], timestamp: Time.now }
+          compact_cache if @line_cache.size > @messages.size * 2
         end
 
         def append_streaming(text)
@@ -87,13 +90,33 @@ module Legion
 
         private
 
-        def build_all_lines(width)
+        def build_all_lines(width) # rubocop:disable Metrics/AbcSize
+          current_opts = options_hash
+          if current_opts != @cache_options_hash
+            @line_cache.clear
+            @cache_options_hash = current_opts
+          end
+
           filtered_messages.each_with_index.flat_map do |msg, idx|
             next [] if @mute_system && msg[:role] == :system
             next [] if @silent_mode && msg[:role] == :assistant
 
-            render_message(msg, width, @show_numbers ? idx + 1 : nil)
+            cache_key = message_cache_key(msg, width)
+            @line_cache[cache_key] ||= render_message(msg, width, @show_numbers ? idx + 1 : nil)
           end
+        end
+
+        def options_hash
+          [@wrap_width, @show_numbers, @colorize, @show_timestamps, @highlights, @truncate_limit].hash
+        end
+
+        def message_cache_key(msg, width)
+          [msg.object_id, msg[:content], msg[:role], width,
+           msg[:reactions], msg[:annotations], msg[:tags], msg[:pinned]].hash
+        end
+
+        def compact_cache
+          @line_cache.clear
         end
 
         def filtered_messages

@@ -1,12 +1,11 @@
 # Changelog
 
-## [0.5.2] - 2026-04-20
+## [0.5.3] - 2026-04-20
 
 ### Fixed
-- **Bracketed paste support** — `App#run_loop` now enables bracketed paste mode (`\e[?2004h`) on startup and disables (`\e[?2004l`) on shutdown; `read_csi_sequence` detects `\e[200~` / `\e[201~` paste markers and buffers the full pasted text into a `{ paste: text }` event (closes #22)
-- **InputBar paste handling** — `handle_key` recognizes paste Hash events and inserts the full pasted text at the cursor position, replacing newlines with spaces, without triggering submit (closes #22)
-- **Non-symbol key guard** — `dispatch_key` checks `key.is_a?(Symbol)` before the scroll-event include check, preventing `NoMethodError` on Hash paste events (closes #22)
-- **`normalize_key` paste passthrough** — Hash events (paste) pass through without KEY_MAP lookup (closes #22)
+- **Scroll performance** — `MessageStream` now caches rendered lines per message keyed on `(object_id, content_hash, role, width, reactions, annotations, tags, pinned)`; cache invalidates automatically on content change (streaming), display option change, or width change — markdown re-parsing only runs for new/changed messages (closes #23)
+- **Input coalescing** — `App#run_loop` drains all queued keys before the next `render_frame`, so rapid typing no longer triggers O(total-messages) renders per keystroke (closes #23)
+- **PgUp/PgDn scroll step** — now scrolls by half-viewport (`(height-3)/2`) instead of a fixed 10 lines, matching Ctrl+B/Ctrl+F behavior (closes #23)
 
 ## [0.5.1] - 2026-04-18
 

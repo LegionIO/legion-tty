@@ -208,12 +208,10 @@ module Legion
 
         def handle_scroll_key(key)
           case key
-          when :page_up      then @message_stream.scroll_up(10)
-          when :page_down    then @message_stream.scroll_down(10)
+          when :page_up, :ctrl_b then @message_stream.scroll_up(half_page_lines)
+          when :page_down, :ctrl_f then @message_stream.scroll_down(half_page_lines)
           when :scroll_up    then @message_stream.scroll_up(3)
           when :scroll_down  then @message_stream.scroll_down(3)
-          when :ctrl_b       then @message_stream.scroll_up(half_page_lines)
-          when :ctrl_f       then @message_stream.scroll_down(half_page_lines)
           when :home         then @message_stream.scroll_up(@message_stream.messages.size * 5)
           when :end          then @message_stream.scroll_down(@message_stream.scroll_offset)
           else return nil
