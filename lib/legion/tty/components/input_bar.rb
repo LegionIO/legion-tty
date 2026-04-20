@@ -32,6 +32,8 @@ module Legion
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
         def handle_key(key)
+          return handle_paste(key[:paste]) if key.is_a?(Hash) && key.key?(:paste)
+
           case key
           when :enter
             submit_line
@@ -199,6 +201,14 @@ module Legion
             @saved_buffer = nil
           end
           @cursor_pos = @buffer.length
+          :handled
+        end
+
+        def handle_paste(text)
+          sanitized = text.to_s.gsub(/\r\n?/, "\n").gsub("\n", ' ')
+          @buffer.insert(@cursor_pos, sanitized)
+          @cursor_pos += sanitized.length
+          @tab_matches = []
           :handled
         end
 
