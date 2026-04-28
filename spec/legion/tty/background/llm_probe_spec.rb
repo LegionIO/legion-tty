@@ -67,36 +67,45 @@ RSpec.describe Legion::TTY::Background::LlmProbe do
   describe '#ping_provider' do
     let(:config) { { default_model: 'claude-3-haiku' } }
 
-    def stub_ruby_llm_success
-      chat_dbl = double('chat', ask: 'pong')
-      ruby_llm_mod = Module.new { def self.chat(**_kwargs); end }
-      allow(ruby_llm_mod).to receive(:chat).and_return(chat_dbl)
-      stub_const('RubyLLM', ruby_llm_mod)
+    def stub_legion_llm_success
+      llm_mod = Module.new { def self.ask(**_kwargs); end }
+      allow(llm_mod).to receive(:ask).and_return({ status: :done, response: 'pong' })
+      stub_const('Legion::LLM', llm_mod)
     end
 
-    def stub_ruby_llm_error(message)
+    def stub_legion_llm_error(message)
       err = message
-      ruby_llm_mod = Module.new { def self.chat(**_kwargs); end }
-      allow(ruby_llm_mod).to receive(:chat).and_raise(StandardError, err)
-      stub_const('RubyLLM', ruby_llm_mod)
+      llm_mod = Module.new { def self.ask(**_kwargs); end }
+      allow(llm_mod).to receive(:ask).and_raise(StandardError, err)
+      stub_const('Legion::LLM', llm_mod)
     end
 
-    it 'returns :ok status when RubyLLM succeeds' do
-      stub_ruby_llm_success
+    it 'returns :ok status when Legion::LLM.ask succeeds' do
+      stub_legion_llm_success
       result = probe.send(:ping_provider, :claude, config)
       expect(result[:status]).to eq(:ok)
       expect(result[:name]).to eq(:claude)
     end
 
-    it 'returns :configured status when RubyLLM raises' do
-      stub_ruby_llm_error('unknown provider')
+    it 'passes provider and model to Legion::LLM.ask' do
+      stub_legion_llm_success
+      probe.send(:ping_provider, :claude, config)
+      expect(Legion::LLM).to have_received(:ask).with(
+        message: 'Respond with only: pong',
+        model: 'claude-3-haiku',
+        provider: :claude
+      )
+    end
+
+    it 'returns :configured status when Legion::LLM.ask raises' do
+      stub_legion_llm_error('unknown provider')
       result = probe.send(:ping_provider, :foundry, config)
       expect(result[:status]).to eq(:configured)
       expect(result[:error]).to eq('unknown provider')
     end
 
     it 'includes latency_ms in all outcomes' do
-      stub_ruby_llm_error('err')
+      stub_legion_llm_error('err')
       result = probe.send(:ping_provider, :xai, config)
       expect(result).to have_key(:latency_ms)
     end

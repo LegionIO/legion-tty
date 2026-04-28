@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.4] - 2026-04-28
+
+### Fixed
+- **LLM provider probe routing** — `Background::LlmProbe` now validates enabled providers through `Legion::LLM.ask` with the configured provider/model instead of calling RubyLLM directly.
+
 ## [0.5.3] - 2026-04-20
 
 ### Fixed
