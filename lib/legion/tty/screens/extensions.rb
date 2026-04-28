@@ -12,15 +12,20 @@ module Legion
         include Legion::Logging::Helper
 
         CORE = %w[lex-node lex-tasker lex-scheduler lex-conditioner lex-transformer
-                  lex-synapse lex-health lex-log lex-ping lex-metering lex-llm-gateway
+                  lex-synapse lex-health lex-log lex-ping lex-metering lex-llm-ledger
                   lex-codegen lex-exec lex-lex lex-telemetry lex-audit lex-detect].freeze
 
-        AI = %w[lex-claude lex-openai lex-gemini].freeze
+        AI = %w[lex-azure-ai lex-bedrock lex-claude lex-foundry lex-gemini lex-llamacpp
+                lex-mlx lex-ollama lex-openai lex-uais lex-xai lex-llm lex-llm-anthropic
+                lex-llm-azure-foundry lex-llm-bedrock lex-llm-gemini lex-llm-mlx
+                lex-llm-ollama lex-llm-openai lex-llm-vertex lex-llm-vllm].freeze
+
+        LEGACY = %w[lex-llm-gateway].freeze
 
         SERVICE = %w[lex-http lex-vault lex-github lex-consul lex-kerberos lex-tfe
                      lex-redis lex-memcached lex-elasticsearch lex-s3].freeze
 
-        CATEGORIES = [nil, 'Core', 'AI', 'Service', 'Agentic', 'Other'].freeze
+        CATEGORIES = [nil, 'Core', 'AI', 'Service', 'Agentic', 'Legacy', 'Other'].freeze
 
         def initialize(app, output: $stdout)
           super(app)
@@ -119,6 +124,7 @@ module Legion
           return 'AI' if AI.include?(name)
           return 'Service' if SERVICE.include?(name)
           return 'Agentic' if name.match?(/^lex-agentic-|^lex-theory-|^lex-mind-|^lex-planning|^lex-attention/)
+          return 'Legacy' if LEGACY.include?(name)
 
           'Other'
         end

@@ -4,6 +4,7 @@
 
 ### Fixed
 - **LLM provider probe routing** — `Background::LlmProbe` now validates enabled providers through `Legion::LLM.ask` with the configured provider/model instead of calling RubyLLM directly.
+- **Extension catalog provider stack** — the extensions screen now categorizes native `lex-llm-*` provider gems as AI extensions and shows `lex-llm-gateway` as legacy compatibility instead of an active Core extension.
 
 ## [0.5.3] - 2026-04-20
 
