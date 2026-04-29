@@ -14,4 +14,3 @@ end
 gem 'legionio'
 gem 'legion-rbac'
 gem 'lex-kerberos'
-gem 'ruby_llm'

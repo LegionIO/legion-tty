@@ -542,7 +542,7 @@ module Legion
 
       def try_settings_llm
         # All LLM calls route through the LegionIO daemon API.
-        # No raw RubyLLM session is created here — nil signals "use daemon path".
+        # No raw provider session is created here; nil signals "use daemon path".
         if Legion::TTY::DaemonClient.available?
           log.debug { 'TTY: daemon available, LLM routed through daemon' }
         else
