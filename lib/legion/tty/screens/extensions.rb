@@ -121,10 +121,11 @@ module Legion
 
         def categorize(name)
           return 'Core' if CORE.include?(name)
+          return 'Legacy' if LEGACY.include?(name)
+          return 'AI' if name.start_with?('lex-llm-')
           return 'AI' if AI.include?(name)
           return 'Service' if SERVICE.include?(name)
           return 'Agentic' if name.match?(/^lex-agentic-|^lex-theory-|^lex-mind-|^lex-planning|^lex-attention/)
-          return 'Legacy' if LEGACY.include?(name)
 
           'Other'
         end

@@ -181,6 +181,18 @@ RSpec.describe Legion::TTY::Screens::Extensions do
       expect(result.first[:category]).to eq('AI')
     end
 
+    it 'categorizes future native lex-llm provider gems as AI' do
+      spec = double('Gem::Specification',
+                    name: 'lex-llm-future-provider',
+                    version: Gem::Version.new('0.1.0'),
+                    summary: 'Future LLM provider',
+                    homepage: nil,
+                    runtime_dependencies: [])
+      allow(Gem::Specification).to receive(:select).and_return([spec])
+      result = screen.discover_extensions
+      expect(result.first[:category]).to eq('AI')
+    end
+
     it 'categorizes lex-llm-gateway as legacy compatibility' do
       allow(Gem::Specification).to receive(:select).and_return([mock_spec_llm_gateway])
       result = screen.discover_extensions
