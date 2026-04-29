@@ -34,6 +34,24 @@ RSpec.describe Legion::TTY::Screens::Extensions do
            runtime_dependencies: [])
   end
 
+  let(:mock_spec_llm_openai) do
+    double('Gem::Specification',
+           name: 'lex-llm-openai',
+           version: Gem::Version.new('0.1.0'),
+           summary: 'OpenAI LLM provider',
+           homepage: 'https://github.com/LegionIO/lex-llm-openai',
+           runtime_dependencies: [])
+  end
+
+  let(:mock_spec_llm_gateway) do
+    double('Gem::Specification',
+           name: 'lex-llm-gateway',
+           version: Gem::Version.new('0.3.0'),
+           summary: 'Legacy LLM gateway compatibility',
+           homepage: 'https://github.com/LegionIO/lex-llm-gateway',
+           runtime_dependencies: [])
+  end
+
   let(:mock_spec_agentic) do
     double('Gem::Specification',
            name: 'lex-agentic-attention',
@@ -155,6 +173,30 @@ RSpec.describe Legion::TTY::Screens::Extensions do
       allow(Gem::Specification).to receive(:select).and_return([mock_spec_claude])
       result = screen.discover_extensions
       expect(result.first[:category]).to eq('AI')
+    end
+
+    it 'categorizes a native lex-llm provider gem as AI' do
+      allow(Gem::Specification).to receive(:select).and_return([mock_spec_llm_openai])
+      result = screen.discover_extensions
+      expect(result.first[:category]).to eq('AI')
+    end
+
+    it 'categorizes future native lex-llm provider gems as AI' do
+      spec = double('Gem::Specification',
+                    name: 'lex-llm-future-provider',
+                    version: Gem::Version.new('0.1.0'),
+                    summary: 'Future LLM provider',
+                    homepage: nil,
+                    runtime_dependencies: [])
+      allow(Gem::Specification).to receive(:select).and_return([spec])
+      result = screen.discover_extensions
+      expect(result.first[:category]).to eq('AI')
+    end
+
+    it 'categorizes lex-llm-gateway as legacy compatibility' do
+      allow(Gem::Specification).to receive(:select).and_return([mock_spec_llm_gateway])
+      result = screen.discover_extensions
+      expect(result.first[:category]).to eq('Legacy')
     end
 
     it 'categorizes a Service gem correctly' do

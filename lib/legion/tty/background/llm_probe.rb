@@ -8,6 +8,8 @@ module Legion
       class LlmProbe
         include Legion::Logging::Helper
 
+        PROBE_PROMPT = 'Respond with only: pong'
+
         def initialize(logger: nil, wait_queue: nil)
           @boot_log = logger
           @wait_queue = wait_queue
@@ -76,7 +78,7 @@ module Legion
         def ping_provider(name, config)
           model = config[:default_model]
           start_time = Time.now
-          RubyLLM.chat(model: model, provider: name).ask('Respond with only: pong')
+          Legion::LLM.ask(message: PROBE_PROMPT, model: model, provider: name)
           latency = ((Time.now - start_time) * 1000).round
           { name: name, model: model, status: :ok, latency_ms: latency }
         rescue StandardError => e

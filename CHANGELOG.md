@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.4] - 2026-04-28
+
+### Fixed
+- **LLM provider probe routing** — `Background::LlmProbe` now validates enabled providers through `Legion::LLM.ask` with the configured provider/model instead of calling RubyLLM directly.
+- **Extension catalog provider stack** — the extensions screen now categorizes native `lex-llm-*` provider gems as AI extensions and shows `lex-llm-gateway` as legacy compatibility instead of an active Core extension.
+- **Future native LLM providers** — the extensions screen now classifies future `lex-llm-*` provider gems as AI automatically while preserving `lex-llm-gateway` as Legacy.
+- **Development dependency cleanup** — removed the stale direct `ruby_llm` Gemfile dependency so local TTY development follows the Legion-native LLM path.
+
 ## [0.5.3] - 2026-04-20
 
 ### Fixed

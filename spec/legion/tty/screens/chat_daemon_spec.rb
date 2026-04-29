@@ -143,7 +143,7 @@ RSpec.describe Legion::TTY::Screens::Chat do
           .with("\n[Error: connection refused]")
       end
 
-      it 'does not fall back to raw RubyLLM' do
+      it 'does not fall back to a raw provider client' do
         expect(screen.instance_variable_get(:@llm_chat)).to be_nil
         screen.send(:send_to_llm, 'hello')
       end
