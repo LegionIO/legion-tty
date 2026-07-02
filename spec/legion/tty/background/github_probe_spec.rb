@@ -19,6 +19,28 @@ RSpec.describe Legion::TTY::Background::GitHubProbe do
     end
   end
 
+  describe 'resolve_token (private)' do
+    subject(:probe) { described_class.new(token: nil) }
+
+    it 'prefers the lex-identity-github resolver when it returns a token' do
+      allow(probe).to receive(:token_from_identity).and_return('identity-token')
+      expect(probe.send(:resolve_token)).to eq('identity-token')
+    end
+
+    it 'falls back to ENV when the identity resolver yields nothing' do
+      allow(probe).to receive(:token_from_identity).and_return(nil)
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('GITHUB_TOKEN', nil).and_return('env-token')
+      expect(probe.send(:resolve_token)).to eq('env-token')
+    end
+
+    it 'returns nil gracefully when the identity gem is unavailable' do
+      # lex-identity-github is not part of the TTY test bundle, so the require
+      # raises LoadError and token_from_identity degrades to nil.
+      expect(probe.send(:token_from_identity)).to be_nil
+    end
+  end
+
   describe 'infer_username (private)' do
     it 'extracts username from HTTPS URL' do
       url = 'https://github.com/LegionIO/legion-tty'

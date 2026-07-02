@@ -14,7 +14,7 @@ module Legion
         end
 
         def probe
-          principal = read_principal
+          principal = resolve_principal
           return nil unless principal
 
           username = principal.split('@', 2).first
@@ -39,6 +39,25 @@ module Legion
         end
 
         private
+
+        # Prefer the shared lex-identity-kerberos resolver (reads the principal
+        # from Legion::Crypt); fall back to parsing `klist` directly for TTY-only
+        # mode where the identity extension isn't loaded.
+        def resolve_principal
+          identity_principal || read_principal
+        end
+
+        def identity_principal
+          require 'legion/extensions/identity/kerberos/helpers/resolver'
+          principal = Legion::Extensions::Identity::Kerberos::Helpers::Resolver.principal
+          return nil if principal.nil? || principal.to_s.empty?
+
+          @log&.log('kerberos', "principal source: lex-identity-kerberos (#{principal})")
+          principal.to_s
+        rescue LoadError, StandardError => e
+          @log&.log('kerberos', "identity resolver unavailable: #{e.message}")
+          nil
+        end
 
         def read_principal
           output = `klist 2>/dev/null`

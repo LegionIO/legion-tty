@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.6] - 2026-07-02
+
+### Changed
+- **Probes route through identity provider extensions** — `Background::KerberosProbe` now resolves the principal via `lex-identity-kerberos` `Helpers::Resolver` when loaded, falling back to inline `klist` parsing for TTY-only mode. `Background::GitHubProbe` now resolves its token via `lex-identity-github` `Helpers::TokenResolver` when loaded, falling back to the inline env-var + `gh` CLI path. Both degrade gracefully when the identity gems are unavailable (closes #26)
+
+## [0.5.5] - 2026-07-02
+
+### Fixed
+- **Teams onboarding auth crash** — onboarding no longer requires the deleted `lex-microsoft_teams` `Helpers::TokenCache` / `Helpers::BrowserAuth`, which were migrated to `lex-identity-entra`. `build_teams_browser_auth`, `store_teams_token`, and `teams_already_authenticated?` now route through `Legion::Extensions::Identity::Entra::Helpers::{BrowserAuth,TokenManager,Scopes}`, matching the entra delegated CLI login flow (closes #29)
+
 ## [0.5.4] - 2026-04-28
 
 ### Fixed
