@@ -65,6 +65,9 @@ RSpec.describe Legion::TTY::DaemonClient do
 
   describe '.chat' do
     it 'returns nil when daemon is unavailable' do
+      # Simulate an unreachable daemon rather than relying on nothing listening
+      # on 127.0.0.1:4567 — a real LegionIO daemon may be running locally.
+      allow(Net::HTTP).to receive(:start).and_raise(Errno::ECONNREFUSED)
       result = described_class.chat(message: 'hello')
       expect(result).to be_nil
     end

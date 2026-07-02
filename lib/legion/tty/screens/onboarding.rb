@@ -359,14 +359,15 @@ module Legion
           @output.puts
           browser_auth = build_teams_browser_auth
           result = browser_auth.authenticate
-          if result && result[:access_token]
-            store_teams_token(result)
+          body = result.is_a?(Hash) ? result[:result] : nil
+          if body && body[:access_token]
+            store_teams_token(body)
             typed_output('Teams connected.')
           else
             typed_output('Teams connection skipped.')
           end
           @output.puts
-        rescue StandardError => e
+        rescue LoadError, StandardError => e
           typed_output("Teams connection failed: #{e.message}")
           @output.puts
         end
@@ -393,29 +394,50 @@ module Legion
         end
 
         def teams_already_authenticated?
-          File.exist?(File.expand_path('~/.legionio/tokens/microsoft_teams.json'))
+          require 'legion/extensions/identity/entra/helpers/token_manager'
+          Legion::Extensions::Identity::Entra::Helpers::TokenManager.authenticated?(:delegated)
+        rescue LoadError, StandardError => e
+          log.debug { "teams_already_authenticated? failed: #{e.message}" }
+          false
         end
 
         def build_teams_browser_auth
-          require 'legion/extensions/microsoft_teams/helpers/browser_auth'
-          settings = begin
-            Legion::Settings.dig(:microsoft_teams, :auth) || {}
-          rescue StandardError => e
-            log.warn { "build_teams_browser_auth settings failed: #{e.message}" }
-            {}
-          end
-          Legion::Extensions::MicrosoftTeams::Helpers::BrowserAuth.new(
+          require 'legion/extensions/identity/entra/helpers/browser_auth'
+          settings = teams_entra_settings
+          Legion::Extensions::Identity::Entra::Helpers::BrowserAuth.new(
             tenant_id: settings[:tenant_id],
-            client_id: settings[:client_id]
+            client_id: settings[:client_id],
+            scopes: teams_scopes,
+            force_local_server: true
           )
         end
 
-        def store_teams_token(result)
-          require 'legion/extensions/microsoft_teams/helpers/token_cache'
-          cache = Legion::Extensions::MicrosoftTeams::Helpers::TokenCache.instance
-          cache.store_delegated_token(result)
-          cache.save_to_vault
-        rescue StandardError => e
+        def teams_entra_settings
+          require 'legion/extensions/identity/entra/helpers/token_manager'
+          Legion::Extensions::Identity::Entra::Helpers::TokenManager.settings_auth
+        rescue LoadError, StandardError => e
+          log.warn { "teams_entra_settings failed: #{e.message}" }
+          {}
+        end
+
+        def teams_scopes
+          require 'legion/extensions/identity/entra/helpers/scopes'
+          Legion::Extensions::Identity::Entra::Helpers::Scopes.resolve(pattern: :delegated)
+        rescue LoadError, StandardError => e
+          log.warn { "teams_scopes failed: #{e.message}" }
+          nil
+        end
+
+        def store_teams_token(body)
+          require 'legion/extensions/identity/entra/helpers/token_manager'
+          Legion::Extensions::Identity::Entra::Helpers::TokenManager.save_token(
+            :delegated,
+            access_token: body[:access_token],
+            refresh_token: body[:refresh_token],
+            expires_in: body[:expires_in] || 3600,
+            scopes: body[:scope] || teams_scopes
+          )
+        rescue LoadError, StandardError => e
           log.warn { "store_teams_token failed: #{e.message}" }
           nil
         end

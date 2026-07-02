@@ -31,10 +31,19 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
 
       it 'runs BrowserAuth when user agrees' do
         allow(wizard).to receive(:confirm).with(/Microsoft Teams/).and_return(true)
-        browser_auth = double('browser_auth', authenticate: { access_token: 'tok' })
+        browser_auth = double('browser_auth', authenticate: { result: { access_token: 'tok' } })
         allow(onboarding).to receive(:build_teams_browser_auth).and_return(browser_auth)
         allow(onboarding).to receive(:store_teams_token)
         expect(browser_auth).to receive(:authenticate)
+        onboarding.send(:run_service_auth)
+      end
+
+      it 'stores the token from the nested result body' do
+        allow(wizard).to receive(:confirm).with(/Microsoft Teams/).and_return(true)
+        body = { access_token: 'tok', refresh_token: 'ref', expires_in: 3600 }
+        browser_auth = double('browser_auth', authenticate: { result: body })
+        allow(onboarding).to receive(:build_teams_browser_auth).and_return(browser_auth)
+        expect(onboarding).to receive(:store_teams_token).with(body)
         onboarding.send(:run_service_auth)
       end
 
@@ -72,10 +81,9 @@ RSpec.describe Legion::TTY::Screens::Onboarding do
   end
 
   describe '#teams_already_authenticated?' do
-    it 'checks for token file existence' do
-      allow(File).to receive(:exist?).and_call_original
-      token_path = File.expand_path('~/.legionio/tokens/microsoft_teams.json')
-      allow(File).to receive(:exist?).with(token_path).and_return(false)
+    it 'returns false gracefully when the entra identity gem is unavailable' do
+      # lex-identity-entra is not part of the TTY test bundle, so the require
+      # raises LoadError and the method degrades to false.
       expect(onboarding.send(:teams_already_authenticated?)).to be false
     end
   end
