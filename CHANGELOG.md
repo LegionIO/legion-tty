@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.6] - 2026-07-02
+
+### Changed
+- **Probes route through identity provider extensions** — `Background::KerberosProbe` now resolves the principal via `lex-identity-kerberos` `Helpers::Resolver` when loaded, falling back to inline `klist` parsing for TTY-only mode. `Background::GitHubProbe` now resolves its token via `lex-identity-github` `Helpers::TokenResolver` when loaded, falling back to the inline env-var + `gh` CLI path. Both degrade gracefully when the identity gems are unavailable (closes #26)
+
 ## [0.5.5] - 2026-07-02
 
 ### Fixed

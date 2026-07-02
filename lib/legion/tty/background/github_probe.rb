@@ -287,6 +287,9 @@ module Legion
         # --- Token resolution ---
 
         def resolve_token
+          identity_token = token_from_identity
+          return identity_token if identity_token
+
           env_token = ENV.fetch('GITHUB_TOKEN', nil) ||
                       ENV.fetch('GH_TOKEN', nil) ||
                       ENV.fetch('GITHUB_PERSONAL_ACCESS_TOKEN', nil)
@@ -302,6 +305,21 @@ module Legion
           end
 
           @boot_log&.log('github', 'no token found (no env var, no gh CLI)')
+          nil
+        end
+
+        # Prefer the shared lex-identity-github token resolver (env + gh CLI,
+        # multi-account aware); fall back to inline resolution for TTY-only mode
+        # where the identity extension isn't loaded.
+        def token_from_identity
+          require 'legion/extensions/identity/github/helpers/token_resolver'
+          resolved = Legion::Extensions::Identity::Github::Helpers::TokenResolver.resolve_default
+          return nil unless resolved.is_a?(Hash) && resolved[:token]
+
+          @boot_log&.log('github', "token source: lex-identity-github (#{resolved[:source]})")
+          resolved[:token]
+        rescue LoadError, StandardError => e
+          @boot_log&.log('github', "identity resolver unavailable: #{e.message}")
           nil
         end
 

@@ -97,6 +97,26 @@ RSpec.describe Legion::TTY::Background::KerberosProbe do
     end
   end
 
+  describe 'resolve_principal (private)' do
+    it 'prefers the lex-identity-kerberos resolver when it returns a principal' do
+      allow(probe).to receive(:identity_principal).and_return('kdoe@CORP.EXAMPLE.COM')
+      expect(probe).not_to receive(:read_principal)
+      expect(probe.send(:resolve_principal)).to eq('kdoe@CORP.EXAMPLE.COM')
+    end
+
+    it 'falls back to klist when the identity resolver yields nothing' do
+      allow(probe).to receive(:identity_principal).and_return(nil)
+      allow(probe).to receive(:read_principal).and_return('jdoe@EXAMPLE.COM')
+      expect(probe.send(:resolve_principal)).to eq('jdoe@EXAMPLE.COM')
+    end
+
+    it 'returns nil gracefully when the identity gem is unavailable' do
+      # lex-identity-kerberos is not part of the TTY test bundle, so the require
+      # raises LoadError and identity_principal degrades to nil.
+      expect(probe.send(:identity_principal)).to be_nil
+    end
+  end
+
   describe 'private methods' do
     describe 'realm_to_base_dn' do
       it 'converts realm to LDAP base DN' do
