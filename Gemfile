@@ -8,7 +8,7 @@ group :development, :test do
   gem 'rubocop', '~> 1.60'
   gem 'rubocop-legion'
   gem 'rubocop-rspec', '~> 3.10'
-  gem 'simplecov', '~> 0.22'
+  gem 'simplecov', '~> 1.0'
 end
 
 gem 'legionio'
